@@ -361,3 +361,14 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# GraspPortable local build and private workspaces
+dist/
+.cache/
+workspaces/
+gitignored/
+playwright-report/
+test-results/
+*.grasp.db
+*.grasp.db-shm
+*.grasp.db-wal

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-09-26T19:58:23.850Z",
+  "node": "v24.18.0",
+  "platform": "win32",
+  "source": "GraspPortable-0.1.0",
+  "packagedFiles": 21,
+  "staticAssetsLoaded": 2,
+  "builtinHostImports": [
+    "node:http",
+    "node:fs/promises",
+    "node:path",
+    "node:fs",
+    "node:crypto",
+    "node:sqlite"
+  ],
+  "isolatedOutsideRepository": true,
+  "installedDependenciesRequired": false,
+  "launcherStarted": true,
+  "databaseWriteExportRestart": "passed",
+  "privateFilesAbsent": true
+}

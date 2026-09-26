@@ -1,0 +1,579 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\node.exe",
+      "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\node_modules\\@playwright\\test\\cli.js",
+      "test"
+    ],
+    "configFile": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\playwright.config.ts",
+    "rootDir": "C:/Users/ASUS/MyData/AgentWorkspace/All-of-Me/GraspProject/GraspPortable/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/ASUS/MyData/AgentWorkspace/All-of-Me/GraspProject/GraspPortable/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/Users/ASUS/MyData/AgentWorkspace/All-of-Me/GraspProject/GraspPortable/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "docs/benchmarks/e2e-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "concurrency.spec.ts",
+      "file": "concurrency.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "production concurrency and draft safety",
+          "file": "concurrency.spec.ts",
+          "line": 76,
+          "column": 15,
+          "specs": [
+            {
+              "title": "late autosave acknowledgement plus further input and create preserves both documents",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                        "line": 76,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1124,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:54:49.357Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                            "line": 76,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "86c89b41e5fe2444d123-efdb2469ca550dbc6852",
+              "file": "concurrency.spec.ts",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "selecting another note during delayed autosave cannot cross-write the newest draft",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                        "line": 76,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 915,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:54:50.938Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                            "line": 76,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "86c89b41e5fe2444d123-78fcf48bfc24e702d1cf",
+              "file": "concurrency.spec.ts",
+              "line": 117,
+              "column": 3
+            },
+            {
+              "title": "an already-rendered References result flushes shifted draft text and selects its current occurrence",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                        "line": 76,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 639,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:54:51.860Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                            "line": 76,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "86c89b41e5fe2444d123-68e86c9cb7a2bf7749c9",
+              "file": "concurrency.spec.ts",
+              "line": 136,
+              "column": 3
+            },
+            {
+              "title": "failed save retains draft, blocks replacement commands, guards reload, and can retry",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                        "line": 76,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6415,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:54:52.508Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                            "line": 76,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "86c89b41e5fe2444d123-847922202aff41ffd371",
+              "file": "concurrency.spec.ts",
+              "line": 183,
+              "column": 3
+            },
+            {
+              "title": "a workspace switched in another tab rejects the old tab with 409 and leaves both databases intact",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                        "line": 76,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1245,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:54:58.932Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\concurrency.spec.ts",
+                            "line": 76,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "86c89b41e5fe2444d123-75469c1a22aad2045645",
+              "file": "concurrency.spec.ts",
+              "line": 213,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "workflow.spec.ts",
+      "file": "workflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "production build complete workflow",
+          "file": "workflow.spec.ts",
+          "line": 42,
+          "column": 15,
+          "specs": [
+            {
+              "title": "create workspace, write Markdown, reactive nested values, definition/references, cycle recovery, undo",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                        "line": 42,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1224,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:55:00.213Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                            "line": 42,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c601ceb5ecfc8efa4a14-32b5dfb583bbdadcd020",
+              "file": "workflow.spec.ts",
+              "line": 46,
+              "column": 3
+            },
+            {
+              "title": "structured records, reactive table and safe controlled Markdown export/import with recovery",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                        "line": 42,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1139,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:55:01.579Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                            "line": 42,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c601ceb5ecfc8efa4a14-255569ae6234e57620d7",
+              "file": "workflow.spec.ts",
+              "line": 74,
+              "column": 3
+            },
+            {
+              "title": "actual host stop and restart preserves DB authority, records, values and selected note",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                        "line": 42,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 539,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:55:02.726Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                            "line": 42,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c601ceb5ecfc8efa4a14-7432ad8b147cc6595431",
+              "file": "workflow.spec.ts",
+              "line": 97,
+              "column": 3
+            },
+            {
+              "title": "large reference workload remains editable while worker recalculates",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                        "line": 42,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3553,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-26T19:55:03.271Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\workflow.spec.ts",
+                            "line": 42,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c601ceb5ecfc8efa4a14-67041815918447586830",
+              "file": "workflow.spec.ts",
+              "line": 106,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-26T19:54:49.053Z",
+    "duration": 18026.626999999997,
+    "expected": 9,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
