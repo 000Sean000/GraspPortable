@@ -74,7 +74,10 @@ try {
   const sourceHashes = new Map(plan.report.files.filter(file => file.kind === 'note').map(file => [file.id, file.sha256]));
   function verifyOriginal(snapshot: WorkspaceSnapshot) {
     for (const [id, expected] of sourceHashes) assert.equal(hash(Buffer.from(snapshot.notes.find(note => note.id === id)!.markdown, 'utf8')), expected);
-    assert.deepEqual(snapshot.folders, plan.snapshot.folders); assert.deepEqual(snapshot.attachments, plan.snapshot.attachments);
+    // node:sqlite rows have a null prototype; compare the serialized DTO
+    // contract, including every field, rather than JavaScript prototypes.
+    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.folders)), plan.snapshot.folders);
+    assert.deepEqual(JSON.parse(JSON.stringify(snapshot.attachments)), plan.snapshot.attachments);
   }
   await measured('verify-import', async () => {
     assert.equal(store!.snapshot().notes.length, plan.snapshot.notes.length); assert.deepEqual(store!.snapshot().records, plan.snapshot.records);

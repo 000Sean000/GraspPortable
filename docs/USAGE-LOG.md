@@ -95,3 +95,9 @@ Output: versioned shared semantics and persisted caches; durable draft/source jo
 Normal Codex usage bucket: **55% used**, ordinaryUsageAllowed=true, 10080-minute window/reset `1791128122`. M2 snapshot at 16:50:35 UTC was31%; approximately49minutes/+24percentagepoints account-wide, not exclusive task billing. Intermediate observations:17:25:02UTC47%,17:34–17:36UTC54%. No Luna/Reserve/reset invoked.
 
 Output: semantic-unit strategy/package/review, deterministic partial/full renderer, trusted multi-file external import, schema5 persistence, single checkpoint publisher, two independent recovery generations, streamed rebuild and migration foundation, App projection UI. Full512tests/build and36productionE2E pass. M4 full private-corpus and scale10 workload remain; do not mark full Goal complete. Checkpoint subject: `feat: add semantic projection strategy and portable recovery`.
+
+## M4 full private-corpus verification checkpoint — 2026-09-27 about18:06UTC
+
+Normal Codex account bucket66%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Since M3 17:39UTC55%: observed+11percentagepoints/about27minutes, not exclusive billing. No Luna/Reserve/reset invoked.
+
+Full MainVault copy roundtrip passed at17:54:31UTC:2820notes/506attachments exact hashes, source unchanged, fullfallback/newDB/strategy/identities/shared re-edit/restart. Productionbrowser onfullcopy passed18:02:15, nativeGUI unverified. Actual512-test/36E2E M3 baseline remains published; further launcher/editor/locate code still under validation. Large-input500ms regression gate remains open, all failed samples retained. This checkpoint saves verified corpus evidence and exact continuation, not Goal completion.
