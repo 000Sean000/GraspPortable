@@ -73,3 +73,13 @@ Context checkpoint `d69ea80ad6bcf9cbe8e18ea519f7e2c63855003f` pushed and exact r
 Account-wide start 95% → stop 100% = **5 pp over 26m 20s**. Two measured implementation segments total 4 pp; the other observed point falls during subsequent integration/documentation/Git and brief next-step API inspection. These are integer shared-account observations, not task-exclusive billing. The final state is **因額度停止**, not Goal complete. Both product checkpoints are on origin/master; no product edits remain uncommitted. Exact next action, tests, benchmark, M1 limit and M2 accepted policies are in EXECUTION-STATE and linked contracts.
 
 Safe-closeout commit message: `docs: record quota stop and exact M1 continuation`.
+
+## User-reset continuation — 2026-09-27
+
+User reported resetting quota. Live snapshot **2026-09-27 15:38:17 UTC** confirms **0% used**, ordinaryUsageAllowed=true, 10,080-minute window with **new reset `1791128122`**. This is a new window; do not subtract its usage from the previous 100% observation. Agent did not invoke a reset credit or switch to Reserve. Goal tracking restored as active, same A+B scope. Git preflight: clean `master`, successful fetch, HEAD=origin/master=`6f49e57a3a99e439f952d4305784464051348541`, 0/0 divergence; no pull required. Resume at M1 context limit and representation/source-bundle reconstruction, preserving accepted M2 decisions.
+
+## M1 semantic and representation gate — 2026-09-27 15:56:25 UTC
+
+Codex usage-limits tool: ordinaryUsageAllowed=true; normal account bucket usedPercent=8; windowDurationMins=10080; resetsAt=1791128122. Same user-reset window as 15:38:17 UTC / 0%: account observation +8 percentage points in 18m 08s, not a task invoice. No Reserve / Luna / reset credit used by the agent.
+
+Output: removed context pass ceiling with scaling evidence, exact single-note source bundles and readable representation, 10 synthetic Scratch fixtures, 29 files / 361 tests pass, production build pass. Desktop Obsidian / Explorer / native IME remain unverified. Next: milestone commit/push, then M2 shared editing without a new approval gate.

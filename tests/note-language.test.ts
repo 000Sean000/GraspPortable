@@ -106,14 +106,69 @@ describe('note semantic context adapter', () => {
     expect(parsed.diagnostics.map(diagnostic => diagnostic.code)).toEqual(['literal-unclosed']);
   });
 
-  it('bounds repeated context reparsing for a chain of fake fences and reports the limit', () => {
-    const source = Array.from({ length: 30 }, (_, index) => `@A${index} = ${serializeRawLiteral('```\nopaque')}`).join('\n\n');
+  it.each(['\n', '\r\n', '\r'])('keeps host context and raw ranges correct with %j line endings', eol => {
+    const source = ['```', '@Hidden = <|x|>', '```', '', '@Visible = <|y|>', '[y](:ref:Visible)'].join(eol);
     const parsed = parseNoteLanguage(source);
-    expect(parsed.contextPasses).toBeLessThanOrEqual(8);
-    expect(parsed.contextsComplete).toBe(false);
-    expect(parsed.diagnostics.some(d => d.code === 'context-pass-limit')).toBe(true);
-    expect(parsed.bindings).toEqual([]);
+    expect(parsed.bindings.map(node => node.name)).toEqual(['Visible']);
+    expect(parsed.references.map(node => node.identifier)).toEqual(['Visible']);
+    expect(source.slice(parsed.bindings[0].from, parsed.bindings[0].to)).toBe('@Visible = <|y|>');
+  });
+
+  it('does not let frontmatter fences mask the note after its closing delimiter', () => {
+    const source = '---\nexample: ```\n```\n---\n\n@A = <|safe|>';
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.bindings.map(node => node.name)).toEqual(['A']);
+    expect(parsed.excluded[0]).toMatchObject({ from: 0, kind: 'metadata' });
+  });
+
+  it('retains real exclusions and container behavior when retiring closed source prefixes', () => {
+    const chain = Array.from({ length: 30 }, (_, index) => `> @A${index} = ${serializeRawLiteral('~~~\nopaque')}`).join('\n\n');
+    const source = '`@Before = <||>`\n\n' + chain + '\n\n> ```\n> @Hidden = <||>\n> ```\n\n@Last = <|ok|>';
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.bindings.map(node => node.name)).toEqual([...Array.from({ length: 30 }, (_, index) => `A${index}`), 'Last']);
+    expect(parsed.excluded.filter(range => range.kind === 'code')).toHaveLength(2);
+    expect(parsed.diagnostics).toEqual([]);
+  });
+
+  it.each([30, 300, 3000])('accepts %i fake-fence units without blank separators or repeated growing-leaf scans', count => {
+    const source = Array.from({ length: count }, (_, index) => `@A${index} = ${serializeRawLiteral('```\nopaque')}`).join('\n');
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.bindings).toHaveLength(count);
+    expect(parsed.hostCharactersRead).toBeLessThan(source.length * 10);
+    expect(parsed.contextPasses).toBe(2);
+  });
+
+  it('returns to host rules when the next candidate could start an indented code block', () => {
+    const source = '@A = <|x|>\n\n    @Hidden = <|y|>\n\n@B = <|z|>';
+    expect(parseNoteLanguage(source).bindings.map(node => node.name)).toEqual(['A', 'B']);
+  });
+
+  it.each(['`', '<!--', '<span title="'])('does not activate a candidate inside a true host construct whose closer is beyond lookahead: %s', opener => {
+    const closer = opener === '`' ? '`' : opener === '<!--' ? '-->' : '">';
+    const source = opener + '\n@Hidden = <|x|>\n[hidden](:ref:A)\n' + 'ordinary line\n'.repeat(2000) + closer + '\n\n@Visible = <|y|>';
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.bindings.map(node => node.name)).toEqual(['Visible']);
     expect(parsed.references).toEqual([]);
+  });
+
+  it('handles many nodes in one physical paragraph without restarting host context', () => {
+    const source = Array.from({ length: 5000 }, (_, index) => `@A${index} = <|x|>; [x](:ref:A${index})`).join(' ');
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.bindings).toHaveLength(5000);
+    expect(parsed.references).toHaveLength(5000);
+    expect(parsed.contextPasses).toBe(2);
+    expect(parsed.hostCharactersRead).toBeLessThan(source.length * 5);
+  });
+
+  it.each([30, 300, 3000])('handles %i fake-fence units through incremental host subtrees', count => {
+    const source = Array.from({ length: count }, (_, index) => `@A${index} = ${serializeRawLiteral('```\nopaque')}`).join('\n\n');
+    const parsed = parseNoteLanguage(source);
+    expect(parsed.contextsComplete).toBe(true);
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.bindings).toHaveLength(count);
+    expect(parsed.references).toEqual([]);
+    expect(parsed.hostCharactersRead).toBeLessThan(source.length * 30);
+    expect(parsed.bindings.at(-1)?.name).toBe(`A${count - 1}`);
   });
 
   it('handles a substantial ordinary note in a bounded number of host passes', () => {
@@ -122,6 +177,7 @@ describe('note semantic context adapter', () => {
     expect(parsed.bindings).toHaveLength(5_000);
     expect(parsed.references).toHaveLength(5_000);
     expect(parsed.contextsComplete).toBe(true);
-    expect(parsed.contextPasses).toBe(2);
+    expect(parsed.contextPasses).toBeLessThan(50);
+    expect(parsed.hostCharactersRead).toBeLessThan(source.length * 15);
   });
 });
