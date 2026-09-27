@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { describe, expect, it, vi } from 'vitest';
+import { ChangeDesc, EditorSelection, EditorState } from '@codemirror/state';
 import { history, undo, redo } from '@codemirror/commands';
 import { rawDocument, rawSourceField, rawSourceHistory, rawSourceNormalization, sourceFormat } from '../src/editor/raw-source';
 import { prepareSemanticPatch, type SemanticPatchChange } from '../src/editor/semantic-patch';
@@ -16,6 +16,23 @@ describe('guarded raw semantic source patch', () => {
     const transaction = patch(state, [{ from: 1, to: 2, expected: 'X', insert: '\nN' }, { from: 3, to: 4, expected: 'Y', insert: '\r\nN' }]);
     expect(rawDocument(transaction.state)).toBe('a\nNb\r\nNc');
     expect(rawDocument(state)).toBe('aXbYc');
+  });
+
+  it('maps a large ordered mixed-EOL cascade without rescanning the change list for each insertion', () => {
+    const count = 4000, source = '\uFEFF\r\n' + 'x;\r\n'.repeat(count), state = initial(source);
+    const values = ['one\ntwo', 'one\r\ntwo', 'one\rtwo', '😀'];
+    const changes = Array.from({ length: count }, (_, index) => ({ from: 3 + index * 4, to: 4 + index * 4, expected: 'x', insert: values[index % values.length] }));
+    let scans = 0; const original = ChangeDesc.prototype.mapPos;
+    const spy = vi.spyOn(ChangeDesc.prototype, 'mapPos').mockImplementation(function (this: ChangeDesc, ...args: Parameters<ChangeDesc['mapPos']>) {
+      if (!this.empty) scans++;
+      return Reflect.apply(original, this, args);
+    });
+    try {
+      const result = patch(state, changes);
+      expect(rawDocument(result.state)).toBe('\uFEFF\r\n' + changes.map(change => change.insert + ';\r\n').join(''));
+      expect(rawDocument(state)).toBe(source);
+      expect(scans).toBeLessThan(100);
+    } finally { spy.mockRestore(); }
   });
 
   it('normalizes the editor line model when a patch joins lone CR and LF without losing raw source', () => {

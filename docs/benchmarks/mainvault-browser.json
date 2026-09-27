@@ -1,0 +1,25 @@
+{
+  "startedAt": "2026-09-27T18:16:48.094Z",
+  "browser": "Edge headless production",
+  "desktopGuiVerified": false,
+  "openAndReadyMs": 1651.6583999999998,
+  "counts": {
+    "notes": 2821,
+    "folders": 244,
+    "attachments": 506,
+    "bindings": 2,
+    "occurrences": 2
+  },
+  "catalogDomRows": 41,
+  "locateMs": 9088.876799999998,
+  "locateKeptPublishedGeneration": true,
+  "notePathExists": true,
+  "narrowViewport": {
+    "width": 1024,
+    "body": 1024,
+    "panel": 802
+  },
+  "status": "passed",
+  "completedAt": "2026-09-27T18:18:19.651Z",
+  "pageErrors": 0
+}

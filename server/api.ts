@@ -230,8 +230,6 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
         }
         if (method === 'POST' && path === '/api/files/locate') {
           const b = await read(req); if (!['note', 'folder', 'attachment'].includes(String(b.kind))) throw new StoreError('Unsupported projection item.');
-          activeFiles.schedule(activeStore.snapshot(), sha => activeStore.readBlob(sha));
-          await withFiles(() => activeFiles.flush()); checkTarget(activeStore);
           const entry = await withFiles(() => activeFiles.locate(b.kind as 'note' | 'folder' | 'attachment', requireString(b.id, 'Entity ID', 200))); checkTarget(activeStore); json(res, entry); return true;
         }
         if (method === 'POST' && path === '/api/files/reveal') {

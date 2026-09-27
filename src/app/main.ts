@@ -20,7 +20,7 @@ import './style.css';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <aside class="sidebar">
-  <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 02</span></div></div>
+  <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 03</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
   <section id="navigation" aria-label="筆記與資料夾"></section>
   <div class="sidebar-bottom"><button id="files">▧ 檔案與 Markdown</button><button id="projection">分組策略與 Fallback</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
@@ -482,8 +482,12 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false, sourcePatc
     const before = editor.getDocument();
     const patch = before === previousNote?.markdown ? sourcePatches.find(item => item.noteId === current.id && item.baseRevision === version.revision && item.baseRevision === previousNote.revision) : undefined;
     const proposed = patch?.edits.map(edit => ({ ...edit, expected: before.slice(edit.from, edit.to) }));
-    let patched = before;
-    for (const edit of [...proposed ?? []].reverse()) patched = patched.slice(0, edit.from) + edit.insert + patched.slice(edit.to);
+    // Assemble once: 50,000 cache replacements must not copy the entire note
+    // for every occurrence. The editor separately checks ordered exact ranges.
+    const pieces: string[] = []; let cursor = 0;
+    for (const edit of proposed ?? []) { pieces.push(before.slice(cursor, edit.from), edit.insert); cursor = edit.to; }
+    pieces.push(before.slice(cursor));
+    const patched = pieces.join('');
     const changes = proposed && patched === current.markdown ? proposed : minimalSourceChange(before, current.markdown);
     const applied = editor.applySemanticPatch({ expectedKey: version.key, expectedRevision: version.revision,
       nextRevision: current.revision, expectedSource: before, changes });

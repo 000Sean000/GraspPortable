@@ -151,14 +151,26 @@ test.describe.serial(`Production v1 workload (${bindingCount} identifiers / ${re
     await expect(page.locator('#modal')).not.toBeVisible({ timeout: readinessTimeout }); await saved(page);
     const changed = await state(); evidence.cascadeCommitAndBrowserReadyMs = performance.now() - began; phase('cascade-validate');
     expect(changed.semantic.results).toHaveLength(bindingCount);
-    for (const item of changed.semantic.results) expect(item.current).toEqual({ status: 'ok', value: item.name === 'PerfRoot' ? 'B **bold**' : `B **bold**:${item.name.slice('PerfValue'.length)}` });
+    const validationStart = performance.now(), failures: string[] = [];
+    const fail = (message: string) => { if (failures.length < 20) failures.push(message); };
+    for (const item of changed.semantic.results) {
+      const expected = item.name === 'PerfRoot' ? 'B **bold**' : `B **bold**:${item.name.slice('PerfValue'.length)}`;
+      if (item.current.status !== 'ok' || item.current.value !== expected || item.current.message !== undefined) fail(`Incorrect result ${item.name}`);
+    }
     expect(changed.semantic.occurrences).toHaveLength(referenceCount);
     const results = new Map(changed.semantic.results.map(item => [item.identifierId, item.current]));
+    let checked = 0;
     for (const occurrence of changed.semantic.occurrences) {
-      expect(occurrence.cache.current).toEqual(results.get(occurrence.identifierId));
-      expect(occurrence.cache.source).toBe('computed'); expect(occurrence.cache.semanticRevision).toBe(changed.semantic.revision);
-      expect(changed.snapshot.notes[0].markdown.slice(occurrence.location.from, occurrence.location.to)).toContain('B **bold**');
+      const expected = results.get(occurrence.identifierId), actual = occurrence.cache.current;
+      if (!expected || actual.status !== expected.status || actual.value !== expected.value || actual.message !== expected.message) fail(`Incorrect cache ${occurrence.id}`);
+      if (occurrence.cache.source !== 'computed' || occurrence.cache.semanticRevision !== changed.semantic.revision) fail(`Stale cache ${occurrence.id}`);
+      if (!changed.snapshot.notes[0].markdown.slice(occurrence.location.from, occurrence.location.to).includes('B **bold**')) fail(`Incorrect source cache ${occurrence.id}`);
+      checked++;
     }
+    // Every value/cache is checked. Only the assertion is aggregated: creating
+    // 200,000 Playwright reporting steps would dominate this product benchmark.
+    evidence.cascadeValidation = { results: changed.semantic.results.length, occurrences: checked, elapsedMs: performance.now() - validationStart, failures }; saveEvidence();
+    expect(failures).toEqual([]);
     expect(identities(changed)).toEqual(identities(initial));
     phase('restart'); const restart = performance.now(); await stop(); await start(); expect(await state()).toEqual(changed);
     evidence.restartAndReadbackMs = performance.now() - restart; evidence.cascadeAndRestartVerified = true; saveEvidence();

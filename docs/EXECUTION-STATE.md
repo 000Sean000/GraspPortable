@@ -1,6 +1,6 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28。**使用者重置額度後已恢復執行，完整 A+B Goal 未完成。這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
+更新：2026-09-28。**完整 A+B 產品 Goal 的 M1–M4 已完成；v0.3 可啟動並驗收。這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
 
 ## 1. Current objective、WHY 與範圍
 
@@ -22,7 +22,7 @@
 | 4 | [Shared-value contract](SHARED-VALUE-CONTRACT.md) | Shared commands、draft、persistent cache、transaction／external review、M2 |
 | 5 | [Projection contract](PROJECTION-CONTRACT.md) | Semantic units、strategy schema、export／checkpoint／rebuild、M3 |
 | 6 | [Reference host gate evidence](REFERENCE-HOST-GATE.md) | 已知 AST 限制、最新 Human 裁定及 M1 待驗矩陣 |
-| 7 | [Implementation contract](IMPLEMENTATION-CONTRACT.md)、[Limitations](LIMITATIONS.md) | v0.2 實作事實基線，不是新規格完成證據 |
+| 7 | [Implementation contract](IMPLEMENTATION-CONTRACT.md)、[Limitations](LIMITATIONS.md) | 當前實作接面及限制；完成證據見各 milestone 報告 |
 | 8 | [Verification](VERIFICATION.md)、[Phase 2 evidence](PHASE2-VERIFICATION.md)、[Files performance](FILES-PERFORMANCE.md)、[Migration](MIGRATION.md)、[Usage log](USAGE-LOG.md) | 歷史測試、效能、資料邊界及 quota；按報告版本解讀 |
 
 設計背景三份候選稿已在 Git： [Definition rc.2](Design-References/Legacy-Grasp-Syntax/Markdown_Extension_Definition-v1.0.0-rc.2.md)、[Reference Syntax rc.2](Design-References/Legacy-Grasp-Syntax/Reference_Syntax-v1.0.0-rc.2.md)、[Config rc.1](Design-References/Legacy-Grasp-Syntax/Markdown_Extension_Config-v1.0.0-rc.1.md)。Seed 入口提及「當時遠端未含」是其原始編輯背景；當前實際 tracked files 為準。Pending／carried-forward 不升格成默認政策；被 rc.3／下列決策取代的舊 `@code`、grouped reference、single-line、RHS／更新政策不沿用。
@@ -41,40 +41,48 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 
 ## 4. Actual implementation and evidence
 
-M1 codecs/context/exact source reconstruction：361tests/build，已發布 `480f073b69fb7e79dd6d7bcd86c29dcfa243c834`，見 [M1](M1-VERIFICATION.md)。M2 shared commands/drafts/cache/undo/source rebase/Reading：436tests／32productionE2E，已發布 `9734f06e50ad1ad491104595a0e469263a73f31b`，見 [M2](M2-VERIFICATION.md)。
+M1 codecs/context/exact source reconstruction：361 tests/build，已發布 `480f073b69fb7e79dd6d7bcd86c29dcfa243c834`，見 [M1](M1-VERIFICATION.md)。M2 shared commands/drafts/cache/undo/source rebase/Reading：436 tests／32 production E2E，已發布 `9734f06e50ad1ad491104595a0e469263a73f31b`，見 [M2](M2-VERIFICATION.md)。
 
-M3 semantic-unit strategy/scoped planning/review/partial+full renderer/DB-trusted external import/單一publisher/兩代recovery/freshDB重建/App UI 已完成。Schema5保存策略與可信baseline；fullfallback保留source/owner/IDs/dependencies/strategy/provenance/drafts，附件逐項讀取，不承諾完整operation history。**38files／512tests pass（9.19s）、build pass、36productionEdgeE2E pass（1.3m）**，見 [M3](M3-VERIFICATION.md)。
+M3 semantic-unit strategy/scoped planning/review/partial+full renderer/DB-trusted external import/單一 publisher/兩代 recovery/fresh DB 重建已完成。Schema 5 保存策略與可信 baseline；full fallback 保留 source/owner/IDs/dependencies/strategy/provenance/drafts，不承諾 DB operation/history。512 tests／36 production E2E，已發布 `e037741ae2b96e88e75a04b234e8d542a1817815`，見 [M3](M3-VERIFICATION.md)。
 
-M4全量MainVault往返已通過：2,820notes／244folders／506assets，原文及附件全部hash一致；策略、partial隔離、外部匯回、獨立fallback／fresh DB／重建後shared修改與restart均驗證。原snapshot 3,365files及Scratch來源副本前後不變。詳細與93s／190s checkpoint成本見 [M4](M4-VERIFICATION.md)。現有Acceptance/MainVault-Grasp仍是舊160-note rehearsal，尚未部署新版。
+M4 全量 MainVault 往返及 source integrity 已獨立發布 `74faacfee9519982c58d0a07ed9581384f4da238`。2,820 原始 notes／244 folders／506 assets 全部原文及附件 hash 一致；策略、partial 隔離、外部匯回、獨立 fallback／fresh DB／重建後 shared 修改與 restart 通過。原 snapshot 3,365 files 及匯入用 Scratch source copy 前後不變。另加一篇明示 synthetic acceptance note；沒有私人語意重分類。
 
-## 5. Current point and remaining work
+**M4 最终整合通過：41 files／528 tests（12.75s）、production build、36 production Edge E2E（1.8m）、scale10 production browser 2 tests、獨立目錄 package smoke，以及 Sandbox 一鍵入口指向 relocated Acceptance DB 的啟動核對。** 詳見 [M4 verification](M4-VERIFICATION.md) 與其中 JSON evidence。早先單輪在重 IO 下有 browser afterAll timeout，整套 exit1；最終空閒時完整重跑通過，沒有把個別 tests passed 冒充 suite 成功。
 
-**M3已發布e037741ae2b96e88e75a04b234e8d542a1817815；M4全量資料往返通過，正在保存此獨立驗證段落，完整A+B Goal尚未完成。** 本段subject為 `test: verify complete vault roundtrip and source integrity`；精確SHA從Git取得並核對origin/master，不預填文件自身SHA。
+Scale10 為 10,000 identifiers／50,000 references／約 1.75M source characters。正文 EOF typing Source p95 204.285ms、Live 319.283ms，原 500ms regression gate 通過；cascade 7.667s，全部 10k results／50k caches 及 IDs 核對；真正 restart/readback 4.054s。12k deep／10k fanout／mixed／反覆小改／SQLite durability 另外量測。**Plan 的 100ms 理想目標及無 ≥200ms 長任務尚未完全達成**；不能擴大 EOF benchmark 為所有編輯位置保證。
 
-M4剩下大型互動性能、新package／驗收workspace／launch note，以及當前source的最終build/tests/browser回歸。全量資料庫實際browser Reading／策略／Files／1024×768檢查通過，0pageerrors，啟動ready1.73s；發現settings-only觸發不必要fullcheckpoint的file-locate路徑，修補及tests已在working tree，尚待整合。
+完整 corpus 的實際 headless Edge browser：ready 1.652s，Reading／策略／Files／1024×768 無水平 overflow、0 page errors。File locate 改成 content fingerprint＋dirty 檢查，settings/drafts-only 不再強迫 full checkpoint；實測 9.089s，generation 不變。全樹安全檢查仍昂貴；full checkpoint 曾為 93–190s。這些是已知性能成本，不是資料流程失敗。
 
-尚未提交產品段落：v0.3 launcher build identity／workspace核對、editor線性cache patches／CRLF mapping／range index、file-locate修正、benchmark與成品browser腳本、README/limits等。不要丟棄。Fullunit一輪522tests全過但browser afterAll在重IO下10s timeout，因此整套exit1，須空閒時重跑；不得記成全suite通過。10k/50k typing最新仍Live p95約645ms，未通過500ms regression gate，正在profile；早先88.433s cascade也須重測，失敗樣本保留。核心100ms理想預算沒有冒稱達成。
+## 5. Delivery and current stop point
 
-Human已接受durable drafts＋保留已提交值、完整missing/cycle保存且報錯、獨立共享undo；已實作，不再待批准。外部rendered/cache observation未取得共享寫入權限；不可唯一反推composition時編輯canonical literal/dependency。
+**M1–M4 正式產品工作已完成，停止在可操作 v0.3 交付；沒有等候 Human 的 routine implementation gate，也不是因額度停工。** 最後交付 checkpoint subject：`feat: deliver validated v0.3 acceptance package and scalable editing`；精確 SHA 與是否已推送由 Git history／origin/master 核對，不在同一 commit 填入自己的 SHA。最終回覆提供實際 remote-verified SHA。
 
-Computer Use skill已讀，但目前沒有其需要的node_repl／Computer Use callable tool。Playwright實際production browser操作可用；Obsidian／Explorer／原生Windows IME／真實zoom缺當次desktop證據。API/mock/spawn不替代画面，依環境fallback授權完成其他工作並明列缺口。
+程式：`GraspPortable/artifacts/GraspPortable-0.3.0/`，需要已安裝 Node.js 24+，無需 production npm install。雙擊 SandboxRoot 的 `開啟 MainVault 驗收.cmd`，指定新版 Acceptance DB 與 `http://127.0.0.1:43861/`；保留主控台、Ctrl+C 停止。Launcher 核對 build identity／明示 workspace，拒絕沿用不符的舊 host，不自動終止未知程序。本次 launch smoke 的程序已關閉。
 
-## 6. Exact next executable steps
+驗收資料：`Acceptance/MainVault-Grasp-v0.3/.grasp/workspace.grasp.db`，唯一可讀樹 `Acceptance/MainVault-Grasp-v0.3/Markdown/`；完整 fallback 保留 hidden `.grasp-export/`、正常 Markdown 與附件。驗收副本在 host 關閉時 copy，10,003 files／2,478,018,402 bytes 全 hash 一致，排除 migration checkpoint／temporary exchange／browser screenshots。舊 `Acceptance/MainVault-Grasp/` 160-note rehearsal 保留且不再由入口開啟。
 
-1. 保存本段verifier／匿名資料證據checkpoint並push；後續沿用完整A+B授權，不開新Planning gate。
-2. 修正profile所示大型input熱點；fresh build跑GRASP_PERF_SCALE=10 tests/e2e/shared-performance.spec.ts，完整50kcache／identity／restart都要驗。不刪慢sample或放寬gate。另跑 scripts/benchmark-shared.ts（12kdeep／10kwide／mixed／30edits／SQLite），每項benchmark獨占重型runner。
-3. 新版host的file-locate修正需在完整Scratch workspace重驗，script為scripts/verify-acceptance-browser.mjs；不要測原snapshot。最新成功全量資料在Scratch/MainVault-M4-20260928-0147/Imported；初次browser已closehost，可安全copy。舊0146失敗是verifierprototype比較，保留。
-4. copy關閉且一致的Imported到Acceptance/MainVault-Grasp-v0.3，排除temporary migration checkpoint／Browser-verification／exchange測試輸出，保留DB／Markdown／recovery及metadata，hash核對。舊rehearsal保留。Rebuilt最後After rebuild尚未另發布projection，不直接當最新版交付。
-5. 完整unit與productionE2E／freshpackage smoke／README及launch入口／成品browser，最後M4 checkpoint/push。全量往返已通過，只有後續相關改動才需要重跑全部約7分钟資料鏈。
+MainVault 原始 snapshot 為 `Acceptance/MainVault-Source/`，只讀且不移動／改寫。Private full-roundtrip／重建樣本／screenshots／copy inventory 在 `Scratch/MainVault-M4-20260928-0147/`；0146 verifier prototype-comparison 失敗樣本保留。Scratch 的 Rebuilt DB 最後另有 After rebuild 測試變更，不當成交付主 workspace。新版 launch/readme 位於 Sandbox root；旧入口備份在 `Scratch/Acceptance-entry-before-v0.3-20260928/`。
 
-## 7. Repository, local data and quota
+Human 可先搜尋 `Grasp acceptance shared workflow`，從 reference 改 M4.Root，檢查 M4.Nested、獨立共享撤銷、Reading、分組策略與筆記檔定位。Obsidian 開啟 `Markdown` 為 vault；從 Explorer 拖 `.md`／附件給 ChatGPT，不需要另建 persistent AI folder。外部檔案必須 Review／Import；DB 保持唯一 runtime authority。
 
-SandboxRoot：C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace；repo為其中GraspPortable。舊cwd ...\GraspProject\GraspPortable 已移走，命令必須指定實際workdir。異機先git rev-parse --show-toplevel。
+## 6. Remaining limits and next action
 
-Branch master→origin/master；remote https://github.com/000Sean000/GraspPortable.git 。本次M3前fetch成功，HEAD/origin同9734f06、0/0；提交前再次fetch仍0/0。需要时可單次加入 -c safe.directory=<actualrepo> -c http.sslBackend=openssl，不改全域config。只stage本段source/tests/docs；私人資料/dist/node_modules不入Git。
+下一步是 Human 使用驗收及選定下一輪改善，沒有本輪尚未完成的產品實作待續。合理優先序是大型檔案定位／full checkpoint 成本、長文中段編輯性能，再依真實寫作體感調整 Editor。所有替換點見 [ARCHITECTURE](../ARCHITECTURE.md)／[Implementation contract](IMPLEMENTATION-CONTRACT.md)，不必重寫整個 App。
 
-Acceptance/MainVault-Source與原MainVault唯讀；Acceptance/MainVault-Grasp/.grasp/workspace.grasp.db及Markdown為舊rehearsal。測試位於Scratch。原啟動入口Sandbox/開啟 MainVault 驗收.cmd及README-驗收.md尚待M4更新；一般repo npm ci、npm run build、npm start需Node24+。異機缺私人資料是預期，不得因此聲稱全量驗證。
+下列缺口保留，不因自動測試通過就升格成真實桌面證據：
 
-最新quota約2026-09-27 18:06UTC：**66%used、ordinaryUsageAllowed=true**，正常10080分鐘窗口/reset1791128122；M3的55%至此+11pp約27分鐘，帳戶觀測非任務帳單。歷史前窗口100%已依規則停工，使用者重置後恢復；未用Luna/Reserve/agent reset。詳見 [Usage log](USAGE-LOG.md)。達100%或只剩Luna/Reserve時停止實質工作，只安全保存coherent checkpoint，未完成就標因額度停止。
+- 本輪沒有 callable Computer Use 所需 node_repl／Windows GUI tool。Obsidian、Explorer 視窗、實體 Windows 中文 IME、真實系統 zoom 尚待現場驗收；API／spawn 不替代畫面。歷史 Notepad 核准不推及未來新 executable。
+- 交付是 Windows 本機 browser host，非 native installer；Node runtime 另裝。其他平台、FAT/exFAT／network filesystem、mobile／Sync 未驗。
+- 100ms 輸入目標未全面達成；大型 locate 約9s、full checkpoint 約1.5–3分鐘。效能資料逐層陳述，不把 graph time 當 UI time。
+- Full Markdown fallback 保留 current sources、IDs、bindings、dependencies、cached/rendered values、owners、策略、lineage、attachments、durable drafts；不複製 DB recovery／operation receipts／共享撤銷歷史。關閉 host 後的完整 workspace DB 複本才保留這些歷史；同磁碟 fallback 不是離機備份。
+- 原始候選稿中其他 pending／carried-forward 資料政策沒有擅自定案；cache-only observation 仍不構成共享寫入權。未唯一反推 composition 的情況由 Human 編輯 canonical literal/dependency。
 
-已授權每個coherent milestone commit/push。不因普通實作問題新增Human gate。Temporary network失敗保留commit/待push，credential/protection/conflict/history risk停Git mutation不繞過。Native新executable的application approval與舊Notepad確認分開。
+## 7. Repository, Git and quota
+
+SandboxRoot：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`；repo 為其中 `GraspPortable`。舊 cwd `...\GraspProject\GraspPortable` 已移走，命令必須指定實際 workdir。異機先 `git rev-parse --show-toplevel`；Acceptance／Scratch 為私有本機資料，remote clone 不附帶是預期。
+
+Branch `master`→`origin/master`，remote `https://github.com/000Sean000/GraspPortable.git`。M4 最後 checkpoint 前 fetch 成功，HEAD/origin 同74faacf、0/0 divergence，保留所有在地成果，沒有 reset／force push／新branch。必要時 command-local `-c safe.directory=<actualrepo> -c http.sslBackend=openssl`，不改全域 config。Git 只納入 source/tests/docs／匿名 benchmark；私人內容、Acceptance、Scratch、dist、artifacts 不推送。
+
+額度最近觀測 2026-09-27 18:21:36 UTC：**71% used、ordinaryUsageAllowed=true**，正常10080分鐘窗口/reset1791128122；詳細收尾紀錄見 [Usage log](USAGE-LOG.md)。使用者重置後從原 Goal 接續，沒有使用 Luna／Reserve／agent reset。100% 或只剩低能力備用模型時仍是實質停工條件，不因本次完成取消後續規則。
+
+每個後續 coherent milestone 依授權 build/tests、更新本頁及必要文件、commit/push、核對遠端。Temporary network 失敗保留 local commit／pending push；credential、protection、conflict／history risk 停 Git mutation，不作破壞性 workaround。

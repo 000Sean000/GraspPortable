@@ -27,6 +27,33 @@ async function grouped(store: WorkspaceStore, service: ProjectionWorkspaceFiles)
 afterEach(async () => { for (const service of files.splice(0)) await service.close(); for (const store of stores.splice(0)) try { store.close(); } catch {} for (const root of dirs.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe('complete semantic projection host', () => {
+  it('locates current reading files after settings/draft changes without creating a generation, but republishes changed content', async () => {
+    const { root, store, service } = fixture();
+    const initial = await service.checkpoint(); expect(initial.state).toBe('ready');
+    const manifest = readFileSync(initial.manifestPath!, 'utf8'), generations = readdirSync(join(root, '.grasp/recovery'));
+    const note = store.snapshot().notes[0];
+    store.updateSettings({ editorMode: 'reading', activeNote: note.id });
+    store.saveDraft('locate-draft', { clientId: 'client', noteId: note.id, title: note.title, markdown: '@Incomplete = <|', syntaxVersion: 'grasp-v1', baseNoteRevision: note.revision, revision: 0 });
+    // Also exercise deriving the reading baseline from trusted DB metadata after restart.
+    await service.close(); const reopened = new ProjectionWorkspaceFiles(store); files.push(reopened);
+    const entry = await reopened.locate('note', note.id);
+    expect((await reopened.locateUnit(`noteProse:${note.id}`)).entry.path).toBe(entry.path);
+    expect(readFileSync(initial.manifestPath!, 'utf8')).toBe(manifest);
+    expect(readdirSync(join(root, '.grasp/recovery'))).toEqual(generations);
+    expect(reopened.projectionStatus().lastSuccessRevision).toBe(initial.lastSuccessRevision);
+    expect(reopened.projectionStatus().state).toBe('pending');
+    store.updateNote(note.id, note.title, note.markdown + '\r\nFresh reading content', note.revision);
+    const changed = await reopened.locate('note', note.id);
+    expect(readFileSync(changed.absolutePath, 'utf8')).toContain('Fresh reading content');
+    expect(readFileSync(initial.manifestPath!, 'utf8')).not.toBe(manifest);
+    const fallback = await readFullGeneration(initial.manifestPath!);
+    expect(fallback.snapshot.settings).toEqual(store.snapshot().settings);
+    expect(fallback.recovery.drafts).toEqual(store.drafts());
+    writeFileSync(changed.absolutePath, readFileSync(changed.absolutePath, 'utf8') + '\nExternal edit');
+    store.updateSettings({ editorMode: 'source' });
+    await expect(reopened.locate('note', note.id)).rejects.toThrow(/外部變更/);
+    expect(readFileSync(changed.absolutePath, 'utf8')).toContain('External edit');
+  });
   it('groups same-owner bindings independently and rebuilds exact IDs, raw placement, assets and recoverable drafts in a new instance', async () => {
     const { root, store, service } = fixture(); await grouped(store, service);
     store.createAttachment('image.png', 'image/png', Buffer.from([1, 2, 3]), 'Images/image.png');

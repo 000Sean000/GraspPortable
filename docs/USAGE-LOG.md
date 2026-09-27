@@ -101,3 +101,9 @@ Output: semantic-unit strategy/package/review, deterministic partial/full render
 Normal Codex account bucket66%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Since M3 17:39UTC55%: observed+11percentagepoints/about27minutes, not exclusive billing. No Luna/Reserve/reset invoked.
 
 Full MainVault copy roundtrip passed at17:54:31UTC:2820notes/506attachments exact hashes, source unchanged, fullfallback/newDB/strategy/identities/shared re-edit/restart. Productionbrowser onfullcopy passed18:02:15, nativeGUI unverified. Actual512-test/36E2E M3 baseline remains published; further launcher/editor/locate code still under validation. Large-input500ms regression gate remains open, all failed samples retained. This checkpoint saves verified corpus evidence and exact continuation, not Goal completion.
+
+## M4 final product validation — 2026-09-27 18:21:36 UTC
+
+Normal Codex bucket **71% used**, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Since the18:06UTC/66% corpus checkpoint, observed+5percentagepoints/about16minutes account-wide; not task-exclusive billing. No Luna/Reserve/reset credit invoked.
+
+Final evidence:41files/528tests pass12.75s;36productionEdgeE2E pass1.8m;scale10 10k/50k fullsuite pass;12kdeep/fanout/mixed/repeated-edits/SQLite benchmark;fullcorpus browser9.089s locate with generation unchanged. Package and actual acceptance .cmd launch subsequently passed18:22–18:23UTC. M1–M4 product delivery complete with explicit nativeGUI and performance limitations, not a quota stop. Final checkpoint subject: `feat: deliver validated v0.3 acceptance package and scalable editing`.

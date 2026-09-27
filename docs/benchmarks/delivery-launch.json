@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-09-27T18:23:10.6858948Z",
+  "status": "passed",
+  "entry": "SandboxRoot/開啟 MainVault 驗收.cmd",
+  "productVersion": "0.3.0",
+  "buildIdentityMatches": true,
+  "workspace": "Acceptance/MainVault-Grasp-v0.3/.grasp/workspace.grasp.db",
+  "selectedWorkspaceMatches": true,
+  "notes": 2821,
+  "folders": 244,
+  "attachments": 506,
+  "bindings": 2,
+  "references": 2,
+  "uiHttpServed": true,
+  "desktopGuiVerified": false,
+  "port": 43861
+}

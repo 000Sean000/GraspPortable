@@ -1,0 +1,970 @@
+{
+  "format": "grasp-shared-domain-benchmark",
+  "version": 1,
+  "generatedAt": "2026-09-27T18:09:03.879Z",
+  "environment": {
+    "node": "v24.18.0",
+    "platform": "win32",
+    "architecture": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13980HX",
+    "logicalCpus": 32,
+    "explicitGc": true
+  },
+  "command": "node --expose-gc --import tsx scripts/benchmark-shared.ts",
+  "scope": "Current grasp-v1 synthetic fixtures only. Production parser, graph, shared preparation and SQLite transaction; no private corpus, legacy grammar, filesystem publisher or browser interaction claim.",
+  "deepChain12k": {
+    "syntaxVersion": "grasp-v1",
+    "definitions": 12000,
+    "sourceUtf16Characters": 181785,
+    "sourceUtf8Bytes": 181785,
+    "phases": [
+      {
+        "phase": "initial",
+        "parseMs": 109.18,
+        "graphWallMs": 46.08,
+        "graph": {
+          "elapsedMs": 44.93,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 5.68,
+          "dirtyMs": 7.94,
+          "calculationMs": 15.82
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "root-literal-edit",
+        "parseMs": 82.3,
+        "graphWallMs": 48.2,
+        "graph": {
+          "elapsedMs": 47.53,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 2.57,
+          "dirtyMs": 11.94,
+          "calculationMs": 20.41
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "missing",
+        "parseMs": 127.23,
+        "graphWallMs": 44.54,
+        "graph": {
+          "elapsedMs": 43.68,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 2.53,
+          "dirtyMs": 7.85,
+          "calculationMs": 20.59
+        },
+        "diagnosticCount": 1,
+        "bodyReferences": 1000,
+        "lastStatus": "missing"
+      },
+      {
+        "phase": "missing-recovery",
+        "parseMs": 105.39,
+        "graphWallMs": 29,
+        "graph": {
+          "elapsedMs": 28.04,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 2.36,
+          "dirtyMs": 6.32,
+          "calculationMs": 7.17
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "cycle",
+        "parseMs": 86.94,
+        "graphWallMs": 38.19,
+        "graph": {
+          "elapsedMs": 37.57,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 2.21,
+          "dirtyMs": 9.28,
+          "calculationMs": 10.79
+        },
+        "diagnosticCount": 12000,
+        "bodyReferences": 1000,
+        "lastStatus": "cycle"
+      },
+      {
+        "phase": "cycle-recovery",
+        "parseMs": 63.22,
+        "graphWallMs": 26.13,
+        "graph": {
+          "elapsedMs": 25.46,
+          "recalculated": 12000,
+          "total": 12000,
+          "affected": 12000,
+          "indexMs": 1.48,
+          "dirtyMs": 7.29,
+          "calculationMs": 7.19
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      }
+    ],
+    "indexedLookup": {
+      "iterations": 100000,
+      "definitionAndReferenceMs": 2.4,
+      "checksum": 50150000
+    },
+    "memory": [
+      {
+        "phase": "before",
+        "rss": 78647296,
+        "heapTotal": 20656128,
+        "heapUsed": 10024976,
+        "external": 3968132,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "initial",
+        "rss": 146825216,
+        "heapTotal": 101027840,
+        "heapUsed": 44751856,
+        "external": 3841097,
+        "arrayBuffers": 1294199
+      },
+      {
+        "phase": "root-literal-edit",
+        "rss": 195948544,
+        "heapTotal": 193380352,
+        "heapUsed": 83116296,
+        "external": 3877097,
+        "arrayBuffers": 1330199
+      },
+      {
+        "phase": "missing",
+        "rss": 284127232,
+        "heapTotal": 215220224,
+        "heapUsed": 121191376,
+        "external": 3913097,
+        "arrayBuffers": 1366199
+      },
+      {
+        "phase": "missing-recovery",
+        "rss": 326799360,
+        "heapTotal": 252911616,
+        "heapUsed": 168699288,
+        "external": 3949097,
+        "arrayBuffers": 1402199
+      },
+      {
+        "phase": "cycle",
+        "rss": 319926272,
+        "heapTotal": 216915968,
+        "heapUsed": 98916680,
+        "external": 3841097,
+        "arrayBuffers": 1294199
+      },
+      {
+        "phase": "cycle-recovery",
+        "rss": 324222976,
+        "heapTotal": 220315648,
+        "heapUsed": 137566256,
+        "external": 3877097,
+        "arrayBuffers": 1330199
+      },
+      {
+        "phase": "after-gc",
+        "rss": 311922688,
+        "heapTotal": 189235200,
+        "heapUsed": 29008896,
+        "external": 3877097,
+        "arrayBuffers": 1258199
+      }
+    ]
+  },
+  "wideFanout10k": {
+    "syntaxVersion": "grasp-v1",
+    "definitions": 10001,
+    "sourceUtf16Characters": 257796,
+    "sourceUtf8Bytes": 257796,
+    "phases": [
+      {
+        "phase": "initial",
+        "parseMs": 101.21,
+        "graphWallMs": 35.15,
+        "graph": {
+          "elapsedMs": 34.37,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 1.24,
+          "dirtyMs": 3.89,
+          "calculationMs": 12.63
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "root-literal-edit",
+        "parseMs": 75.87,
+        "graphWallMs": 27.11,
+        "graph": {
+          "elapsedMs": 26.57,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 0.74,
+          "dirtyMs": 5.5,
+          "calculationMs": 7.27
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "missing",
+        "parseMs": 100.97,
+        "graphWallMs": 19.28,
+        "graph": {
+          "elapsedMs": 18.78,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 1.08,
+          "dirtyMs": 2.74,
+          "calculationMs": 6.93
+        },
+        "diagnosticCount": 1,
+        "bodyReferences": 1000,
+        "lastStatus": "missing"
+      },
+      {
+        "phase": "missing-recovery",
+        "parseMs": 66.35,
+        "graphWallMs": 25.6,
+        "graph": {
+          "elapsedMs": 25.03,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 0.47,
+          "dirtyMs": 2.84,
+          "calculationMs": 10.37
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "cycle",
+        "parseMs": 73.94,
+        "graphWallMs": 29.09,
+        "graph": {
+          "elapsedMs": 28.72,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 0.21,
+          "dirtyMs": 5.72,
+          "calculationMs": 9.42
+        },
+        "diagnosticCount": 10001,
+        "bodyReferences": 1000,
+        "lastStatus": "cycle"
+      },
+      {
+        "phase": "cycle-recovery",
+        "parseMs": 87.56,
+        "graphWallMs": 23.26,
+        "graph": {
+          "elapsedMs": 22.24,
+          "recalculated": 10001,
+          "total": 10001,
+          "affected": 10001,
+          "indexMs": 0.37,
+          "dirtyMs": 4.59,
+          "calculationMs": 9.29
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      }
+    ],
+    "indexedLookup": {
+      "iterations": 100000,
+      "definitionAndReferenceMs": 2.02,
+      "checksum": 550100000
+    },
+    "memory": [
+      {
+        "phase": "before",
+        "rss": 309108736,
+        "heapTotal": 156258304,
+        "heapUsed": 10969112,
+        "external": 3805097,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "initial",
+        "rss": 313294848,
+        "heapTotal": 164347904,
+        "heapUsed": 37576088,
+        "external": 3841097,
+        "arrayBuffers": 1294199
+      },
+      {
+        "phase": "root-literal-edit",
+        "rss": 318382080,
+        "heapTotal": 183963648,
+        "heapUsed": 56799624,
+        "external": 3877097,
+        "arrayBuffers": 1330199
+      },
+      {
+        "phase": "missing",
+        "rss": 328970240,
+        "heapTotal": 202956800,
+        "heapUsed": 120979896,
+        "external": 3913097,
+        "arrayBuffers": 1366199
+      },
+      {
+        "phase": "missing-recovery",
+        "rss": 326197248,
+        "heapTotal": 225484800,
+        "heapUsed": 126170664,
+        "external": 3949097,
+        "arrayBuffers": 1402199
+      },
+      {
+        "phase": "cycle",
+        "rss": 325320704,
+        "heapTotal": 245559296,
+        "heapUsed": 127072256,
+        "external": 3985097,
+        "arrayBuffers": 1438199
+      },
+      {
+        "phase": "cycle-recovery",
+        "rss": 316596224,
+        "heapTotal": 201461760,
+        "heapUsed": 63046248,
+        "external": 3841097,
+        "arrayBuffers": 1294199
+      },
+      {
+        "phase": "after-gc",
+        "rss": 312582144,
+        "heapTotal": 169185280,
+        "heapUsed": 24891704,
+        "external": 3841097,
+        "arrayBuffers": 1258199
+      }
+    ]
+  },
+  "mixedDiamonds": {
+    "syntaxVersion": "grasp-v1",
+    "definitions": 6001,
+    "sourceUtf16Characters": 178466,
+    "sourceUtf8Bytes": 178466,
+    "phases": [
+      {
+        "phase": "initial",
+        "parseMs": 69.82,
+        "graphWallMs": 16.65,
+        "graph": {
+          "elapsedMs": 16.19,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.55,
+          "dirtyMs": 2.71,
+          "calculationMs": 5.73
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "root-literal-edit",
+        "parseMs": 52.29,
+        "graphWallMs": 14.71,
+        "graph": {
+          "elapsedMs": 14.44,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.68,
+          "dirtyMs": 4.03,
+          "calculationMs": 4.15
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "missing",
+        "parseMs": 47.11,
+        "graphWallMs": 15.01,
+        "graph": {
+          "elapsedMs": 14.72,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.73,
+          "dirtyMs": 3.15,
+          "calculationMs": 4.72
+        },
+        "diagnosticCount": 1,
+        "bodyReferences": 1000,
+        "lastStatus": "missing"
+      },
+      {
+        "phase": "missing-recovery",
+        "parseMs": 46.32,
+        "graphWallMs": 17.88,
+        "graph": {
+          "elapsedMs": 17.65,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.5,
+          "dirtyMs": 2.62,
+          "calculationMs": 9.25
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      },
+      {
+        "phase": "cycle",
+        "parseMs": 44.97,
+        "graphWallMs": 18.06,
+        "graph": {
+          "elapsedMs": 17.77,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.55,
+          "dirtyMs": 2.29,
+          "calculationMs": 5.28
+        },
+        "diagnosticCount": 6001,
+        "bodyReferences": 1000,
+        "lastStatus": "cycle"
+      },
+      {
+        "phase": "cycle-recovery",
+        "parseMs": 47.49,
+        "graphWallMs": 10.73,
+        "graph": {
+          "elapsedMs": 10.48,
+          "recalculated": 6001,
+          "total": 6001,
+          "affected": 6001,
+          "indexMs": 0.52,
+          "dirtyMs": 1.8,
+          "calculationMs": 4
+        },
+        "diagnosticCount": 0,
+        "bodyReferences": 1000,
+        "lastStatus": "ok"
+      }
+    ],
+    "indexedLookup": {
+      "iterations": 100000,
+      "definitionAndReferenceMs": 2.2,
+      "checksum": 250100000
+    },
+    "memory": [
+      {
+        "phase": "before",
+        "rss": 310824960,
+        "heapTotal": 153817088,
+        "heapUsed": 11380824,
+        "external": 3805097,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "initial",
+        "rss": 315138048,
+        "heapTotal": 155897856,
+        "heapUsed": 48526944,
+        "external": 3841097,
+        "arrayBuffers": 1294199
+      },
+      {
+        "phase": "root-literal-edit",
+        "rss": 314077184,
+        "heapTotal": 167301120,
+        "heapUsed": 83292624,
+        "external": 3877097,
+        "arrayBuffers": 1330199
+      },
+      {
+        "phase": "missing",
+        "rss": 316030976,
+        "heapTotal": 179879936,
+        "heapUsed": 109842232,
+        "external": 3913097,
+        "arrayBuffers": 1366199
+      },
+      {
+        "phase": "missing-recovery",
+        "rss": 316305408,
+        "heapTotal": 196804608,
+        "heapUsed": 75710520,
+        "external": 3949097,
+        "arrayBuffers": 1402199
+      },
+      {
+        "phase": "cycle",
+        "rss": 323039232,
+        "heapTotal": 210046976,
+        "heapUsed": 99244424,
+        "external": 3985097,
+        "arrayBuffers": 1438199
+      },
+      {
+        "phase": "cycle-recovery",
+        "rss": 319123456,
+        "heapTotal": 223027200,
+        "heapUsed": 121838072,
+        "external": 4021097,
+        "arrayBuffers": 1474199
+      },
+      {
+        "phase": "after-gc",
+        "rss": 310312960,
+        "heapTotal": 178012160,
+        "heapUsed": 21696912,
+        "external": 4021097,
+        "arrayBuffers": 1258199
+      }
+    ]
+  },
+  "repeatedSmallSharedEdits": {
+    "definitions": 10004,
+    "bodyReferences": 1000,
+    "edits": 30,
+    "initialPrepareMs": 236.06,
+    "intent": {
+      "count": 30,
+      "minMs": 0.57,
+      "p50Ms": 0.69,
+      "p95Ms": 1.6,
+      "maxMs": 2.11,
+      "samplesMs": [
+        2.11,
+        0.63,
+        0.92,
+        0.73,
+        0.78,
+        1.37,
+        0.66,
+        0.69,
+        0.76,
+        0.66,
+        1.6,
+        0.84,
+        0.71,
+        0.71,
+        0.58,
+        1.45,
+        0.6,
+        0.83,
+        0.64,
+        0.63,
+        1.53,
+        0.59,
+        0.57,
+        0.63,
+        0.58,
+        1.27,
+        0.62,
+        0.65,
+        0.63,
+        0.59
+      ]
+    },
+    "prepare": {
+      "count": 30,
+      "minMs": 204.58,
+      "p50Ms": 412.08,
+      "p95Ms": 504.6,
+      "maxMs": 513.76,
+      "samplesMs": [
+        269.36,
+        204.58,
+        430.95,
+        504.6,
+        442.67,
+        487.14,
+        404.05,
+        397.62,
+        396.12,
+        425.2,
+        497.65,
+        407.07,
+        411.41,
+        402.93,
+        445.87,
+        497.05,
+        384.19,
+        376.25,
+        372.09,
+        439.35,
+        488.04,
+        392.49,
+        412.08,
+        422.92,
+        441.92,
+        513.76,
+        399.22,
+        373.66,
+        390.8,
+        473.92
+      ]
+    },
+    "intentAndPrepare": {
+      "count": 30,
+      "minMs": 205.24,
+      "p50Ms": 412.67,
+      "p95Ms": 505.36,
+      "maxMs": 515.05,
+      "samplesMs": [
+        271.51,
+        205.24,
+        431.91,
+        505.36,
+        443.49,
+        488.54,
+        404.74,
+        398.35,
+        396.94,
+        425.87,
+        499.28,
+        407.94,
+        412.14,
+        403.66,
+        446.49,
+        498.52,
+        384.81,
+        377.11,
+        372.75,
+        440,
+        489.6,
+        393.1,
+        412.67,
+        423.57,
+        442.52,
+        515.05,
+        399.86,
+        374.34,
+        391.46,
+        474.53
+      ]
+    },
+    "graphOnly": {
+      "count": 30,
+      "minMs": 7.18,
+      "p50Ms": 11.39,
+      "p95Ms": 20.06,
+      "maxMs": 20.2,
+      "samplesMs": [
+        11.39,
+        7.18,
+        19.29,
+        12.46,
+        13,
+        11.74,
+        10.49,
+        12.22,
+        11.13,
+        9.84,
+        10.4,
+        8.79,
+        12.71,
+        9.49,
+        20.2,
+        10.48,
+        11.15,
+        15.26,
+        8.27,
+        19.77,
+        8.68,
+        8.66,
+        20.06,
+        11.88,
+        18.19,
+        11.09,
+        8.06,
+        11.39,
+        12.81,
+        12.73
+      ]
+    },
+    "recalculatedPerEdit": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "sourceCachePatchesPerEdit": [
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000,
+      1000
+    ],
+    "stableBindingAndOccurrenceIds": true,
+    "memory": [
+      {
+        "phase": "initial-prepared-after-gc",
+        "rss": 313098240,
+        "heapTotal": 187056128,
+        "heapUsed": 31408608,
+        "external": 3877097,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "edit-5-after-gc",
+        "rss": 384651264,
+        "heapTotal": 214790144,
+        "heapUsed": 48292080,
+        "external": 3944368,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "edit-10-after-gc",
+        "rss": 455811072,
+        "heapTotal": 194867200,
+        "heapUsed": 48498544,
+        "external": 3872368,
+        "arrayBuffers": 1258199
+      },
+      {
+        "phase": "edit-15-after-gc",
+        "rss": 446742528,
+        "heapTotal": 198275072,
+        "heapUsed": 47285544,
+        "external": 3867394,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "edit-20-after-gc",
+        "rss": 457715712,
+        "heapTotal": 195653632,
+        "heapUsed": 47290560,
+        "external": 3867394,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "edit-25-after-gc",
+        "rss": 456704000,
+        "heapTotal": 192770048,
+        "heapUsed": 47106808,
+        "external": 3867394,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "edit-30-after-gc",
+        "rss": 452001792,
+        "heapTotal": 202207232,
+        "heapUsed": 47187696,
+        "external": 3867394,
+        "arrayBuffers": 1258191
+      }
+    ],
+    "retainedHeapDeltaBytes": 15779088,
+    "timingScope": "prepare includes source parsing, graph fork/update, semantic identity validation, persisted-cache source materialization and source reindexing; graphOnly is a contained subphase, not extra latency."
+  },
+  "sqliteSharedCommit": {
+    "definitions": 12000,
+    "bodyReferences": 1000,
+    "initialDatabaseAndSourceSetupMs": 1767.21,
+    "durableCommit": {
+      "count": 5,
+      "minMs": 1567.84,
+      "p50Ms": 1655.63,
+      "p95Ms": 1716.49,
+      "maxMs": 1716.49,
+      "samplesMs": [
+        1657.47,
+        1716.49,
+        1642.28,
+        1655.63,
+        1567.84
+      ]
+    },
+    "receiptRead": {
+      "count": 5,
+      "minMs": 0.57,
+      "p50Ms": 0.6,
+      "p95Ms": 1.03,
+      "maxMs": 1.03,
+      "samplesMs": [
+        0.78,
+        0.6,
+        0.57,
+        1.03,
+        0.57
+      ]
+    },
+    "replayMs": 99.28,
+    "reopenAndAuthoritativeReadMs": 373.47,
+    "databaseBytes": 101203968,
+    "changedNoteCounts": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "restartIdentityAndReceiptVerified": true,
+    "memory": [
+      {
+        "phase": "sqlite-loaded-after-gc",
+        "rss": 452399104,
+        "heapTotal": 217985024,
+        "heapUsed": 30800792,
+        "external": 3905442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-commit-1-after-gc",
+        "rss": 450932736,
+        "heapTotal": 263258112,
+        "heapUsed": 100304216,
+        "external": 3833442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-commit-2-after-gc",
+        "rss": 453476352,
+        "heapTotal": 309395456,
+        "heapUsed": 101180136,
+        "external": 3905442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-commit-3-after-gc",
+        "rss": 453062656,
+        "heapTotal": 292618240,
+        "heapUsed": 101354264,
+        "external": 3905442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-commit-4-after-gc",
+        "rss": 452739072,
+        "heapTotal": 308871168,
+        "heapUsed": 101203408,
+        "external": 3905442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-commit-5-after-gc",
+        "rss": 452780032,
+        "heapTotal": 311492608,
+        "heapUsed": 101203856,
+        "external": 3905442,
+        "arrayBuffers": 1258191
+      },
+      {
+        "phase": "sqlite-reopened-after-gc",
+        "rss": 446971904,
+        "heapTotal": 277053440,
+        "heapUsed": 128405560,
+        "external": 3833442,
+        "arrayBuffers": 1258191
+      }
+    ],
+    "timingScope": "Actual SQLite commit includes transaction, semantic preparation/cache materialization, receipt/inverse serialization and synchronous durability. Reopen does not flush the OS disk cache. No HTTP, worker or DOM latency is measured."
+  },
+  "memory": {
+    "units": "bytes",
+    "initial": {
+      "phase": "process-start",
+      "rss": 76283904,
+      "heapTotal": 19509248,
+      "heapUsed": 13336096,
+      "external": 4424755,
+      "arrayBuffers": 1877876
+    },
+    "finalAfterGc": {
+      "phase": "process-final-after-gc",
+      "rss": 446713856,
+      "heapTotal": 173740032,
+      "heapUsed": 10720712,
+      "external": 3833442,
+      "arrayBuffers": 1258191
+    },
+    "maxRssKiBReportedByOS": 567244,
+    "interpretation": "Boundary samples and OS-reported high water mark, not allocation profiling. RSS may remain reserved after GC; durable receipts intentionally grow the database. A finite synthetic run does not prove absence of leaks."
+  },
+  "totalMs": 26268.33
+}

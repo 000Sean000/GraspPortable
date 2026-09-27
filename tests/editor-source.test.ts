@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { EditorState } from '@codemirror/state';
+import { ChangeSet, EditorState, MapMode } from '@codemirror/state';
 import { history, isolateHistory, redo, undo } from '@codemirror/commands';
-import { editorToRaw, insertedSourceEffects, normalizeSource, rawDocument, rawSourceField, rawSourceHistory, rawSourceNormalization, rawToEditor, sourceFormat } from '../src/editor/raw-source';
+import { editorToRaw, insertedSourceEffects, normalizeSource, rawDocument, rawSourceField, rawSourceHistory, rawSourceNormalization, rawToEditor, sourceFormat, trackedAfterMapper } from '../src/editor/raw-source';
 
 function harness(source: string) {
   let state = EditorState.create({ doc: source, extensions: [rawSourceField.init(() => sourceFormat(source)), rawSourceHistory, rawSourceNormalization, history()] });
@@ -18,6 +18,32 @@ function harness(source: string) {
 }
 
 describe('raw Markdown source boundary', () => {
+  it('matches CodeMirror TrackAfter at every boundary of exhaustive pairs and seeded change batches', () => {
+    const verify = (changes: ChangeSet) => {
+      const indexed = trackedAfterMapper(changes);
+      for (let at = 0; at <= changes.length; at++) expect(indexed(at), `${changes.toString()} at ${at}`).toBe(changes.mapPos(at, 1, MapMode.TrackAfter));
+    };
+    const length = 5;
+    for (let from = 0; from <= length; from++) for (let to = from; to <= length; to++) {
+      for (const insert of ['', 'X', 'YY']) {
+        verify(ChangeSet.of({ from, to, insert }, length));
+        for (let nextFrom = to; nextFrom <= length; nextFrom++) for (let nextTo = nextFrom; nextTo <= length; nextTo++) {
+          for (const nextInsert of ['', 'Z']) verify(ChangeSet.of([{ from, to, insert }, { from: nextFrom, to: nextTo, insert: nextInsert }], length));
+        }
+      }
+    }
+    let seed = 0x6d2b79f5;
+    const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed; };
+    for (let sample = 0; sample < 80; sample++) {
+      const changes: Array<{ from: number; to: number; insert: string }> = []; let cursor = 0;
+      while (cursor < 120) {
+        const from = Math.min(120, cursor + random() % 5), to = Math.min(120, from + random() % 6);
+        changes.push({ from, to, insert: 'x'.repeat(random() % 8) }); cursor = Math.max(to, from + 1);
+      }
+      verify(ChangeSet.of(changes, 120));
+    }
+  });
+
   for (const source of ['plain 中文😀', 'a\r\nb\r\n', 'a\rb\r', 'a\nb\r\nc\rd\n\r\n', '\r\n\n\r終']) {
     it(`round-trips source and every character offset ${JSON.stringify(source)}`, () => {
       const h = harness(source);

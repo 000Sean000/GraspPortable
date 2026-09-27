@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { createApi } from './api.js';
+declare const __GRASP_BUILD_ID__: string;
+const buildId = typeof __GRASP_BUILD_ID__ === 'string' ? __GRASP_BUILD_ID__ : 'development';
 
 const port = Number(process.env.PORT || 43821);
 const dev = process.argv.includes('--dev');
@@ -19,6 +21,7 @@ const server = createServer(async (req, res) => {
     if (req.headers['sec-fetch-site'] === 'cross-site') { res.writeHead(403); res.end('Cross-site request rejected'); return; }
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-GraspPortable', '1');
+    res.setHeader('X-GraspPortable-Build', buildId);
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'no-store');
     if (await api.handle(req, res)) return;

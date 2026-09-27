@@ -12,6 +12,8 @@ import { editorToRaw, insertedSourceEffects, normalizeSource, rawDocument, rawSo
 import { rawLiteralMarkers } from './raw-literal-markers';
 import { renderMarkdown, type MarkdownAtom } from './markdown-renderer';
 import { prepareSemanticPatch, type SemanticPatch, type SemanticPatchResult } from './semantic-patch';
+import { semanticRangeIndex, type SemanticRangeIndex } from './semantic-range-index';
+import { reusePlainProseAppend } from './parsed-prose-reuse';
 export type { SemanticPatch, SemanticPatchChange, SemanticPatchResult } from './semantic-patch';
 import './editor.css';
 
@@ -290,7 +292,8 @@ const queriesField = StateField.define<QueryState>({
   provide: field => EditorView.decorations.from(field, value => value.decorations),
 });
 
-interface SemanticState { parsed: ParsedNoteLanguage | null; decorations: DecorationSet }
+interface SemanticState { parsed: ParsedNoteLanguage | null; ranges: SemanticRangeIndex; decorations: DecorationSet }
+const indexSemantics = (parsed: ParsedNoteLanguage | null) => semanticRangeIndex(parsed ? [...parsed.bindings, ...parsed.references] : []);
 function decorateSemantics(state: EditorState, parsed: ParsedNoteLanguage | null): DecorationSet {
   if (!parsed || state.field(modeField) !== 'live') return Decoration.none;
   const values = state.field(runtimeField).result.values, pending = state.field(pendingValuesField), options = state.facet(editorOptions);
@@ -310,20 +313,25 @@ const semanticField = StateField.define<SemanticState>({
   create(state) {
     const version = state.field(documentVersionField);
     const parsed = version.syntaxVersion === 'grasp-v1' ? parseNoteLanguage(rawDocument(state), version.revision) : null;
-    return { parsed, decorations: decorateSemantics(state, parsed) };
+    return { parsed, ranges: indexSemantics(parsed), decorations: decorateSemantics(state, parsed) };
   },
   update(value, tr) {
     const version = tr.state.field(documentVersionField);
     const versionChanged = tr.effects.some(effect => effect.is(updateDocumentVersion));
     if (!tr.docChanged && !tr.selection && !versionChanged && !tr.effects.some(effect => effect.is(updateRuntime) || effect.is(updateMode) || effect.is(updatePendingValues) || effect.is(updateAssets))) return value;
-    const parsed = version.syntaxVersion !== 'grasp-v1' ? null
-      : tr.docChanged || !value.parsed ? parseNoteLanguage(rawDocument(tr.state), version.revision)
-        : versionChanged ? { ...value.parsed, revision: version.revision } : value.parsed;
+    let parsed: ParsedNoteLanguage | null = null;
+    if (version.syntaxVersion === 'grasp-v1') {
+      if (tr.docChanged || !value.parsed) {
+        const source = rawDocument(tr.state);
+        parsed = (value.parsed && reusePlainProseAppend(value.parsed, source, version.revision)) ?? parseNoteLanguage(source, version.revision);
+      } else parsed = versionChanged ? { ...value.parsed, revision: version.revision } : value.parsed;
+    }
     // A committed revision receipt changes the edit guard, not any displayed
     // value. Keep the existing range tree instead of recreating every widget.
     const displayChanged = tr.docChanged || !!tr.selection || parsed === null !== (value.parsed === null)
       || tr.effects.some(effect => effect.is(updateRuntime) || effect.is(updateMode) || effect.is(updatePendingValues) || effect.is(updateAssets));
-    return { parsed, decorations: displayChanged ? decorateSemantics(tr.state, parsed) : value.decorations };
+    const ranges = parsed?.bindings !== value.parsed?.bindings || parsed?.references !== value.parsed?.references ? indexSemantics(parsed) : value.ranges;
+    return { parsed, ranges, decorations: displayChanged ? decorateSemantics(tr.state, parsed) : value.decorations };
   },
   provide: field => EditorView.decorations.from(field, value => value.decorations),
 });
@@ -336,12 +344,11 @@ function inlineDecorations(view: EditorView, options: EditorOptions): Decoration
   const declarations: Array<{ from: number; to: number }> = [];
   const seenLines = new Set<number>();
   const values = state.field(runtimeField).result.values;
-  const semantic = state.field(semanticField).parsed;
-  const semanticRanges = semantic ? [...semantic.bindings, ...semantic.references].map(span => ({ from: rawToEditor(state, span.from), to: rawToEditor(state, span.to) })) : [];
+  const semanticRanges = state.field(semanticField).ranges;
   const assets = state.field(assetsField);
   const assetLinks = assets.links.filter(link => link.from >= 0 && link.to <= state.doc.length && state.doc.sliceString(link.from, link.to) === link.raw
     && assets.attachments.has(link.id) && !sourceAt(state, link.from, link.to)
-    && !semanticRanges.some(range => link.from < range.to && link.to > range.from));
+    && !semanticRanges.overlaps(editorToRaw(state, link.from), editorToRaw(state, link.to)));
   const lookupValue = (name: string): ValueResult | undefined => Object.hasOwn(values, name) ? values[name] : undefined;
   const add = (from: number, to: number, decoration: Decoration) => { if (from < to) ranges.push(decoration.range(from, to)); };
   const conceal = (from: number, to: number) => { if (hidden.some(range => range.from <= from && range.to >= to)) return; hidden.push({ from, to }); add(from, to, Decoration.replace({})); };
@@ -368,7 +375,7 @@ function inlineDecorations(view: EditorView, options: EditorOptions): Decoration
       }
     }
     syntaxTree(state).iterate({ from: visible.from, to: visible.to, enter(node) {
-      if (semanticRanges.some(range => node.from >= range.from && node.from < range.to)) return false;
+      if (semanticRanges.contains(editorToRaw(state, node.from))) return false;
       if (assetLinks.some(link => node.from >= link.from && node.to <= link.to)) return false;
       if (declarations.some(range => range.from <= node.from && range.to >= node.to)) return false;
       const editing = sourceAt(state, node.from, node.to);

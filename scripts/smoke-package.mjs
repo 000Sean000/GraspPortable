@@ -82,7 +82,13 @@ try {
   const retrieved = await fetch(`${origin}/api/assets/${attachment.id}?workspace=${encodeURIComponent(workspace.id)}`); assert.equal(retrieved.status, 200); assert.deepEqual(Buffer.from(await retrieved.arrayBuffer()), attachmentBytes);
   const projection = await fetch(origin + '/api/files/mirror/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Grasp-Workspace': workspace.id }, body: '{}' });
   assert.equal(projection.status, 200); const files = await projection.json(); assert.equal(files.mirror.state, 'ready'); assert.equal(files.mirror.revision, workspace.revision);
-  assert.ok(existsSync(resolve(files.root, files.mirror.manifestPath))); assert.ok(existsSync(resolve(files.root, files.mirror.indexPath)));
+  assert.ok(existsSync(files.mirror.manifestPath));
+  const manifest = JSON.parse(readFileSync(files.mirror.manifestPath, 'utf8'));
+  assert.equal(manifest.format, 'grasp-generation'); assert.equal(manifest.kind, 'full');
+  assert.ok(existsSync(join(dirname(files.mirror.manifestPath), 'complete.json')));
+  assert.ok(existsSync(join(dirname(files.mirror.manifestPath), 'recovery.json')));
+  const buildInfo = JSON.parse(readFileSync(join(source, 'dist/build-info.json'), 'utf8'));
+  assert.equal((await fetch(origin + '/api/host')).headers.get('x-graspportable-build'), buildInfo.buildId);
   await stop(); const reopened = await start(); assert.deepEqual(reopened, workspace);
   const persistedAttachment = await fetch(`${origin}/api/assets/${attachment.id}?workspace=${encodeURIComponent(reopened.id)}`); assert.equal(persistedAttachment.status, 200); assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes);
   const evidence = { timestamp: new Date().toISOString(), node: process.version, platform: process.platform, source: basename(source), packagedFiles: packagedFiles.length, staticAssetsLoaded: assets.length, builtinHostImports: imports, isolatedOutsideRepository: true, installedDependenciesRequired: false, launcherStarted: true, databaseWriteExportRestart: 'passed', attachmentBytesRestart: 'passed', mirrorPublished: 'passed', privateFilesAbsent: true };

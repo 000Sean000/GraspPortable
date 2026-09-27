@@ -31,6 +31,12 @@ interface TrustedPublication { manifest: GenerationManifest; rendered: RenderedP
 type FailurePoint = 'generation-complete' | 'journal-durable' | 'old-renamed' | 'new-renamed';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const fingerprint = (capture: Capture) => sourceHash(projectionJson(capture));
+// Only the published reading view may ignore UI settings and saved drafts. Full
+// checkpoints retain the complete capture fingerprint above, including both.
+const readingFingerprint = (snapshot: WorkspaceSnapshot, strategyRevision: number) => sourceHash(projectionJson({
+  id: snapshot.id, name: snapshot.name, notes: snapshot.notes, folders: snapshot.folders,
+  records: snapshot.records, attachments: snapshot.attachments, strategyRevision,
+}));
 
 /** Sole active projection publisher. Legacy WorkspaceFiles supplies confined file
  * browsing/exchange only; its old timer/publisher is never scheduled here. */
@@ -44,6 +50,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
   private projectionCurrent?: GenerationManifest;
   private legacy?: GenerationEntry[];
   private lastFingerprint?: string;
+  private lastReadingFingerprint?: string;
   private statusValue: ProjectionStatus;
   private readonly reviews = new Map<string, { expires: number; fingerprint: string; strategy: ProjectionStrategy }>();
   private readonly packages = new Map<string, ProjectionPlanningPackage>();
@@ -66,7 +73,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
         else throw new Error('Public projection has no trusted database publication baseline; preserve it and use explicit rebuild/import.');
         if (this.projectionCurrent.workspaceId !== this.store.id) throw new Error('Existing projection belongs to another workspace.');
         this.lastFingerprint = this.projectionCurrent.fingerprint;
-        this.acceptCurrent(this.projectionCurrent);
+        this.acceptCurrent(this.projectionCurrent, (pending && this.projectionCurrent === pending.manifest ? pending : published)!.snapshot);
       } else if (await this.generations.exists('Markdown')) {
         // A clean v0.2 raw projection can be replaced only after its old public
         // manifest verifies every byte. Dirty legacy trees remain untouched.
@@ -81,8 +88,9 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     })().catch(error => { this.projectionInitialized = undefined; throw error; });
     return this.projectionInitialized;
   }
-  private acceptCurrent(manifest: GenerationManifest): void {
+  private acceptCurrent(manifest: GenerationManifest, snapshot?: WorkspaceSnapshot): void {
     this.projectionCurrent = manifest;
+    if (snapshot) this.lastReadingFingerprint = readingFingerprint(snapshot, manifest.strategyRevision);
     this.statusValue = { ...this.statusValue, state: 'ready', lastSuccessRevision: manifest.workspaceRevision, lastSuccessAt: manifest.createdAt,
       lastSuccessFingerprint: manifest.fingerprint, manifestPath: resolve(this.root, 'Markdown', MANIFEST), dirtyPaths: [], error: undefined };
   }
@@ -253,7 +261,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     }
     this.store.saveProjectionMetadata('published', trusted); this.store.saveProjectionMetadata('pending', null); this.store.saveProjectionMetadata('externalApprovals', []);
     await this.generations.move(journalPath, `${journalPath}.done`);
-    this.lastFingerprint = next; this.legacy = undefined; this.acceptCurrent(manifest);
+    this.lastFingerprint = next; this.legacy = undefined; this.acceptCurrent(manifest, capture.snapshot);
     if (journal.hadPrevious && !(await this.compareInventory(previous, previousFiles, true)).length) await this.generations.removeVerified(previous);
     await this.retain();
     if (this.store.projectionStamp() !== manifest.stamp) this.schedule(this.store.snapshot(), sha => this.store.readBlob(sha));
@@ -269,14 +277,36 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
   }
   override async flush(): Promise<FilesStatus> { await this.checkpoint(); return this.status(); }
   override async close(): Promise<void> { this.projectionClosing = true; if (this.projectionTimer) clearTimeout(this.projectionTimer); if (this.projectionRunning) await this.projectionRunning; /* DB already durably owns edits; close never forces expensive checkpoint. */ }
+  async ensureForLocate(): Promise<void> {
+    if (this.projectionRunning) await this.projectionRunning;
+    await this.initializeProjection();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const stamp = this.store.projectionStamp(), capture = this.capture();
+      if (!this.projectionCurrent || readingFingerprint(capture.snapshot, capture.strategy.revision) !== this.lastReadingFingerprint) {
+        const status = await this.checkpoint();
+        if (status.state !== 'ready') throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
+        continue;
+      }
+      const dirty = await this.dirty();
+      this.statusValue.dirtyPaths = dirty;
+      if (dirty.length) { this.statusValue.state = 'dirty'; throw new StoreError('Projection 有外部變更；請先審查或處理 dirty 檔案。', 409); }
+      // A content mutation during filesystem inspection must not make an old
+      // reading view appear current. Settings/drafts may still leave fallback pending.
+      if (stamp === this.store.projectionStamp()) {
+        if (this.statusValue.state !== 'error') this.statusValue.state = this.projectionCurrent.stamp === stamp ? 'ready' : 'pending';
+        return;
+      }
+    }
+    throw new StoreError('Workspace 在定位期間變更；請重試。', 409);
+  }
   override async locate(kind: 'note' | 'folder' | 'attachment', id: string): Promise<FileEntry> {
-    await this.checkpoint();
+    await this.ensureForLocate();
     if (kind === 'folder') { const folder = this.status().projection.folders.find(folder => folder.id === id); if (!folder) throw new StoreError('Folder not found.', 404); return this.revealPath(folder.path); }
     const file = kind === 'attachment' ? this.projectionCurrent?.plan.attachments.find(item => item.id === id)?.file : this.projectionCurrent?.plan.targetMap.find(item => item.unitId === `noteProse:${id}`)?.path;
     if (!file) throw new StoreError('此項目尚未存在已發布 projection。', 404);
     return this.revealPath(`Markdown/${file}`);
   }
-  async locateUnit(unitId: string): Promise<{ entry: FileEntry; anchor: string }> { await this.checkpoint(); const target = this.projectionCurrent?.plan.targetMap.find(item => item.unitId === unitId); if (!target) throw new StoreError('Projection unit 尚未發佈。', 404); return { entry: await this.revealPath(`Markdown/${target.path}`), anchor: target.anchor }; }
+  async locateUnit(unitId: string): Promise<{ entry: FileEntry; anchor: string }> { await this.ensureForLocate(); const target = this.projectionCurrent?.plan.targetMap.find(item => item.unitId === unitId); if (!target) throw new StoreError('Projection unit 尚未發佈。', 404); return { entry: await this.revealPath(`Markdown/${target.path}`), anchor: target.anchor }; }
   override async buildAiFolder(_snapshot: WorkspaceSnapshot, _readBlob: (sha256: string) => Uint8Array | Promise<Uint8Array>): Promise<FileExportResult> { return this.exportScope({ mode: 'full' }); }
   async exportScope(scope: ProjectionScope): Promise<FileExportResult> {
     await this.initializeProjection(); let directory: string, manifest: GenerationManifest;

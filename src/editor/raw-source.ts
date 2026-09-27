@@ -1,9 +1,25 @@
-import { EditorState, MapMode, StateEffect, StateField, type Transaction } from '@codemirror/state';
+import { EditorState, StateEffect, StateField, type ChangeDesc, type Transaction } from '@codemirror/state';
 import { invertedEffects } from '@codemirror/commands';
 
 type Separator = '\n' | '\r\n' | '\r';
 interface Break { at: number; text: Separator }
 interface SourceFormat { preferred: Separator; extra: readonly Break[]; crlf: readonly number[] }
+
+/** Equivalent to mapPos(at, 1, TrackAfter), with one reusable change index. */
+export function trackedAfterMapper(changes: ChangeDesc): (at: number) => number | null {
+  const ranges: Array<{ from: number; to: number; toB: number }> = [];
+  changes.iterChangedRanges((from, to, _fromB, toB) => ranges.push({ from, to, toB }), true);
+  return at => {
+    let low = 0, high = ranges.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (ranges[middle].to <= at) low = middle + 1; else high = middle;
+    }
+    if (low < ranges.length && ranges[low].from <= at) return null;
+    const previous = ranges[low - 1];
+    return at + (previous ? previous.toB - previous.to : 0);
+  };
+}
 
 /** CM positions use one character per line break. Only non-LF breaks need metadata. */
 function format(preferred: Separator, extra: readonly Break[]): SourceFormat {
@@ -23,8 +39,9 @@ export function sourceFormat(source: string): SourceFormat {
 // Inverse effects keep the deleted separators, rather than whole document snapshots.
 // Their positions follow CodeMirror's normal history grouping and change mapping.
 const restoreBreaks = StateEffect.define<readonly Break[]>({ map: (items, changes) => {
+  const map = trackedAfterMapper(changes);
   const mapped = items.flatMap(item => {
-    const at = changes.mapPos(item.at, 1, MapMode.TrackAfter);
+    const at = map(item.at);
     return at === null ? [] : [{ ...item, at }];
   });
   return mapped.length ? mapped : undefined;
@@ -35,8 +52,9 @@ export const rawSourceField = StateField.define<SourceFormat>({
   update(value, tr) {
     if (!tr.docChanged && !tr.effects.some(effect => effect.is(restoreBreaks))) return value;
     const extra = new Map<number, Separator>();
+    const map = trackedAfterMapper(tr.changes);
     for (const item of value.extra) {
-      const at = tr.changes.mapPos(item.at, 1, MapMode.TrackAfter);
+      const at = map(item.at);
       if (at !== null) extra.set(at, item.text);
     }
     if (value.preferred !== '\n') tr.changes.iterChanges((_from, _to, fromB, _toB, inserted) => {
@@ -59,8 +77,9 @@ export const rawSourceHistory = invertedEffects.of(tr => {
       const at = from + match.index!; deleted.push({ at, text: original.get(at) ?? '\n' });
     }
   });
+  const map = trackedAfterMapper(tr.changes.invertedDesc);
   for (const effect of tr.effects) if (effect.is(restoreBreaks)) for (const item of effect.value) {
-    const at = tr.changes.invertedDesc.mapPos(item.at, 1, MapMode.TrackAfter);
+    const at = map(item.at);
     if (at !== null && tr.startState.doc.sliceString(at, at + 1) === '\n') deleted.push({ at, text: original.get(at) ?? '\n' });
   }
   return deleted.length ? [restoreBreaks.of(deleted)] : [];

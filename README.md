@@ -1,10 +1,10 @@
-# GraspPortable 0.2.0
+# GraspPortable 0.3.0
 
 在本機寫 Markdown、管理有資料夾的筆記庫，讓 identifier、records 與查詢表使用同一份資料。SQLite 保存筆記與附件；旁邊的檔案目錄提供可讀 Markdown、AI 交換檔及經過驗證的重建來源。
 
 ## 啟動
 
-**Windows：雙擊 `Start-GraspPortable.cmd`，瀏覽器會開啟 `http://127.0.0.1:43821`。** 需要 **Node.js 24+**。下載的 `GraspPortable-0.2.0` 套件已包含成品，無須安裝 npm dependencies。其他桌面平台可執行 `node scripts/launch.mjs`；目前正式驗證環境是 Windows／Edge。
+**Windows：雙擊 `Start-GraspPortable.cmd`，瀏覽器會開啟 `http://127.0.0.1:43821`。** 需要 **Node.js 24+**。`GraspPortable-0.3.0` 套件已包含成品，無須安裝 npm dependencies。其他桌面平台可執行 `node scripts/launch.mjs`；目前正式驗證環境是 Windows／Edge。若同一 port 已有不同版本或 workspace，launcher 會明確拒絕沿用；請關閉自己原先啟動的 host 或使用另一個 PORT。
 
 從原始碼 checkout 建置：
 
@@ -28,7 +28,7 @@ node scripts/launch.mjs --workspace "C:\Notes\My.grasp.db"
 
 1. **找到與整理筆記。** 建立資料夾和中文筆記，用側欄搜尋標題、路徑或內容。Ctrl/⌘+P 快速切換；試試最近開啟、前後導覽，以及筆記「⋯」中的移動。資料夾位置與筆記 ID 分開保存。
 2. **寫作與連動。** 新筆記使用下方 raw literal 語法；從 reference 的「修改共享值」編輯定義，巢狀結果與正文快取一起保存。可跳到 definition、Find References、重新命名，以及獨立「撤銷共享修改」。Source／Live Preview／閱讀模式共用同一筆記；Ctrl/⌘+Z 管理本地輸入。
-3. **操作資料。** 在「資料」搜尋 record，修改欄位值，以 collection 或欄位計算值精確篩選。建立 table 筆記；點列名開啟 record，或按「開啟全部結果」分頁瀏覽。欄位詳細資料可以查看引用、插入 `{{collection.name.field}}`。
+3. **操作資料。** 在「資料」搜尋 record，修改欄位值，以 collection 或欄位計算值精確篩選。建立 table 筆記；點列名開啟 record，或按「開啟全部結果」分頁瀏覽。欄位詳細資料可查看引用並插入符合目前筆記語法版本的 reference。
 4. **分組並取得檔案。** 開啟「分組策略與 Fallback」，可把同篇筆記的兩個共享定義分到不同 `.md`，預覽後保存策略，再建立完整 checkpoint。選取部分資料可直接匯出 Markdown 或下載外部分析 JSON；外部協作者回傳結構化分組提案，再由 App 審查。正常 AI 拖曳從「顯示筆記檔」進 File Explorer 即可。
 5. **驗證往返與保存。** 修改已發布檔案的正文或 Definition source 區塊後，在「檔案與 Markdown」審查外部修改；僅改 rendered value 不會自動改寫共享資料。完整重建使用 `Markdown/.grasp-export/manifest.json` 和尚不存在的新 `.db`；保留原 DB，重建後關閉 host 再啟動確認。
 
@@ -126,7 +126,7 @@ npm run package
 node scripts/smoke-package.mjs
 ```
 
-`npm run package` 產生 `artifacts/GraspPortable-0.2.0`；不包含 workspace、私人遷移內容、npm dependencies 或 Node runtime。既有版本目錄拒絕覆寫，`GraspPortable-0.1.0` 保持原樣。Package smoke 在 repository 外的隔離目錄驗證 launcher、靜態資產、保存／匯出／重啟，以及封裝後的附件與 mirror 路徑。
+`npm run package` 產生 `artifacts/GraspPortable-0.3.0`；不包含 workspace、私人遷移內容、npm dependencies 或 Node runtime。既有版本目錄拒絕覆寫。Package smoke 在 repository 外的隔離目錄驗證 launcher、build identity、靜態資產、保存／匯出／重啟，以及封裝後的附件與完整 Markdown 路徑。新版語義 benchmark 使用 `node --expose-gc --import tsx scripts/benchmark-shared.ts`；歷史 benchmark 的語法版本與結果另列。
 
 E2E 在 Windows 優先使用已安裝 Edge，其他環境須先 `npx playwright install chromium`。測試 workspace 在 repo 外的 `SandboxRoot/Scratch/AutomatedTests/`；效能驗證應避開並行 benchmark。原生中文 IME、Obsidian／Explorer 桌面操作與 browser automation 證據分開記錄。
 

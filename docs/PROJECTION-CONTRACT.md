@@ -145,7 +145,7 @@ Hash 不符的外部修改走 review，不把它當 untouched fallback 直接重
 
 ## 9. MainVault 與 M3/M4 驗收
 
-現有 `server/migration.ts` 有 512 MiB aggregate preview cap，歷史全量 assets 約 540.67 MB；既有 160-note rehearsal 不能證明完整副本可匯入。M4 先唯讀 inventory count/hash/bytes，再採串流／分批讀取及可恢復 checkpoint，保留一致 manifest 和 deterministic identity mapping；不是單純無界拉高 cap／把所有附件同時留記憶體。Apply 前重查來源 hashes，輸出新 DB，不能寫 MainVault／MainVault-Source，也不自動語意分類。
+本 Goal 開始前的 `server/migration.ts` 曾有 512 MiB aggregate preview cap，歷史全量 assets 約 540.67 MB；既有 160-note rehearsal 不能證明完整副本可匯入。M4 須先唯讀 inventory count/hash/bytes，再採串流／分批讀取及可恢復 checkpoint，保留一致 manifest 和 deterministic identity mapping；不是單純無界拉高 cap／把所有附件同時留記憶體。Apply 前重查來源 hashes，輸出新 DB，不能寫 MainVault／MainVault-Source，也不自動語意分類。當前串流實作與完整資料驗證結果見 [M4 verification](M4-VERIFICATION.md)。
 
 必驗 synthetic cases：同 Note 兩 bindings 分群；whole-note＋explicit binding overlap；record-field／identifier alias overlap；rename／move group 不改 IDs；同名／case/path collision；stale proposal；未分配／刪除成員；partial export 不洩漏未選 raw source；source layout 與原 bytes 還原；含／不含 dependency closure；附件 hash／relative links；dirty file／新檔／外部刪除；每個 publication 階段 crash、磁碟不足、retention 及 restart；兩代自足；損壞／缺 payload／不相容版本拒絕。
 
