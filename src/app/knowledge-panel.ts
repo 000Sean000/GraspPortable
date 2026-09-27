@@ -8,6 +8,7 @@ export interface KnowledgeActions {
   location(location: SourceLocation): void;
   reference(reference: Reference, occurrence: number): void;
   rename(name: string): void;
+  edit?(name: string): void;
   retry(): void;
 }
 const el = (tag: string, className = '', value = '') => { const node = document.createElement(tag); node.className = className; node.textContent = value; return node; };
@@ -107,9 +108,11 @@ export class KnowledgePanel {
         const state = entry.issues.has('duplicate') ? 'duplicate' : value?.status ?? 'missing';
         const card = el('div', 'value-card'); const heading = el('div', 'value-card-header'); heading.append(button(entry.name, () => actions.definition(entry.name), 'identifier-name'), el('span', `value-state ${state}`, state === 'ok' ? '●' : state));
         card.append(heading, el('div', 'value-text', value?.value || (value?.status === 'ok' ? '（空字串）' : value?.message || '未定義')));
-        const controls = el('div', 'value-actions'); controls.append(button('定義 ↗', () => actions.definition(entry.name)), button('References', () => actions.select(entry.name))); card.append(controls); container.append(card);
+        const controls = el('div', 'value-actions'); controls.append(button('定義 ↗', () => actions.definition(entry.name)), button('References', () => actions.select(entry.name)));
+        if (actions.edit) controls.append(button('編輯共享值', () => actions.edit!(entry.name)));
+        card.append(controls); container.append(card);
       }
-      if (!entries.length) container.append(el('p', 'empty', '沒有符合的識別值。可寫 @name = "Hello"，再用 {{name}} 引用。'));
+      if (!entries.length) container.append(el('p', 'empty', '沒有符合的識別值。新筆記可寫 @Name = <|Hello|>，再用 [Hello](:ref:Name) 引用；舊筆記保留原有語法。'));
       container.append(pager(this.page, entries.length, 60, value => { this.page = value; rerender(); }));
     }
     if (focusId) { const input = container.querySelector<HTMLInputElement>(`#${focusId}`); if (input) { input.focus(); if (cursor !== null) input.setSelectionRange(cursor, cursor); } }
@@ -125,7 +128,8 @@ export class KnowledgePanel {
   private detail(container: HTMLElement, name: string, sourceLabel: (loc: SourceLocation) => string, actions: KnowledgeActions, redraw: () => void, runtime?: RuntimeResult) {
     const entry = this.entries.get(name); const card = el('section', 'reference-detail');
     card.append(button('← 所有識別值', () => actions.select(undefined), 'text-button'), el('h3', '', name));
-    const value = runtime?.values[name]; card.append(el('p', 'current-value', value?.value || value?.message || '未定義'), button('前往定義 ↗', () => actions.definition(name)), button('重新命名／移動 Namespace', () => actions.rename(name)));
+    const value = runtime?.values[name]; card.append(el('p', 'current-value', value?.status === 'ok' ? value.value || '（空字串）' : value?.message || '未定義'), button('前往定義 ↗', () => actions.definition(name)), button('重新命名／移動 Namespace', () => actions.rename(name)));
+    if (actions.edit) card.append(button('編輯共享值', () => actions.edit!(name)));
     const defs = entry?.definitions ?? []; this.definitionPage = clampPage(this.definitionPage, defs.length, 20);
     card.append(el('h4', '', `Definitions · ${defs.length}`));
     for (const definition of defs.slice(this.definitionPage * 20, (this.definitionPage + 1) * 20)) card.append(button(`${sourceLabel(definition.location)} · 第 ${definition.location.line} 行`, () => actions.location(definition.location), 'definition-link'));

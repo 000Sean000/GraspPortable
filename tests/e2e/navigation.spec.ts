@@ -4,9 +4,10 @@ import { once } from 'node:events';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WorkspaceStore } from '../../server/store';
+import { testDirectory } from './fixtures';
 
 const origin = 'http://127.0.0.1:43841';
-const folder = resolve('.cache/navigation-e2e', `${Date.now()}-${process.pid}`);
+const folder = testDirectory('navigation');
 const database = resolve(folder, 'large.grasp.db');
 let server: ChildProcess;
 async function snapshot() { return (await fetch(origin + '/api/workspace')).json(); }
@@ -28,7 +29,7 @@ test.describe.serial('large logical workspace navigation', () => {
     const store = new WorkspaceStore(database, { create: true, name: 'Navigation scale' });
     const folders = Array.from({ length: 6 }, (_, i) => ({ id: `f${i}`, parentId: i ? `f${i - 1}` : null, name: `主題${i}`, revision: 0 }));
     const notes = Array.from({ length: 3000 }, (_, i) => ({ id: `n${i}`, title: `筆記 ${String(i).padStart(4, '0')}`, folderId: i < 2275 ? 'f0' : 'f5', markdown: `# 內容 ${i}\n\n可搜尋的中文編號 ${i}\n\n[[筆記 0000#內容 0|返回]]\n\n@value${i} = "${i}"\n{{value${i}}}\n` }));
-    store.applyImport({ notes, folders }, store.snapshot().revision);
+    store.applyImport({ notes: notes.map(note => ({ ...note, syntaxVersion: 'legacy-v0.2' as const })), folders }, store.snapshot().revision);
     store.updateSettings({ activeNoteId: 'n0', mode: 'source' }); store.close(); await start();
   });
   test.afterAll(stop);

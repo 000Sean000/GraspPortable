@@ -1,6 +1,6 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-27。**使用者重置額度後已恢復執行，完整 A+B Goal 未完成。這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
+更新：2026-09-28。**使用者重置額度後已恢復執行，完整 A+B Goal 未完成。這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
 
 ## 1. Current objective、WHY 與範圍
 
@@ -43,7 +43,7 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 
 程式版本 0.2.0；publication 前 Git baseline `187be53ef5138bd9b24bc96a7c76f3a0901dfd04`。TypeScript／CodeMirror／worker ValueGraph／Node 24+／SQLite；路徑與 API 見 implementation contract。
 
-現有 App runtime 仍是逐行 JSON-string binding、brace interpolation／`{{name}}`。M1 已完成兩式 codec、無 pass ceiling 的 `note-language.ts` context adapter、既有 raw-source adapter 的 patch／undo，以及 `source-bundle.ts`／`markdown-value-export.ts` 的單篇表示與 exact reconstruction；尚未接正式 runtime、DB 或 UI。沒有 stable Binding／Occurrence DB rows、新 persistent-cache transaction 或 semantic-unit strategy。現有 migration rehearsal 是 160 notes／44 folders／11 assets，不是全 MainVault 搬運完成。歷史完整 inventory 為 3,365 files／2,820 Markdown／506 assets；512 MiB aggregate migration cap 與全量 bytes 的落差需 M4 處理，先重新 inventory，不要求讀取每篇私人內容。
+M1 已完成兩式 codec、無 pass ceiling 的 `note-language.ts` context adapter、source bundle／單篇表示與 exact reconstruction。M2 已接正式 runtime、SQLite schema 4 與 App：新 Note 明示 `grasp-v1`，舊 Note／migration 明示 `legacy-v0.2`；stable Identifier／Binding／Occurrence、ordered dependency IDs、current／last-good／rendered caches 以原子 semantic state 保存。Durable drafts、共享 literal／dependency／rename／undo、receipt 重試、source edit proof、in-flight typing rebase 及 Reading mode 已有實際測試；最後 recovery UI 回歸已完成，準備提交本段。詳細見 [M2 evidence](M2-VERIFICATION.md)。Semantic-unit strategy／full fallback 尚未實作。現有 MainVault migration rehearsal 仍為 160 notes／44 folders／11 assets；歷史完整 inventory 3,365 files／2,820 Markdown／506 assets，M4 要重新 inventory 與串流處理，不把舊 rehearsal 當全量完成。
 
 歷史 v0.2 build／189 tests／21 production E2E，以及 warm projection 約 9.25 秒，只描述當時實作；不是新契約驗收。新 reference 的 32 個診斷測試曾通過，但僅證明 host 限制。
 
@@ -60,25 +60,26 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 | v0.2 Acceptance Preparation | 歷史已完成；保留可啟動版本及既有資料 |
 | Continuity publication | 已完成，`6bb2024` 已推送並核對遠端；本 Goal 已從此接續 |
 | M1 | **語義／表示重建 gate 通過，可接 M2**。361 tests/build 通過；context ceiling 解除、3,000 chain／10 reading fixtures／source-layout exact restore 通過。Obsidian GUI 仍未驗證，不冒稱完整 desktop gate 已測 |
-| M2 | Shared semantic editing、draft／cache／DB consistency 尚待實作 |
+| M2 | **正式功能與整合驗收通過**：35 files／436 tests（bounded workers）、fresh build、完整32 production E2E通過；正在保存／發布本段 checkpoint |
 | M3 | Strategy review、semantic grouping、完整 exporter／checkpoint／rebuild 尚待實作 |
 | M4 | 全副本往返、真實 GUI、failure recovery、性能及整合驗收尚待完成 |
 
-Current point：**M1 語義／表示重建已完成，checkpoint 後直接進入 M2 正式 shared editing**。最新證據見 [M1 verification](M1-VERIFICATION.md)：2026-09-27 23:56:06 Asia/Taipei，29 files／361 tests pass，4.44 秒，build 通過；Scratch 有 10 份 synthetic reading fixtures。M1 checkpoint subject 為 `feat: complete lossless note representation gate`，精確 SHA／push 由 Git history 核對。M2 尚未 coding。
+Current point：**M2 驗收已通過，正在保存 checkpoint，接著直接 M3**。M1 `480f073b69fb7e79dd6d7bcd86c29dcfa243c834` 已 push、remote SHA 相符；361 tests/build 與 10 fixtures 見 [M1 verification](M1-VERIFICATION.md)。本次 M2 尚未提交，保留 working tree。Domain agent 擁有 model/knowledge/graph/shared/rename，persistence agent 擁有 store/schema/API/draft/receipts，editor agent 擁有 editor/reading/marker/patch，coordinator 擁有 main UI、app styles/knowledge panel/runtime content-key、整合 tests/docs/Git。
+
+M2 API 已實作：`GET /api/shared/state` 回 snapshot/semantic/noteSources，`PUT /api/drafts/:id` 保存獨立版本及 raw sourceEdits journal，`POST /api/shared/commands` 附 operationId/baseSemanticRevision。Receipt 可查／同 payload 重試，commit-draft 附 durable `draftAcknowledgement`（submitted-source cache-only edits），App 將同時輸入的非重疊變更重映射到新 base。Editor semantic patch 有 key/revision/exact-source guard，不 reset history；Reading 保留原 EditorView。Discard 確認期間不會 debounce commit；review 後舊稿只供手動恢復；owner 被刪除的稿仍可下載。Final 32 E2E 已驗證，接續 checkpoint。
 
 使用者 reset 後同一新窗口：2026-09-27 15:38:17 UTC 0% → 15:56:25 UTC 8%，ordinaryUsageAllowed=true、reset `1791128122`；帳戶差值 8 pp／18m 08s，不是單任務帳單。15:56 fetch 成功，尚無需 pull；前一安全 checkpoint `6f49e57`／產品 `d69ea80`、`8048da6` 保留。上次 100% 停工期間未改用 Reserve；本次不重啟 Planning，不設 routine Human gate。
 
 Continuity review：一個未繼承原對話的 reviewer 從本頁出發，讀 Seed、Plan、三份 contracts、gate 與 baseline/evidence 後，已能恢復 WHY、settled decisions、actual repo、完整 plan、stop point、next action、Git locator 與 quota rule。初次發現缺 Projection／授權措辭不明，補齊後第二次判定 PASS。這是文件續作檢查，不是 M1/M2/M3/M4 產品驗收；Git 發布仍以實際 commit／remote verification 為準。
 
-Open items：**2026-09-27 Human 已接受 M2 的 DB durable draft＋明示 last committed value、語法完整 missing/cycle 可保存且顯示錯誤，以及獨立共享撤銷／本地 Ctrl+Z**，詳見 Shared Value contract 第 3–4 節；這些不再待批准，也尚未實作。外部 observation 更新權限仍未授予，不能套用舊 Config；需要該權限的實際案例才回 Human。Obsidian／Explorer 真實 GUI、IME／zoom 尚缺當次驗證；既有 Notepad approval 及 mock/spawn 不足以證明這些。已讀 Computer Use skill，但本次工具列表無其要求的 node_repl，亦無 Browser／Computer Use callable tool；可以執行既有 Playwright browser tests，不能稱 native desktop 操作。
+Open items：**2026-09-27 Human 已接受 M2 的 DB durable draft＋明示 last committed value、語法完整 missing/cycle 可保存且顯示錯誤，以及獨立共享撤銷／本地 Ctrl+Z**，詳見 Shared Value contract 第 3–4 節；這些已實作並有 M2 驗證，不再待批准。外部 observation 更新權限仍未授予，不能套用舊 Config；需要該權限的實際案例才回 Human。Obsidian／Explorer 真實 GUI、IME／zoom 尚缺當次驗證；既有 Notepad approval 及 mock/spawn 不足以證明這些。已讀 Computer Use skill，但本次工具列表無其要求的 node_repl，亦無 Browser／Computer Use callable tool；可以執行既有 Playwright browser tests，不能稱 native desktop 操作。
 
 ## 6. Exact next executable step
 
-1. 驗證本 M1 checkpoint 已 push 到 origin/master，再開始 M2；最新 fetch／quota 已於 15:56 UTC 執行。後續主要里程碑重做必要 preflight，只用正常高能力額度。
-2. M2 domain：明示 legacy／v1 syntax adapter；`knowledge.ts` 從新版 ordered parts 產出 graph，不經舊 template 二次解讀。增加 stable Identifier／Binding／Occurrence、source versions、persistent result/cache DTO；候選 graph 不得在 DB rollback 後污染 committed state。Rename 使用明確 identity/source mapping。
-3. M2 store：schema 分段升級與 verified backup（現 `upgradeLegacy` 無條件建 attachment tables，需改成 v<2/v<3/v<4）；durable drafts 使用獨立版本、不触發 semantic revision／projection。Note／Record／rename／import／restore 都導入原子 semantic commit，保存 receipt／cache／source 一致狀態、idempotency 與獨立 shared undo。
-4. M2 editor/app：從 reference 進入 literal／dependency 修改，不能猜測反推 composition；semantic patch 比對 raw source／owner revision，不用 setDocument 重建 history；marker pair、IME defer、draft recovery/status、Reading View 與必要版面修正。App 整合由 coordinator 負責，子代理檔案責任分開。
-5. 驗證完整 reference edit → nested／persistent caches → restart；draft、missing/cycle、stale、undo、transaction failure、upgrade／legacy history。通過後 checkpoint，接 M3 strategy／full fallback、M4 全副本及性能。保留 desktop gap，不以 CLI／mock 冒稱 Obsidian／Explorer／原生 IME；依既有環境 fallback 授權繼續可完成部分。
+1. 保存 M2 checkpoint（subject: feat: deliver consistent shared editing and durable drafts），push origin/master 並核對 SHA；M1 已 push。最新 fetch 成功、HEAD/origin/master 0/0（16:44 UTC 附近）。完整 M2 evidence 已在 M2-VERIFICATION.md，32/32 production E2E／436 tests／build pass。
+2. 最新額度 snapshot 16:50:35 UTC：31% used、ordinaryUsageAllowed=true、reset 1791128122；同窗口較 M1 8% 增23 pp／54m10s。繼續正常高能力額度，見 USAGE-LOG.md。
+3. 接 M3：domain agent負責 semantic catalog／proposal／strategy normalization；host 負責單一 publisher、frozen review token、strategy持久化、staged generation／journal／retention／rebuild；renderer 與 App review UI 分工。旧 `WorkspaceFiles` 不得與新 publisher 同時寫 Markdown。建議完整 Markdown tree 隱藏 `.grasp-export` 保存自足 metadata，外部 `.grasp/manifests` 只 locator；partial export 不夾帶未選 owner raw source。
+4. M3通過後依 Plan 接 M4完整 MainVault副本串流匯入／往返、附件hash、故障與效能、驗收workspace／launch note。保留 desktop gap，不以 CLI／mock 冒稱 Obsidian／Explorer／原生 IME；依既有環境 fallback 授權繼續可完成部分。
 
 ## 7. Branch、checkpoint locator 與 rehydrate
 

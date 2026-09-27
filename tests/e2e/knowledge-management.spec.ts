@@ -5,9 +5,10 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WorkspaceStore } from '../../server/store';
 import type { WorkspaceSnapshot } from '../../src/domain/model';
+import { testDirectory } from './fixtures';
 
 const origin = 'http://127.0.0.1:43843';
-const directory = resolve('.cache/knowledge-e2e', `${Date.now()}-${process.pid}`);
+const directory = testDirectory('knowledge-management');
 const database = resolve(directory, 'knowledge.grasp.db');
 let server: ChildProcess;
 async function snapshot(): Promise<WorkspaceSnapshot> { return (await fetch(origin + '/api/workspace')).json(); }
@@ -27,7 +28,7 @@ test.describe.serial('production knowledge management', () => {
     mkdirSync(directory, { recursive: true });
     const store = new WorkspaceStore(database, { create: true, name: 'Knowledge management', seed: false });
     const records = Array.from({ length: 500 }, (_, i) => ({ id: `record-${i}`, collection: 'aura', name: `item${String(i).padStart(4, '0')}`, fields: { label: '{name}', element: i % 2 ? 'fire' : 'water' }, revision: 0 }));
-    store.applyImport({ records, notes: [{ id: 'knowledge', folderId: null, title: 'Knowledge source', markdown: '# Knowledge\n\n@name = "Sean"\n@full = "{name} User"\n\nHello {{full}}. Late record: {{aura.item0499.label}}.\n\nLiteral code: `{{name}}`.\n' }] }, store.snapshot().revision);
+    store.applyImport({ records, notes: [{ id: 'knowledge', folderId: null, title: 'Knowledge source', syntaxVersion: 'legacy-v0.2', markdown: '# Knowledge\n\n@name = "Sean"\n@full = "{name} User"\n\nHello {{full}}. Late record: {{aura.item0499.label}}.\n\nLiteral code: `{{name}}`.\n' }] }, store.snapshot().revision);
     store.updateSettings({ activeNoteId: 'knowledge', mode: 'live' }); store.close(); await start();
   });
   test.afterAll(stop);
@@ -58,7 +59,7 @@ test.describe.serial('production knowledge management', () => {
     await expect(page.locator('.reference-detail h3')).toHaveText('aura.item0499.label'); await expect(page.locator('.reference-detail')).toContainText('Knowledge source'); expect(errors).toEqual([]);
   });
 
-  test('previews identifier and record namespace changes, rewrites real dependencies and recovers', async ({ page }) => {
+  test('previews identifier and record namespace changes, rewrites dependencies and uses shared undo', async ({ page }) => {
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin); await ready(page); await page.locator('.note-item[data-note-id="knowledge"]').click();
     await page.locator('#tab-values').click(); await page.getByLabel('搜尋 identifier', { exact: true }).fill('name');
@@ -78,9 +79,8 @@ test.describe.serial('production knowledge management', () => {
     await expect(page.getByLabel('重新命名範圍')).toHaveValue('namespace'); await previewRename(page, 'aura.renamed0499'); await applyRename(page);
     const changed = await snapshot(); expect(changed.records.find(record => record.id === 'record-499')!.name).toBe('renamed0499');
     expect(changed.notes.find(note => note.id === 'knowledge')!.markdown).toContain('{{aura.renamed0499.label}}');
-    await page.locator('#history').click(); const recovery = page.locator('.history-row').filter({ hasText: 'aura.item0499' }).first();
-    await recovery.getByRole('button', { name: '檢查復原', exact: true }).click(); await expect(page.locator('#modal-body')).toContainText('aura.renamed0499 → aura.item0499');
-    await page.getByRole('button', { name: '確認復原', exact: true }).click(); await expect(page.locator('#modal')).not.toBeVisible();
+    await page.locator('#shared-undo').click();
+    await expect.poll(async () => (await snapshot()).records.find(record => record.id === 'record-499')!.name).toBe('item0499');
     const recovered = await snapshot(); expect(recovered.records.find(record => record.id === 'record-499')!.name).toBe('item0499');
     expect(recovered.notes.find(note => note.id === 'knowledge')!.markdown).toContain('{{aura.item0499.label}}'); expect(recovered.records[0].fields.label).toBe('{display_name}');
     await page.reload(); await ready(page); expect((await snapshot()).records.find(record => record.id === 'record-499')!.name).toBe('item0499'); expect(errors).toEqual([]);

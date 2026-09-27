@@ -3,7 +3,8 @@ import type { RuntimeResult, WorkspaceSnapshot } from '../domain/model';
 /** Only content read by buildKnowledge participates; titles, paths and UI preferences do not. */
 function sameKnowledge(a: WorkspaceSnapshot, b: WorkspaceSnapshot): boolean {
   if (a.id !== b.id || a.notes.length !== b.notes.length || a.records.length !== b.records.length) return false;
-  if (!a.notes.every((note, i) => note.id === b.notes[i].id && note.markdown === b.notes[i].markdown)) return false;
+  if (!a.notes.every((note, i) => note.id === b.notes[i].id && note.markdown === b.notes[i].markdown
+    && (note.syntaxVersion ?? 'legacy-v0.2') === (b.notes[i].syntaxVersion ?? 'legacy-v0.2'))) return false;
   return a.records.every((record, i) => {
     const other = b.records[i];
     if (record.id !== other.id || record.collection !== other.collection || record.name !== other.name) return false;

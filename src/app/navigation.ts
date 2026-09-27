@@ -140,6 +140,7 @@ export class Navigator {
   private recent: string[] = [];
   private page = 0;
   private busy = false;
+  private actionTail: Promise<void> = Promise.resolve();
   private pendingHistory?: { id: string; direction: -1 | 1 };
   private persistTimer?: ReturnType<typeof setTimeout>;
   private searchInput = el('input', 'search');
@@ -183,8 +184,14 @@ export class Navigator {
     const button = el('button', '', text); button.type = 'button'; button.title = label; button.setAttribute('aria-label', label);
     button.addEventListener('click', () => { void this.perform(action); }); return button;
   }
-  private async perform(action: () => unknown) {
-    if (this.busy || this.destroyed) return;
+  private perform(action: () => unknown): Promise<void> {
+    const workspaceId = this.snapshot?.id;
+    const next = this.actionTail.then(() => {
+      if (!this.destroyed && this.snapshot?.id === workspaceId) return this.performNext(action);
+    });
+    this.actionTail = next; return next;
+  }
+  private async performNext(action: () => unknown) {
     this.busy = true; this.parent.setAttribute('aria-busy', 'true'); this.status.hidden = true;
     try { await action(); }
     catch (error) {

@@ -98,7 +98,7 @@ export async function planVault(sourceRoot: string): Promise<VaultPlan> {
   for (const file of scan.files) {
     if (file.kind === 'note') {
       const markdown = file.bytes!.toString('utf8');
-      notes.push({ id: file.id, title: basename(file.path).slice(0, -3), markdown, folderId: file.path.includes('/') ? stableId('folder', file.path.slice(0, file.path.lastIndexOf('/'))) : null, revision: 1, updatedAt: new Date(file.mtimeMs).toISOString() });
+        notes.push({ id: file.id, title: basename(file.path).slice(0, -3), markdown, syntaxVersion: 'legacy-v0.2', folderId: file.path.includes('/') ? stableId('folder', file.path.slice(0, file.path.lastIndexOf('/'))) : null, revision: 1, updatedAt: new Date(file.mtimeMs).toISOString() });
       if (/\.excalidraw\.md$/i.test(file.path) || /^excalidraw-plugin\s*:/m.test(markdown)) unsupported.push({ path: file.path, kind: 'excalidraw' });
       if (/^[ \t>]*(?:`{3,}|~{3,})[ \t]*mermaid\b/m.test(markdown)) unsupported.push({ path: file.path, kind: 'mermaid' });
       if (/(?:^|[^\\])\$\$?[\s\S]+?\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(markdown)) unsupported.push({ path: file.path, kind: 'math' });

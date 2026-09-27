@@ -1,5 +1,6 @@
 import { buildKnowledge } from './knowledge';
 import { IDENTIFIER_PATTERN } from './template';
+import { isQualifiedIdentifier } from './binding-language';
 import { parser as markdownParser } from '@lezer/markdown';
 import type { Definition, Note, ParseResult, SourceLocation, StructuredRecord, ValueOwner, WorkspaceSnapshot } from './model';
 
@@ -92,8 +93,13 @@ export function planRename(snapshot: WorkspaceSnapshot, request: RenameRequest):
   const before = buildKnowledge(snapshot.notes, snapshot.records);
   const beforeDefinitions = definitionIndex(before);
   const counts = new Map<string, { from: string; to: string; definitions: number; references: number }>();
+  const noteVersions = new Map(snapshot.notes.map(note => [note.id, note.syntaxVersion]));
   for (const [kind, entries] of [['definitions', before.definitions], ['references', before.references]] as const) for (const entry of entries) {
     const target = rename(entry.name); if (target === entry.name) continue;
+    const owner = entry.owner;
+    if (owner?.kind === 'note' && noteVersions.get(owner.noteId) === 'grasp-v1' && !isQualifiedIdentifier(target)) {
+      diagnostic('syntax-version', '新語法的目標名稱必須符合 QualifiedIdentifier；不會將 legacy 名稱規則套到 v1。', target);
+    }
     const item = counts.get(entry.name) ?? { from: entry.name, to: target, definitions: 0, references: 0 };
     item[kind]++; counts.set(entry.name, item);
   }

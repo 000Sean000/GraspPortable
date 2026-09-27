@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceSnapshot } from '../src/domain/model.js';
 import { planRename, type RenamePlan, type RenameRequest } from '../src/domain/rename.js';
+import type { SemanticIdentityHints, SharedSemanticState } from '../src/domain/shared.js';
 import { requireString, StoreError, validateNote, validateRecord, type ImportPayload } from './store.js';
 
 export type RenamePreview = Omit<RenamePlan, 'notes' | 'records'> & { token: string };
-interface PendingRename { workspaceId: string; workspaceRevision: number; createdAt: number; payload: ImportPayload; reason: string }
+interface PendingRename { workspaceId: string; workspaceRevision: number; createdAt: number; payload: ImportPayload; reason: string; identityHints: SemanticIdentityHints }
 
 /** The reviewed payload stays on the host; clients authorize only a short-lived token. */
 export class RenameService {
   private pending = new Map<string, PendingRename>();
 
-  plan(input: unknown, snapshot: WorkspaceSnapshot): RenamePreview {
+  plan(input: unknown, snapshot: WorkspaceSnapshot, semantic?: SharedSemanticState): RenamePreview {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new StoreError('Rename request 必須是物件。');
     const value = input as Record<string, unknown>;
     if (value.mode !== 'identifier' && value.mode !== 'namespace') throw new StoreError('Rename mode 必須是 identifier 或 namespace。');
@@ -40,18 +41,25 @@ export class RenameService {
         workspaceId: snapshot.id, workspaceRevision: snapshot.revision, createdAt: now,
         payload: { notes: notes.filter(n => changedIds.has(n.id)), ...(result.recordChanges.length ? { records } : {}) },
         reason: `${request.mode === 'namespace' ? '移動 Namespace' : '重新命名 Identifier'}：${request.from} → ${request.to}`,
+        identityHints: { renames: result.renames.map(({ from, to }) => ({ from, to })), bindingOwners: (semantic?.bindings ?? []).flatMap(binding => {
+          if (binding.owner.kind !== 'record') return [];
+          const owner = binding.owner; const changed = result.recordChanges.find(change => change.id === owner.recordId);
+          if (!changed) return [];
+          const field = changed.edits.find(edit => edit.kind === 'record-field' && edit.before === owner.field)?.after ?? owner.field;
+          return [{ bindingId: binding.id, owner: { ...owner, collection: changed.after.collection, recordName: changed.after.name, field } }];
+        }) },
       });
     }
     return { ...preview, token };
   }
 
-  take(token: string, workspaceRevision: number, snapshot: WorkspaceSnapshot): { payload: ImportPayload; reason: string } {
+  take(token: string, workspaceRevision: number, snapshot: WorkspaceSnapshot): { payload: ImportPayload; reason: string; identityHints: SemanticIdentityHints } {
     const pending = this.pending.get(token);
     if (!pending) throw new StoreError('重新命名預覽已失效，請重新預覽。', 409);
     if (Date.now() - pending.createdAt > 30 * 60_000) { this.pending.delete(token); throw new StoreError('重新命名預覽已過期，請重新預覽。', 409); }
     if (pending.workspaceId !== snapshot.id || pending.workspaceRevision !== workspaceRevision || snapshot.revision !== workspaceRevision) throw new StoreError('Workspace 已變更，請重新預覽重新命名的影響。', 409);
     this.pending.delete(token);
-    return { payload: pending.payload, reason: pending.reason };
+    return { payload: pending.payload, reason: pending.reason, identityHints: pending.identityHints };
   }
 
   clear(): void { this.pending.clear(); }

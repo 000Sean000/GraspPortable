@@ -1,4 +1,4 @@
-import { createEditor } from '../editor/editor';
+import { createEditor, type EditorAdapter } from '../editor/editor';
 import { RuntimeClient } from '../runtime/client';
 import { LinksPanel } from './links-panel';
 import { createNavigator } from './navigation';
@@ -10,7 +10,10 @@ import type { FileEntry, FilesStatus } from '../domain/files';
 import type { RecordQuery } from '../editor/query';
 import type { RenamePlan } from '../domain/rename';
 import type { RecoveryPreview } from '../../server/store';
-import { request, setWorkspaceId, workspaceHeaders } from './api';
+import type { DurableDraft, SharedIntent, SharedCommand, SharedStateResponse, SharedCommitResponse, OperationReceipt, SharedSourcePatch } from '../../server/semantic';
+import { request, ApiError, setWorkspaceId, workspaceHeaders } from './api';
+import { serializeReference } from '../domain/reference-language';
+import { rebaseSourceEdits } from '../domain/edit-rebase';
 import type { WorkspaceSnapshot, RuntimeResult, ImportPlan, StructuredRecord, SourceLocation } from '../domain/model';
 import './style.css';
 
@@ -22,8 +25,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="sidebar-bottom"><button id="files">▧ 檔案與 Markdown</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
 </aside>
 <main class="main-pane">
-  <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="reveal-note" title="在檔案總管顯示目前筆記">顯示筆記檔</button><button id="open-note-folder" title="在檔案總管開啟目前筆記的資料夾">開啟資料夾</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
+  <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="reading" aria-pressed="false">閱讀</button><button id="reveal-note" title="在檔案總管顯示目前筆記">顯示筆記檔</button><button id="open-note-folder" title="在檔案總管開啟目前筆記的資料夾">開啟資料夾</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
   <div class="document-heading"><div class="eyebrow">YOUR CONNECTED NOTEBOOK</div><input id="note-title" aria-label="筆記標題" placeholder="未命名筆記"><div class="document-meta"><span id="note-meta"></span><span class="mode-hint">游標所在行編輯原文，其他位置即時呈現</span></div></div>
+  <div id="draft-status" class="workflow-status" role="status" hidden></div>
+  <div id="shared-status" class="workflow-status" hidden><span id="shared-receipt"></span><button id="shared-undo">撤銷共享修改</button></div>
   <div id="editor" aria-label="Markdown 編輯區"></div>
   <footer class="statusbar"><span id="save-status" role="status">載入中</span><span id="runtime-status">準備計算…</span><span id="document-stats"></span></footer>
 </main>
@@ -38,7 +43,7 @@ let snapshot: WorkspaceSnapshot;
 let runtime: RuntimeResult | undefined;
 let runtimeFailure: string | undefined;
 let activeId = '';
-let mode: 'live' | 'source' = 'live';
+let mode: 'live' | 'source' | 'reading' = 'live';
 let panel: 'values' | 'records' | 'issues' | 'links' = 'values';
 const linksPanel = new LinksPanel();
 const knowledgePanel = new KnowledgePanel();
@@ -50,7 +55,23 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saving: Promise<void> | undefined;
 let saveFailure: Error | undefined;
 let draftSequence = 0;
-const drafts = new Map<string, { title: string; markdown: string; sequence: number; baseRevision: number }>();
+interface LocalDraft {
+  title: string; markdown: string; sequence: number; baseRevision: number;
+  id: string; clientId: string; persistedRevision: number; baseSourceHash?: string;
+  savedSequence?: number; diagnostics?: string[]; conflict?: string;
+  sourceEdits?: { from: number; to: number; insert: string }[][];
+}
+const drafts = new Map<string, LocalDraft>();
+const draftClientId = (() => { try { const previous = sessionStorage.getItem('grasp-draft-client'); const id = previous || crypto.randomUUID(); sessionStorage.setItem('grasp-draft-client', id); return id; } catch { return crypto.randomUUID(); } })();
+let shared: SharedStateResponse | undefined;
+let sharedRefresh: Promise<void> | undefined;
+let lastSharedOperation: OperationReceipt | undefined;
+let recoverableDrafts: DurableDraft[] = [];
+let pendingSharedCommand: SharedCommand | undefined;
+const retiredDraftIds = new Map<string, Set<string>>();
+let discardReview: { noteId: string; id: string; sequence: number; revision: number } | undefined;
+let pendingCommitDraft: { noteId: string; draft: LocalDraft } | undefined;
+let modalEditor: EditorAdapter | undefined;
 let editorBase: { workspaceId: string; noteId: string; revision: number } | undefined;
 let pendingNavigation: { workspaceId: string; patch: Record<string, string> } | undefined;
 let actionTail: Promise<unknown> = Promise.resolve();
@@ -61,14 +82,16 @@ const worker = new RuntimeClient(result => {
   runtimeFailure = undefined;
   for (const waiter of runtimeWaiters.splice(0)) waiter.resolve();
   editor.setRuntime(result, snapshot.records);
+  updateWorkflowStatus();
   $('runtime-status').textContent = `${result.metrics.total} 個值 · 重算 ${result.metrics.recalculated} · ${result.metrics.elapsedMs.toFixed(1)} ms`;
   $('issue-count').textContent = String(result.diagnostics.length);
   renderInspector();
 }, message => { runtimeFailure = message; $('runtime-status').textContent = '計算暫停'; for (const waiter of runtimeWaiters.splice(0)) waiter.reject(new Error(message)); toast(message, true); });
 const editor = createEditor($('editor'), {
-  onChange: markdown => { if (snapshot && activeId) markDraft(markdown); },
+  onChange: (markdown, changes) => { if (snapshot && activeId) markDraft(markdown, changes); },
   onNavigate: name => void run(() => navigateIdentifier(name)),
   onFindReferences: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
+  onEditShared: name => void run(() => sharedValueDialog(name)),
   onOpenRecord: id => { recordsPanel.revealRecord(id); panel = 'records'; renderInspector(); const record = snapshot.records.find(r => r.id === id); if (record) recordDialog(record); },
   onOpenQuery: query => { recordsPanel.setQuery(query); panel = 'records'; renderInspector(); },
 });
@@ -91,7 +114,7 @@ function saveNavigationSettings(patch: Record<string, string>) {
   });
 }
 const navigator = createNavigator($('navigation'), {
-  onSelect: (id, range) => { const source = snapshot.notes.find(n => n.id === id)?.markdown; return navigationCommand(async () => { await flush(); await selectNote(id); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); editor.focusRange(range.from, range.to); } }); },
+  onSelect: (id, range) => { const source = snapshot.notes.find(n => n.id === id)?.markdown; return navigationCommand(async () => { await flush(); await selectNote(id); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); if (mode === 'reading') setMode('live'); editor.focusRange(range.from, range.to); } }); },
   onCreateNote: folderId => navigationCommand(async () => { await createNote('未命名筆記', '', folderId); ($('note-title') as HTMLInputElement).focus(); ($('note-title') as HTMLInputElement).select(); }),
   onRenameNote: (id, title) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}`, 'PUT', () => { const note = snapshot.notes.find(n => n.id === id)!; return { title, markdown: note.markdown, revision: note.revision }; })),
   onMoveNote: (id, folderId) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}/move`, 'PUT', () => ({ folderId, revision: snapshot.notes.find(n => n.id === id)!.revision }))),
@@ -127,11 +150,299 @@ async function currentRuntime() {
   await new Promise<void>((resolve, reject) => runtimeWaiters.push({ resolve, reject }));
 }
 function setSaveStatus(text: string, error = false) { $('save-status').textContent = text; $('save-status').classList.toggle('error', error); }
-function markDraft(markdown = editor.getDocument()) {
-  const baseRevision = drafts.get(activeId)?.baseRevision ?? (editorBase?.workspaceId === snapshot.id && editorBase.noteId === activeId ? editorBase.revision : snapshot.notes.find(n => n.id === activeId)!.revision);
-  drafts.set(activeId, { title: ($('note-title') as HTMLInputElement).value, markdown, sequence: ++draftSequence, baseRevision });
+function hasUnsavedDrafts() { return [...drafts.values()].some(draft => draft.savedSequence !== draft.sequence); }
+function setMode(next: typeof mode) {
+  mode = next; editor.setMode(mode);
+  document.querySelector('.mode-hint')!.textContent = mode === 'reading' ? '閱讀模式 · 點引用可前往定義或修改共享值' : mode === 'source' ? '編輯原文 · 未完成語法自動保存為草稿' : '游標所在行編輯原文，其他位置即時呈現';
+  $('mode').textContent = mode === 'live' ? 'Live Preview' : mode === 'source' ? 'Source' : '回到編輯';
+  $('mode').setAttribute('aria-pressed', String(mode === 'live'));
+  $('reading').setAttribute('aria-pressed', String(mode === 'reading'));
+}
+function minimalSourceChange(before: string, after: string) {
+  if (before === after) return [];
+  let from = 0, to = before.length, end = after.length;
+  while (from < to && from < end && before[from] === after[from]) from++;
+  while (to > from && end > from && before[to - 1] === after[end - 1]) { to--; end--; }
+  const split = (text: string, at: number) => at > 0 && at < text.length &&
+    ((text[at - 1] === '\r' && text[at] === '\n') || (/^[\uD800-\uDBFF]$/.test(text[at - 1]) && /^[\uDC00-\uDFFF]$/.test(text[at])));
+  if (split(before, from) || split(after, from)) from--;
+  if (split(before, to) || split(after, end)) { to++; end++; }
+  return [{ from, to, expected: before.slice(from, to), insert: after.slice(from, end) }];
+}
+async function refreshSharedState() {
+  if (sharedRefresh) return sharedRefresh;
+  const workspaceId = snapshot.id;
+  sharedRefresh = (async () => {
+    const next = await request<SharedStateResponse>('/shared/state');
+    if (snapshot.id !== workspaceId || next.snapshot.id !== workspaceId || next.snapshot.revision < snapshot.revision) return;
+    shared = next;
+    if (next.snapshot.revision > snapshot.revision) acceptSnapshot(next.snapshot);
+    updateWorkflowStatus();
+  })();
+  try { await sharedRefresh; } finally { sharedRefresh = undefined; }
+}
+function retiredDrafts(workspaceId = snapshot.id): Set<string> {
+  let ids = retiredDraftIds.get(workspaceId);
+  if (!ids) {
+    ids = new Set<string>();
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(`grasp-retired-drafts:${workspaceId}`) ?? '[]');
+      if (Array.isArray(stored)) for (const id of stored) if (typeof id === 'string') ids.add(id);
+    } catch { /* This is only a UI recovery preference; all drafts remain in SQLite. */ }
+    retiredDraftIds.set(workspaceId, ids);
+  }
+  return ids;
+}
+function markRetiredDraft(id: string, retired: boolean) {
+  const ids = retiredDrafts(); if (retired) ids.add(id); else ids.delete(id);
+  try { localStorage.setItem(`grasp-retired-drafts:${snapshot.id}`, JSON.stringify([...ids])); } catch { /* Keep the in-session pointer. */ }
+}
+async function refreshRecoverableDrafts() {
+  const workspaceId = snapshot.id;
+  const stored = await request<DurableDraft[]>('/drafts');
+  if (snapshot.id !== workspaceId) return;
+  recoverableDrafts = stored;
+}
+async function loadDurableDrafts() {
+  const workspaceId = snapshot.id;
+  await refreshRecoverableDrafts();
+  if (snapshot.id !== workspaceId) return;
+  for (const draft of recoverableDrafts.filter(draft => draft.clientId === draftClientId && !retiredDrafts().has(draft.id) && snapshot.notes.some(note => note.id === draft.noteId))) {
+    if (!drafts.has(draft.noteId)) restoreLocalDraft(draft);
+  }
+  showActiveNote(); updateWorkflowStatus();
+}
+function restoreLocalDraft(stored: DurableDraft) {
+  const sequence = ++draftSequence;
+  drafts.set(stored.noteId, { id: stored.id, clientId: stored.clientId, title: stored.title, markdown: stored.markdown,
+    sequence, savedSequence: sequence, persistedRevision: stored.revision, baseRevision: stored.baseNoteRevision,
+    baseSourceHash: stored.baseSourceHash, sourceEdits: stored.sourceEdits, diagnostics: ['已恢復保存的草稿；完成後可提交。'] });
+}
+function updateWorkflowStatus() {
+  if (!snapshot) return;
+  const status = $('draft-status'); status.replaceChildren();
+  const current = drafts.get(activeId);
+  const stored = [...drafts.values()].filter(draft => draft.savedSequence === draft.sequence);
+  const available = recoverableDrafts.filter(item => !snapshot.notes.some(note => note.id === item.noteId) || ![...drafts.values()].some(draft => draft.id === item.id));
+  status.hidden = !current && !stored.length && !available.length;
+  status.classList.toggle('warning', !!current || !!stored.length);
+  if (current) {
+    status.append(element('span', '', current.conflict ?? (current.savedSequence === current.sequence
+      ? `草稿已保存，尚未套用共享資料。${current.diagnostics?.join(' ') ?? ''}` : '正在編輯草稿；引用仍顯示上一個已提交值。')));
+    if (current.savedSequence === current.sequence) status.append(button('提交草稿', async () => { current.savedSequence = undefined; await flush(); }));
+    status.append(button('捨棄草稿', () => discardDraftDialog(activeId)));
+    if (current.baseRevision !== snapshot.notes.find(note => note.id === activeId)?.revision) status.append(button('比較最新版本', () => reviewDraftBase(activeId)));
+  } else if (stored.length) status.append(element('span', '', `另有 ${stored.length} 份未完成草稿；共享值顯示已提交版本 ${shared?.semantic.revision ?? snapshot.revision}。`));
+  if (available.length) status.append(button(`恢復草稿（${available.length}）`, recoveryDraftDialog));
+  const affected = new Set(runtime?.definitions.filter(definition => definition.owner?.kind === 'note' && drafts.has(definition.owner.noteId)).map(definition => definition.name) ?? []);
+  const queue = [...affected];
+  const dependents = new Map<string, string[]>();
+  for (const definition of runtime?.definitions ?? []) for (const dependency of definition.dependencies) {
+    const names = dependents.get(dependency) ?? []; names.push(definition.name); dependents.set(dependency, names);
+  }
+  for (let index = 0; index < queue.length; index++) for (const name of dependents.get(queue[index]) ?? []) if (!affected.has(name)) { affected.add(name); queue.push(name); }
+  editor.setPendingValues([...affected]);
+  $('shared-status').hidden = !lastSharedOperation && !pendingSharedCommand;
+  $('shared-receipt').textContent = pendingSharedCommand ? `操作結果待確認：${pendingSharedCommand.operationId}`
+    : lastSharedOperation ? `共享修改已提交 · 版本 ${lastSharedOperation.semanticRevision}` : '';
+  $('shared-undo').textContent = pendingSharedCommand ? '確認／重試上次操作' : '撤銷共享修改';
+}
+function recoveryDraftDialog() {
+  const body = openModal('恢復保存的草稿');
+  body.append(element('p', '', '草稿不會直接改變已提交值。選取後可繼續編輯、比較最新版本，或明確捨棄。'));
+  for (const stored of recoverableDrafts) {
+    const row = element('div', 'history-row');
+    if (!snapshot.notes.some(note => note.id === stored.noteId)) {
+      row.append(element('span', '', `${stored.title} · 原筆記已刪除，下載草稿`), button('下載草稿', () => download(stored.markdown, `${stored.title || 'draft'}.md`)));
+      body.append(row); continue;
+    }
+    row.append(element('span', '', `${stored.title} · ${new Date(stored.updatedAt).toLocaleString()} · 基底 ${stored.baseNoteRevision}`), button('恢復', async () => {
+      await flush();
+      if (drafts.has(stored.noteId)) throw new Error('這篇筆記已有開啟的草稿；請先完成或捨棄它。');
+      restoreLocalDraft(stored); markRetiredDraft(stored.id, false); activeId = stored.noteId; showActiveNote(); updateWorkflowStatus(); closeModal();
+    })); body.append(row);
+  }
+}
+function scheduleAutosave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => void run(() => { if (!discardReview) return flush(); }), 350);
+}
+async function discardDraftDialog(noteId: string) {
+  if (pendingSharedCommand) throw new Error('前一項共享操作結果尚未確認；請先確認原操作，再決定是否捨棄草稿。');
+  clearTimeout(saveTimer);
+  if (saving) await saving;
+  const draft = drafts.get(noteId); if (!draft) return;
+  const review = { noteId, id: draft.id, sequence: draft.sequence, revision: draft.persistedRevision };
+  discardReview = review;
+  $('modal').addEventListener('close', () => {
+    if (discardReview !== review) return;
+    discardReview = undefined;
+    if (hasUnsavedDrafts()) scheduleAutosave();
+  }, { once: true });
+  const body = openModal('捨棄這份草稿');
+  body.append(element('p', '', `捨棄「${draft.title}」的未提交內容，回到資料庫目前版本？已提交共享值不受影響。`),
+    button('取消', closeModal), button('確認捨棄草稿', () => transition(async () => {
+      const current = drafts.get(noteId);
+      if (!current || current.id !== review.id || current.sequence !== review.sequence || current.persistedRevision !== review.revision) throw new Error('確認期間草稿已變更；請取消後重新檢查要捨棄的版本。');
+      if (review.revision) {
+        try { await request(`/drafts/${encodeURIComponent(review.id)}`, 'DELETE', { revision: review.revision }); }
+        catch (error) {
+          // The delete may already have succeeded when its response was lost.
+          const remaining = await request<DurableDraft[]>('/drafts');
+          if (remaining.some(item => item.id === review.id)) throw error;
+        }
+      }
+      drafts.delete(noteId); recoverableDrafts = recoverableDrafts.filter(item => item.id !== draft.id);
+      markRetiredDraft(draft.id, false);
+      saveFailure = undefined;
+      setSaveStatus(hasUnsavedDrafts() ? '● 等待儲存' : drafts.size ? '✓ 草稿已保存 · 共享值使用已提交版本' : '✓ 已儲存至 SQLite');
+      await refreshSharedState(); showActiveNote(); updateWorkflowStatus(); closeModal();
+    }), 'danger'));
+}
+async function reviewDraftBase(noteId: string) {
+  await flush(); await refreshSharedState(); const draft = drafts.get(noteId), note = snapshot.notes.find(item => item.id === noteId);
+  if (!draft || !note) return;
+  const body = openModal('比較草稿與最新版本');
+  body.append(element('p', '', '這份草稿建立後，共享資料已更新。請比較整份內容；確認後將以右側草稿提出新的修改，引用快取會重新計算。原草稿仍可從恢復清單取得。'), diffCard(note.title, note.markdown, draft.markdown));
+  body.append(button('保留原草稿', closeModal), button('以這份草稿重新審查', () => transition(async () => {
+    if (snapshot.notes.find(item => item.id === noteId)?.revision !== note.revision) throw new Error('版本再次變更，請重新比較。');
+    markRetiredDraft(draft.id, true);
+    drafts.set(noteId, { ...draft, id: crypto.randomUUID(), clientId: draftClientId, persistedRevision: 0, baseRevision: note.revision,
+      baseSourceHash: shared?.noteSources.find(item => item.noteId === noteId)?.sourceHash, sequence: ++draftSequence,
+      sourceEdits: [[{ from: 0, to: note.markdown.length, insert: draft.markdown }]], savedSequence: undefined, conflict: undefined, diagnostics: undefined });
+    closeModal();
+    try { await flush(); }
+    finally { await refreshRecoverableDrafts(); updateWorkflowStatus(); }
+  }), 'primary'));
+}
+async function executeSharedCommand(command: SharedCommand): Promise<SharedCommitResponse> {
+  if (pendingSharedCommand && (pendingSharedCommand.operationId !== command.operationId || JSON.stringify(pendingSharedCommand) !== JSON.stringify(command))) throw new Error('前一項共享操作結果尚未確認；請先確認或重試原操作。');
+  pendingSharedCommand = command; updateWorkflowStatus();
+  try {
+    const result = await request<SharedCommitResponse>('/shared/commands', 'POST', command);
+    pendingSharedCommand = undefined; return result;
+  } catch (error) {
+    // A definite rejected request cannot have committed. Unknown transport/5xx
+    // results retain the exact operation for an idempotent retry.
+    if (error instanceof ApiError && error.status < 500) pendingSharedCommand = undefined;
+    else {
+      try {
+        const receipt = await request<OperationReceipt>(`/shared/operations/${encodeURIComponent(command.operationId)}`);
+        const state = await request<SharedStateResponse>('/shared/state');
+        pendingSharedCommand = undefined; return { ...state, receipt, sourcePatches: receipt.sourcePatches };
+      } catch { /* Keep the same command; never invent a second operation ID. */ }
+    }
+    updateWorkflowStatus(); throw error;
+  }
+}
+async function sharedCommand(intent: SharedIntent) {
+  if (pendingSharedCommand) throw new Error('前一項共享操作結果尚未確認；請先使用「確認／重試上次操作」。');
+  await refreshSharedState();
+  if (!shared || shared.snapshot.id !== snapshot.id) throw new Error('共享資料尚未載入。');
+  return executeSharedCommand({ operationId: crypto.randomUUID(), workspaceId: snapshot.id, baseSemanticRevision: shared.semantic.revision, intent });
+}
+function acceptSharedResult(result: SharedCommitResponse, remember = true) {
+  if (result.snapshot.id !== snapshot.id) return;
+  // A navigation-settings response may have advanced the workspace revision
+  // while this content receipt was in flight. Still acknowledge the clean
+  // editor against the newest snapshot after removing the committed draft.
+  if (result.snapshot.revision < snapshot.revision) acceptSnapshot(snapshot, false, result.sourcePatches);
+  else { shared = result; acceptSnapshot(result.snapshot, false, result.sourcePatches); }
+  if (remember && result.receipt.kind !== 'commit-draft') {
+    lastSharedOperation = result.receipt.kind === 'undo' ? undefined : result.receipt;
+    try { const key = `grasp-shared-undo:${snapshot.id}`; if (lastSharedOperation) localStorage.setItem(key, lastSharedOperation.operationId); else localStorage.removeItem(key); } catch { /* Receipt remains durable in SQLite. */ }
+  }
+  updateWorkflowStatus();
+}
+async function acknowledgeDraft(noteId: string, submitted: LocalDraft, result: SharedCommitResponse) {
+  const committed = result.snapshot.notes.find(item => item.id === noteId);
+  if (!committed) throw new Error('提交回應缺少原筆記；請保留草稿並重新載入。');
+  for (;;) {
+    const newer = drafts.get(noteId);
+    if (!newer || newer.sequence === submitted.sequence) { drafts.delete(noteId); break; }
+    const acknowledgement = result.draftAcknowledgement ?? result.receipt.draftAcknowledgement;
+    const pendingSteps = submitted.sourceEdits && newer.sourceEdits ? newer.sourceEdits.slice(submitted.sourceEdits.length) : undefined;
+    const rebased = acknowledgement && pendingSteps ? rebaseSourceEdits(submitted.markdown, committed.markdown, acknowledgement.edits, pendingSteps) : undefined;
+    if (rebased?.ok) {
+      if (activeId === noteId) {
+        const version = editor.getDocumentVersion();
+        const applied = editor.applySemanticPatch({ expectedKey: version.key, expectedRevision: version.revision, nextRevision: committed.revision,
+          expectedSource: newer.markdown, changes: minimalSourceChange(newer.markdown, rebased.rebasedSource) });
+        if (applied.status === 'composing') { await new Promise(resolve => setTimeout(resolve, 50)); continue; }
+        if (applied.status !== 'applied') throw new Error('本地草稿在確認期間已變更，請保留內容後比較版本。');
+        editorBase = { workspaceId: snapshot.id, noteId, revision: committed.revision };
+      }
+      newer.markdown = rebased.rebasedSource; newer.sourceEdits = rebased.rebasedSteps;
+      newer.baseRevision = committed.revision; newer.baseSourceHash = result.noteSources.find(item => item.noteId === noteId)?.sourceHash;
+    } else {
+      // Preserve the old exact base/journal when concurrent edits overlap the
+      // cache publication. A new durable draft can be saved against that base;
+      // only explicit comparison may choose how to reconcile the content.
+      newer.conflict = '輸入與已提交快取更新重疊；草稿保留，請比較最新版本後重新審查。';
+    }
+    newer.id = crypto.randomUUID(); newer.persistedRevision = 0; newer.savedSequence = undefined;
+    break;
+  }
+  recoverableDrafts = recoverableDrafts.filter(item => item.id !== submitted.id);
+  pendingCommitDraft = undefined;
+}
+async function sharedValueDialog(name: string) {
+  await flush(); await refreshSharedState();
+  const state = shared!.semantic, identifier = state.identifiers.find(item => item.name === name);
+  if (!identifier) throw new Error(`找不到共享 identifier：${name}`);
+  const definitions = state.bindings.filter(binding => binding.identifierId === identifier.id);
+  const result = state.results.find(item => item.identifierId === identifier.id);
+  const body = openModal(`共享值 · ${name}`);
+  body.append(element('p', '', '修改會更新同一個共享定義及所有受影響的巢狀結果。組合值請選擇要修改的片段；不會從展開文字猜測或移除依賴。'));
+  body.append(element('div', 'shared-result', result?.current.status === 'ok' ? result.current.value || '（空字串）' : result?.current.message ?? '尚未定義'));
+  if (result?.current.status !== 'ok' && result?.lastGood) body.append(element('p', 'muted', `上一個成功值（版本 ${result.lastGood.semanticRevision}）：${result.lastGood.value}`));
+  body.append(element('p', 'shared-identity', `Identifier ${identifier.id}`));
+  if (definitions.length !== 1) { body.append(element('p', 'validation-error', definitions.length ? '有多個定義，請先從定義清單處理歧義。' : '尚未有 binding。請在筆記中建立定義。'), button('查看定義／引用', () => { selectedIdentifier = name; panel = 'values'; renderInspector(); closeModal(); })); return; }
+  const binding = definitions[0];
+  if (binding.owner.kind === 'note' && drafts.has(binding.owner.noteId)) body.append(element('p', 'validation-error', '定義所在筆記有未提交草稿；請先完成、比較或捨棄草稿。'));
+  const ownerNoteId = binding.owner.kind === 'note' ? binding.owner.noteId : undefined;
+  body.append(element('p', '', `${state.occurrences.filter(item => item.identifierId === identifier.id).length} 處正文引用；定義版本 ${binding.revision}。`));
+  binding.parts.forEach((part, partIndex) => {
+    const row = element('section', 'shared-part');
+    row.append(element('strong', '', `${partIndex + 1}. ${part.kind === 'literal' ? 'Literal' : `取值 ${part.name}`}`));
+    if (part.kind === 'literal') row.append(element('pre', 'shared-result', part.value || '（空字串）'));
+    const edit = button(part.kind === 'literal' ? `編輯第 ${partIndex + 1} 段文字` : `修改第 ${partIndex + 1} 段依賴`, () => {
+      const target = openModal(`${name} · 第 ${partIndex + 1} 段`);
+      let literalValue = part.kind === 'literal' ? part.value : '';
+      const field = part.kind === 'literal' ? element('div', 'shared-literal-editor') : input(part.name);
+      if (part.kind === 'literal') {
+        field.setAttribute('aria-label', 'Literal 內容');
+        modalEditor = createEditor(field, { onChange: value => { literalValue = value; }, onNavigate() {}, onFindReferences() {} });
+        modalEditor.setDocument(part.value, `literal:${binding.id}:${partIndex}`, binding.revision, 'legacy-v0.2');
+        modalEditor.setMode('source');
+      }
+      const wrapper = element('div', 'shared-part'); wrapper.append(labeled(part.kind === 'literal' ? 'Literal 內容（保留空白與換行）' : '目標 Identifier（既有名稱）', field)); target.append(wrapper);
+      target.append(element('p', '', '只修改這個片段；其他 literal 與依賴保持原順序。'), button('返回組成', () => sharedValueDialog(name)), button('提交共享修改', async () => {
+        await flush();
+        if (ownerNoteId && drafts.has(ownerNoteId)) throw new Error('定義仍有草稿，請先處理草稿。');
+        const intent: SharedIntent = part.kind === 'literal'
+          ? { kind: 'set-literal', bindingId: binding.id, bindingRevision: binding.revision, partIndex, value: literalValue }
+          : { kind: 'set-dependency', bindingId: binding.id, bindingRevision: binding.revision, partIndex,
+            targetIdentifierId: state.identifiers.find(item => item.name === (field as HTMLInputElement).value)?.id ?? '' };
+        if (intent.kind === 'set-dependency' && !intent.targetIdentifierId) throw new Error('請輸入存在的 Identifier 名稱；新的定義可在筆記中建立。');
+        const committed = await sharedCommand(intent); acceptSharedResult(committed); closeModal(); toast('共享定義、巢狀結果與引用快取已一起保存。');
+      }, 'primary'));
+    });
+    edit.disabled = !!ownerNoteId && drafts.has(ownerNoteId); row.append(edit); body.append(row);
+  });
+  body.append(button('前往定義', async () => { closeModal(); await navigateIdentifier(name); }), button('重新命名', () => renameDialog(name)));
+}
+function markDraft(markdown = editor.getDocument(), changes: readonly { from: number; to: number; insert: string }[] = []) {
+  const previous = drafts.get(activeId);
+  const baseRevision = previous?.baseRevision ?? (editorBase?.workspaceId === snapshot.id && editorBase.noteId === activeId ? editorBase.revision : snapshot.notes.find(n => n.id === activeId)!.revision);
+  const source = shared?.noteSources.find(note => note.noteId === activeId && note.revision === baseRevision);
+  drafts.set(activeId, { ...previous, id: previous?.id ?? crypto.randomUUID(), clientId: previous?.clientId ?? draftClientId,
+    persistedRevision: previous?.persistedRevision ?? 0, baseSourceHash: previous?.baseSourceHash ?? source?.sourceHash,
+    sourceEdits: previous && previous.sourceEdits === undefined ? undefined : [...(previous?.sourceEdits ?? []), ...(changes.length ? [[...changes]] : [])],
+    title: ($('note-title') as HTMLInputElement).value, markdown, sequence: ++draftSequence, baseRevision, diagnostics: undefined, conflict: undefined });
   saveFailure = undefined; setSaveStatus('● 等待儲存'); updateStats();
-  clearTimeout(saveTimer); saveTimer = setTimeout(() => void run(flush), 350);
+  updateWorkflowStatus();
+  scheduleAutosave();
 }
 function updateStats() { $('document-stats').textContent = `${editor.getDocument().length.toLocaleString()} 字元`; }
 function updateEditorAssets() {
@@ -139,17 +450,21 @@ function updateEditorAssets() {
   const links = snapshot.attachments.length && note && !drafts.has(activeId) ? (linksPanel.getIndex(snapshot).byNote.get(activeId) ?? []).flatMap(link => link.status === 'resolved' && link.resolvedTarget?.kind === 'asset' ? [{ from: link.location.from, to: link.location.to, raw: link.raw, id: link.resolvedTarget.id, embed: link.embed, label: link.alias }] : []) : [];
   editor.setAssets(snapshot.id, snapshot.attachments, links);
 }
-function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
+function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false, sourcePatches: SharedSourcePatch[] = []) {
   if (snapshot && next.id === snapshot.id && next.revision < snapshot.revision) return;
+  const previousNote = snapshot?.id === next.id ? snapshot.notes.find(note => note.id === activeId) : undefined;
   const changedWorkspace = snapshot && next.id !== snapshot.id;
   snapshot = next;
   $('navigation').inert = false;
-  for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = false;
+  for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = false;
   setWorkspaceId(next.id);
   if (changedWorkspace) {
+    drafts.clear(); recoverableDrafts = []; lastSharedOperation = undefined;
+    if (shared?.snapshot.id !== next.id) shared = undefined;
     runtime = undefined; selectedIdentifier = undefined; valueFilter = ''; ($('note-search') as HTMLInputElement).value = '';
     editor.setRuntime({ revision: next.revision, values: {}, definitions: [], references: [], diagnostics: [], metrics: { elapsedMs: 0, recalculated: 0, total: 0, affected: 0 } }, []);
-    mode = next.settings.mode === 'source' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live'));
+    setMode(next.settings.mode === 'source' ? 'source' : next.settings.mode === 'reading' ? 'reading' : 'live');
+    void loadDurableDrafts().catch(error => toast(`草稿載入失敗：${String(error)}`, true));
   }
   if (!snapshot.notes.some(n => n.id === activeId)) activeId = snapshot.settings.activeNoteId && snapshot.notes.some(n => n.id === snapshot.settings.activeNoteId) ? snapshot.settings.activeNoteId : snapshot.notes[0]?.id || '';
   $('workspace-name').textContent = snapshot.name;
@@ -157,35 +472,86 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   renderNotes();
   const current = snapshot.notes.find(n => n.id === activeId);
   const clean = !drafts.has(activeId);
-  if (resetEditor || (clean && current && (editor.getDocument() !== current.markdown || ($('note-title') as HTMLInputElement).value !== current.title))) showActiveNote();
-  else if (clean && current) editorBase = { workspaceId: snapshot.id, noteId: current.id, revision: current.revision };
+  const version = editor.getDocumentVersion();
+  if (!current || version.key !== `${snapshot.id}:${activeId}` || version.syntaxVersion !== (current.syntaxVersion ?? 'legacy-v0.2')) showActiveNote();
+  else if (clean) {
+    const before = editor.getDocument();
+    const patch = before === previousNote?.markdown ? sourcePatches.find(item => item.noteId === current.id && item.baseRevision === version.revision && item.baseRevision === previousNote.revision) : undefined;
+    const proposed = patch?.edits.map(edit => ({ ...edit, expected: before.slice(edit.from, edit.to) }));
+    let patched = before;
+    for (const edit of [...proposed ?? []].reverse()) patched = patched.slice(0, edit.from) + edit.insert + patched.slice(edit.to);
+    const changes = proposed && patched === current.markdown ? proposed : minimalSourceChange(before, current.markdown);
+    const applied = editor.applySemanticPatch({ expectedKey: version.key, expectedRevision: version.revision,
+      nextRevision: current.revision, expectedSource: before, changes });
+    if (applied.status === 'applied') {
+      ($('note-title') as HTMLInputElement).value = current.title;
+      editorBase = { workspaceId: snapshot.id, noteId: current.id, revision: current.revision };
+    } else if (applied.status === 'composing') {
+      const id = activeId; setTimeout(() => { if (activeId === id && !drafts.has(id)) acceptSnapshot(snapshot); }, 100);
+    } else toast('編輯器基底已變更；目前文字保留，請比較最新版本。', true);
+  } else if (resetEditor) showActiveNote();
   if (clean) updateEditorAssets();
   $('runtime-status').textContent = '背景計算中…';
   runtimeFailure = undefined;
   worker.update(snapshot);
   renderInspector();
-  if (current) $('note-meta').textContent = `修訂 ${current.revision} · ${new Date(current.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+  updateStats(); updateWorkflowStatus();
+  if (shared?.snapshot.revision !== next.revision) void refreshSharedState().catch(error => toast(`共享資料載入失敗：${String(error)}`, true));
+  if (current) {
+    $('note-meta').textContent = `修訂 ${current.revision} · ${new Date(current.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || current.title}`;
+  }
 }
 async function flush() {
   clearTimeout(saveTimer);
-  if (saving) { await saving; if (drafts.size) await flush(); return; }
+  if (saving) { await saving; if (hasUnsavedDrafts()) await flush(); return; }
   saving = (async () => {
-    while (drafts.size) {
-      const [id, draft] = drafts.entries().next().value!;
+    while (hasUnsavedDrafts()) {
+      const [id, draft] = [...drafts.entries()].find(([, item]) => item.savedSequence !== item.sequence)!;
       const note = snapshot.notes.find(n => n.id === id);
       if (!note) throw new Error('筆記已不在目前 workspace；請先下載草稿。');
-      setSaveStatus('◌ 儲存至 SQLite…');
-      const next = await request<WorkspaceSnapshot>(`/notes/${encodeURIComponent(id)}`, 'PUT', { title: draft.title.trim() || '未命名筆記', markdown: draft.markdown, revision: draft.baseRevision });
-      if (drafts.get(id)?.sequence === draft.sequence) drafts.delete(id);
-      else { const pending = drafts.get(id); const committed = next.notes.find(n => n.id === id); if (pending && committed) pending.baseRevision = committed.revision; }
-      acceptSnapshot(next);
+      setSaveStatus('◌ 保存草稿至 SQLite…');
+      const payload = {
+        clientId: draft.clientId, noteId: id, title: draft.title.trim() || '未命名筆記', markdown: draft.markdown,
+        syntaxVersion: note.syntaxVersion ?? 'legacy-v0.2', baseNoteRevision: draft.baseRevision,
+        baseSourceHash: draft.baseSourceHash, revision: draft.persistedRevision,
+        sourceEdits: draft.sourceEdits,
+      };
+      type DraftResponse = { draft: DurableDraft; diagnostics: { message: string }[]; canCommit: boolean };
+      let saved: DraftResponse;
+      try { saved = await request<DraftResponse>(`/drafts/${encodeURIComponent(draft.id)}`, 'PUT', payload); }
+      catch (error) {
+        // A lost response must not discard a durable draft or blindly overwrite a
+        // different revision. Recover only the exact request already persisted.
+        const stored = (await request<DurableDraft[]>('/drafts')).find(item => item.id === draft.id);
+        if (!stored || stored.clientId !== payload.clientId || stored.noteId !== payload.noteId || stored.title !== payload.title
+          || stored.markdown !== payload.markdown || stored.syntaxVersion !== payload.syntaxVersion || stored.baseNoteRevision !== payload.baseNoteRevision
+          || (payload.baseSourceHash && stored.baseSourceHash !== payload.baseSourceHash)) throw error;
+        saved = await request<DraftResponse>(`/drafts/${encodeURIComponent(draft.id)}`, 'PUT', { ...payload, baseSourceHash: stored.baseSourceHash, revision: stored.revision });
+      }
+      const pending = drafts.get(id)!;
+      pending.persistedRevision = saved.draft.revision; pending.baseSourceHash = saved.draft.baseSourceHash;
+      pending.savedSequence = draft.sequence; pending.diagnostics = saved.diagnostics.map(item => item.message);
+      if (saved.canCommit) {
+        try {
+          pendingCommitDraft = { noteId: id, draft };
+          const committed = await sharedCommand({ kind: 'commit-draft', draftId: draft.id, draftRevision: saved.draft.revision });
+          await acknowledgeDraft(id, draft, committed);
+          acceptSharedResult(committed, false);
+        } catch (error) {
+          if (!pendingSharedCommand) pendingCommitDraft = undefined;
+          pending.conflict = `草稿已保存；共享提交未完成：${error instanceof Error ? error.message : String(error)}`;
+          if (!(error instanceof ApiError && error.status === 409)) throw error;
+        }
+      }
       saveFailure = undefined;
     }
-    setSaveStatus('✓ 已儲存至 SQLite');
+    setSaveStatus(drafts.size ? '✓ 草稿已保存 · 共享值使用已提交版本' : '✓ 已儲存至 SQLite');
+    updateWorkflowStatus();
   })();
   try { await saving; }
   catch (error) { saveFailure = error instanceof Error ? error : new Error(String(error)); setSaveStatus('儲存失敗 · 草稿仍保留', true); throw new Error(`${saveFailure.message}。草稿仍在編輯器；可在使用說明下載草稿，修正後再按儲存。`); }
-  finally { saving = undefined; }
+  finally { saving = undefined; updateWorkflowStatus(); }
 }
 function renderNotes() {
   if (!snapshot) return;
@@ -198,13 +564,13 @@ function showActiveNote() {
   ($('note-title') as HTMLInputElement).disabled = !note;
   $<HTMLButtonElement>('reveal-note').disabled = !note;
   $('editor').classList.toggle('no-note', !note);
-  editor.setDocument(draft?.markdown ?? note?.markdown ?? '', `${snapshot.id}:${activeId}`);
+  editor.setDocument(draft?.markdown ?? note?.markdown ?? '', `${snapshot.id}:${activeId}`, draft?.baseRevision ?? note?.revision ?? 0, note?.syntaxVersion ?? 'legacy-v0.2');
   editorBase = note ? { workspaceId: snapshot.id, noteId: note.id, revision: draft?.baseRevision ?? note.revision } : undefined;
   updateEditorAssets();
   if (runtime) editor.setRuntime(runtime, snapshot.records);
   $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || note?.title || '建立筆記'}`;
   $('note-meta').textContent = note ? `修訂 ${note.revision} · ${new Date(note.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '';
-  updateStats(); renderNotes();
+  updateStats(); renderNotes(); updateWorkflowStatus();
 }
 async function selectNote(id: string) {
   if (id === activeId) return;
@@ -218,7 +584,7 @@ async function navigateLocation(location: SourceLocation, expectedMarkdown = sna
   await flush();
   if (expectedMarkdown !== snapshot.notes.find(n => n.id === location.noteId)?.markdown) { renderInspector(); throw new Error('文字已變更，位置清單已更新；請重新選取。'); }
   if (location.noteId.startsWith('record:')) { panel = 'records'; renderInspector(); const record = snapshot.records.find(r => r.id === location.noteId.slice(7)); if (record) recordDialog(record); return; }
-  await selectNote(location.noteId); editor.focusRange(location.from, location.to);
+  await selectNote(location.noteId); if (mode === 'reading') setMode('live'); editor.focusRange(location.from, location.to);
 }
 async function navigateIdentifier(name: string) {
   const location = await transition(async () => {
@@ -252,7 +618,8 @@ function renderInspector() {
       onEdit: record => recordDialog(record),
       onCreateQuery: query => void run(() => createQueryNote(query)),
       onReferences: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
-      onInsertReference: name => editor.insertText(`{{${name}}}`),
+      onInsertReference: name => editor.insertText(snapshot.notes.find(note => note.id === activeId)?.syntaxVersion === 'grasp-v1'
+        ? serializeReference({ kind: 'pure', identifier: name, value: runtime?.values[name]?.status === 'ok' ? runtime.values[name].value : '' }) : `{{${name}}}`),
       onRename: record => renameDialog(`${record.collection}.${record.name}`, 'namespace'),
       onError: message => toast(message, true),
     }); return;
@@ -263,11 +630,12 @@ function renderInspector() {
     location: location => void run(() => navigateLocation(location, displayed.notes.find(n => n.id === location.noteId)?.markdown)),
     reference: (reference, occurrence) => void run(() => navigateReference(reference.name, reference.location.noteId, reference.kind, occurrence)),
     rename: name => renameDialog(name),
+    edit: name => void run(() => sharedValueDialog(name)),
     retry: () => worker.retry(),
   });
 }
-function openModal(title: string) { filesPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
-function closeModal() { filesPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
+function openModal(title: string) { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
+function closeModal() { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
 function labeled(label: string, input: HTMLElement) { const group = element('label', 'field'); group.append(element('span', '', label), input); return group; }
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
@@ -310,7 +678,7 @@ async function filesDialog() {
     onError: message => toast(message, true),
   });
 }
-async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
+async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId, syntaxVersion: 'grasp-v1' }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
 async function createQueryNote(input: string | RecordQuery) { const query = typeof input === 'string' ? { collection: input } : input; await createNote(`${query.collection} · 資料檢視`, `# ${query.collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify(query, null, 2)}\n\`\`\`\n`); }
 
 function paged<T>(parent: HTMLElement, entries: T[], render: (entry: T) => HTMLElement, size = 30) {
@@ -349,8 +717,15 @@ function showRenamePlan(plan: Omit<RenamePlan, 'notes' | 'records'> & { token: s
   paged(body, changes, change => diffCard(change.title, change.before, change.after), 20);
   const affected = element('details', 'diff-card'); affected.append(element('summary', '', '依賴、缺少定義與循環的變化'), element('pre', 'syntax-example', `直接影響：${plan.impact.direct.join(', ') || '無'}\n後續影響：${plan.impact.transitive.join(', ') || '無'}\n缺少定義：${plan.impact.missingBefore.length} → ${plan.impact.missingAfter.length}\n循環識別值：${plan.impact.cyclesBefore.length} → ${plan.impact.cyclesAfter.length}`)); body.append(affected);
   const apply = button('確認重新命名', async () => transition(async () => {
-    await flush(); const next = await request<WorkspaceSnapshot>('/rename/apply', 'POST', { token: plan.token, workspaceRevision: plan.workspaceRevision });
-    selectedIdentifier = plan.request.mode === 'identifier' ? plan.request.to : undefined; panel = 'values'; acceptSnapshot(next, true); closeModal(); toast('已更新定義與引用；可從復原紀錄回復。');
+    await flush(); await refreshSharedState();
+    if (shared!.snapshot.revision !== plan.workspaceRevision) throw new Error('預覽後資料已變更，請重新預覽名稱及影響。');
+    const identifier = shared!.semantic.identifiers.find(item => item.name === plan.request.from);
+    if (plan.request.mode === 'identifier' && !identifier) throw new Error('Identifier 已變更，請重新預覽。');
+    const intent: SharedIntent = plan.request.mode === 'namespace'
+      ? { kind: 'rename-namespace', from: plan.request.from, to: plan.request.to }
+      : { kind: 'rename', identifierId: identifier!.id, identifierRevision: identifier!.revision, name: plan.request.to };
+    const result = await executeSharedCommand({ operationId: crypto.randomUUID(), workspaceId: snapshot.id, baseSemanticRevision: shared!.semantic.revision, intent });
+    selectedIdentifier = plan.request.mode === 'identifier' ? plan.request.to : undefined; panel = 'values'; acceptSharedResult(result); closeModal(); toast('已更新定義與引用；可使用撤銷共享修改。');
   }), 'primary'); apply.disabled = !plan.canApply;
   body.append(button('返回修改', () => renameDialog(plan.request.from, plan.request.mode)), apply);
 }
@@ -363,13 +738,14 @@ function workspaceDialog() {
   const path = input('', 'workspaces/MyKnowledge.grasp.db'); path.setAttribute('aria-label', '資料庫路徑');
   const name = input('', '我的知識庫'); name.setAttribute('aria-label', '新 workspace 名稱');
   body.append(labeled('資料庫路徑', path), labeled('新 workspace 名稱（建立時使用）', name));
-  const action = async (create: boolean) => transition(async () => { await flush(); if (!path.value.trim()) throw new Error('請輸入資料庫路徑。'); const next = await request<WorkspaceSnapshot>('/workspace/open', 'POST', { path: path.value.trim(), create, name: name.value.trim() || '我的知識庫' }); activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); });
+  const action = async (create: boolean) => transition(async () => { await flush(); if (pendingSharedCommand) throw new Error('請先確認前一項共享操作，再切換 workspace。'); if (!path.value.trim()) throw new Error('請輸入資料庫路徑。'); const next = await request<WorkspaceSnapshot>('/workspace/open', 'POST', { path: path.value.trim(), create, name: name.value.trim() || '我的知識庫' }); activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); });
   const actions = element('div', 'form-actions'); actions.append(button('開啟既有資料庫', () => action(false)), button('建立新 workspace', () => action(true), 'primary')); body.append(actions);
   const fallback = element('details', 'diff-card'); fallback.append(element('summary', '', '從 Markdown 投影重建到新的資料庫'));
   fallback.append(element('p', 'muted', '選擇 .grasp/manifests 內的完整 manifest 路徑與尚不存在的 .db 路徑。會驗證所有內容與附件；原始資料庫和 Markdown 都會保留。重建後是新的 workspace，筆記與資料的 ID 仍保留。'));
   const manifest = input('', 'C:\\…\\MainVault-Grasp\\.grasp\\manifests\\…json'); manifest.setAttribute('aria-label', '重建 manifest 路徑');
   const target = input('', 'C:\\…\\Recovered.grasp.db'); target.setAttribute('aria-label', '重建的新資料庫路徑');
   fallback.append(labeled('重建 manifest', manifest), labeled('新的 .db 路徑', target), button('驗證並重建新 workspace', async () => transition(async () => {
+    if (pendingSharedCommand) throw new Error('請先確認前一項共享操作，再重建並切換 workspace。');
     await flush(); if (!manifest.value.trim() || !target.value.trim()) throw new Error('請填寫 manifest 與新的資料庫路徑。');
     const next = await request<WorkspaceSnapshot>('/workspace/rebuild', 'POST', { manifestPath: manifest.value.trim(), newPath: target.value.trim() });
     activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); toast('已驗證 Markdown 投影並重建至新資料庫；原檔保留。');
@@ -457,12 +833,30 @@ async function historyDialog() {
 }
 function helpDialog() {
   const body = openModal('開始使用 GraspPortable');
-  body.append(element('p', '', '直接寫 Markdown。Live Preview 在同一編輯區呈現內容；游標或選取範圍所在行會顯示原文。可切換 Source 完整查看語法。'), element('pre', 'syntax-example', '@first_name = "Sean"\n@last_name = "Wu"\n@full_name = "{first_name} {last_name}"\n@greeting = "你好，{full_name}！"\n\n今天的名字是 {{full_name}}。\n{{greeting}}'), element('p', '', '修改字串後會自動儲存並重算受影響的值。點擊 value 可前往定義；右側 References 列出引用位置。值的更新只改顯示，不會偷偷覆寫原始 Markdown。'), element('pre', 'syntax-example', '```grasp-query\n{"collection":"aura","where":{"field":"element","equals":"fire"}}\n```'), element('p', '', 'Records 由右側「資料」集中維護。query table 和 collection.name.field 引用都使用同一資料來源。模板中 {{ 和 }} 表示文字大括號。code fence 與 inline code 不解析識別值。'), element('p', '', 'Ctrl/⌘ + S 儲存 · Ctrl/⌘ + Z 復原編輯 · Ctrl/⌘ + F 搜尋。離開前確認左下角「已儲存至 SQLite」。匯出檔不會背景同步，外部修改只能透過匯入審查進入資料庫。'), button('下載目前筆記草稿', () => download(editor.getDocument(), `${($('note-title') as HTMLInputElement).value || 'draft'}.md`)), element('p', 'muted', '第一版在本機瀏覽器執行；關閉伺服器後再攜帶 workspace 的 .grasp.db 檔。Apple mobile host 尚未打包。'));
+  body.append(element('p', '', '新筆記使用下列語法。Live Preview 可直接寫作；Source 顯示原文；閱讀模式呈現完整 Markdown。舊 workspace 筆記維持原有語法，不會開檔就改寫。'),
+    element('pre', 'syntax-example', '@Fruit = <|apple|>\n@Slogan = <|An |> + Fruit + <| a day|>\n\n[Fruit 的目前值](:ref:Fruit)\n[[@Slogan|Slogan 的目前值]]'),
+    element('p', '', '完整 binding 會提交至資料庫，巢狀結果與引用中的 cached value 一起保存。打到一半會保存為草稿，其他引用明示上一個已提交值。點 reference 的「編輯共享值」選擇 literal 或依賴；不會從展開文字猜測 composition。'),
+    element('p', '', '輸入 <| 可補上結尾；多行 literal 可把內容放在 opener／closer 之間。真正 code fence 與 inline code 不啟用 binding。空 literal <||> 是已指定的空字串。'),
+    element('pre', 'syntax-example', '@Paragraph = <|\n第一段\n\n第二段\n|>\n\n```grasp-query\n{"collection":"aura","where":{"field":"element","equals":"fire"}}\n```'),
+    element('p', '', 'Ctrl/⌘ + Z 撤銷本地文字輸入；已提交的共享命令使用「撤銷共享修改」。未完成草稿可重新啟動後恢復。外部 Markdown 修改必須 Review／Import，不能直接改資料庫或把 cache 當作共享定義。'),
+    button('下載目前筆記草稿', () => download(editor.getDocument(), `${($('note-title') as HTMLInputElement).value || 'draft'}.md`)),
+    element('p', 'muted', '資料庫是執行中的資料來源；Markdown projection 可閱讀、拖給 AI 及作 fallback。關閉程式後再搬動整個 workspace。'));
 }
 $('note-title').oninput = () => markDraft();
 $('save').onclick = () => void run(flush);
 $('workspace-open').onclick = workspaceDialog;
-$('mode').onclick = () => void run(async () => { mode = mode === 'live' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live')); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
+$('mode').onclick = () => void run(async () => { setMode(mode === 'live' ? 'source' : 'live'); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
+$('reading').onclick = () => void run(async () => { await flush(); setMode(mode === 'reading' ? 'live' : 'reading'); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
+$('shared-undo').onclick = () => void run(async () => {
+  if (pendingSharedCommand) {
+    const command = pendingSharedCommand; const result = await executeSharedCommand(command);
+    if (command.intent.kind === 'commit-draft' && pendingCommitDraft) await acknowledgeDraft(pendingCommitDraft.noteId, pendingCommitDraft.draft, result);
+    acceptSharedResult(result); toast('操作結果已確認。'); return;
+  }
+  if (!lastSharedOperation) return;
+  await flush(); const result = await sharedCommand({ kind: 'undo', operationId: lastSharedOperation.operationId });
+  acceptSharedResult(result); toast('共享修改已完整撤銷，相關值已重新計算。');
+});
 $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-hidden');
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
@@ -474,26 +868,30 @@ $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
 $('help').onclick = helpDialog;
 $('modal-close').onclick = closeModal;
-document.addEventListener('close', () => {
+document.addEventListener('close', event => {
+  if (event.target === $('modal')) { modalEditor?.destroy(); modalEditor = undefined; }
   filesPanel.destroy();
   if (!pendingNavigation || document.querySelector('dialog[open]')) return;
   const pending = pendingNavigation; pendingNavigation = undefined;
   if (pending.workspaceId === snapshot?.id) void saveNavigationSettings(pending.patch).catch(error => toast(String(error), true));
 }, true);
-document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void run(flush); } });
-window.addEventListener('beforeunload', event => { if (drafts.size || saving || saveFailure) { event.preventDefault(); event.returnValue = ''; } });
+document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!discardReview) void run(flush); } });
+window.addEventListener('beforeunload', event => { if (hasUnsavedDrafts() || saving || saveFailure || pendingSharedCommand) { event.preventDefault(); event.returnValue = ''; } });
 void run(async () => {
   let initial: WorkspaceSnapshot;
-  try { initial = await request<WorkspaceSnapshot>('/workspace'); }
+  try { shared = await request<SharedStateResponse>('/shared/state'); initial = shared.snapshot; }
   catch (error) {
     $('workspace-name').textContent = '選擇可用的 Workspace'; $('runtime-status').textContent = '尚未開啟資料庫';
     ($('note-title') as HTMLInputElement).disabled = true;
     setSaveStatus('資料庫未開啟 · 原檔保留', true); $('navigation').inert = true; $('editor').classList.add('no-note');
-    for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = true;
+    for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = true;
     workspaceDialog(); toast(error instanceof Error ? error.message : String(error), true); return;
   }
-  mode = initial.settings.mode === 'source' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live'));
+  setMode(initial.settings.mode === 'source' ? 'source' : initial.settings.mode === 'reading' ? 'reading' : 'live');
   acceptSnapshot(initial, true); setSaveStatus('✓ 已儲存至 SQLite');
+  await loadDurableDrafts();
+  try { const operationId = localStorage.getItem(`grasp-shared-undo:${snapshot.id}`); if (operationId) lastSharedOperation = await request<OperationReceipt>(`/shared/operations/${encodeURIComponent(operationId)}`); } catch { /* An old UI pointer is not authority. */ }
+  updateWorkflowStatus();
   const host = await request<{ path: string; warning?: string }>('/host');
   if (host.warning) toast(host.warning, true);
 });

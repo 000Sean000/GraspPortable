@@ -14,7 +14,7 @@ describe('controlled Markdown exchange', () => {
     const exported = exportMarkdown(snapshot);
     expect(exported).not.toContain('"title":"danger --> <title>"');
     const payload = parseExchange(exported, snapshot);
-    expect(payload.notes[0]).toEqual({ id: note.id, title: 'danger --> <title>', markdown, folderId: null });
+    expect(payload.notes[0]).toEqual({ id: note.id, title: 'danger --> <title>', markdown, folderId: null, syntaxVersion: 'legacy-v0.2' });
     expect(payload.records).toEqual(snapshot.records);
     for (const ending of ['', '\n', '\r\n', '\r']) {
       const sample = { ...snapshot, notes: [{ ...snapshot.notes[0]!, markdown: 'trailing characters' + ending }] };
@@ -41,7 +41,7 @@ describe('controlled Markdown exchange', () => {
 
   it('rejects broken metadata, missing boundaries, foreign workspaces, and syntax before commit', () => {
     const s = workspace(); const snapshot = s.snapshot(); const exchange = new ExchangeService(); const exported = exportMarkdown(snapshot);
-    for (const bad of [exported.replace('"version":2', '"version":999'), exported.slice(0, exported.lastIndexOf('<!-- grasp-end')), exported.replace(snapshot.id, 'foreign'), exported.replace('"notes":[', '"notes":[' + '"missing",'), exported.replace('@first_name = "Sean"', '@first_name = "bad unclosed')]) {
+    for (const bad of [exported.replace('"version":3', '"version":999'), exported.slice(0, exported.lastIndexOf('<!-- grasp-end')), exported.replace(snapshot.id, 'foreign'), exported.replace('"notes":[', '"notes":[' + '"missing",'), exported.replace('@first_name = "Sean"', '@first_name = "bad unclosed')]) {
       const plan = exchange.plan(bad, snapshot); expect(plan.canApply).toBe(false); expect(plan.diagnostics.length).toBeGreaterThan(0);
       expect(s.snapshot()).toEqual(snapshot);
     }
@@ -71,7 +71,7 @@ describe('controlled Markdown exchange', () => {
       exported + '\nAI appended this important new paragraph.\n',
       exported.replace('\n\n<!-- grasp-note', '\n\nNew text outside a note.\n\n<!-- grasp-note'),
       exported.replace('# GraspPortable · Markdown Exchange', '# GraspPortable · Markdown Exchange\n\nUnexpected knowledge here.'),
-      exported.replace('"version":2', '"version":2,"ignoredKnowledge":"do not lose me"'),
+      exported.replace('"version":3', '"version":3,"ignoredKnowledge":"do not lose me"'),
       exported.replace('<!-- grasp-note {', '<!-- grasp-note {"markdown":"extra source",'),
       exported.replace('"fields":{', '"extraData":"not a field","fields":{'),
     ]) {

@@ -19,7 +19,7 @@ afterEach(() => {
 describe('schema 2 and durable note hierarchy', () => {
   it('backs up and validates a v1 workspace before upgrading; old history remains restorable', () => {
     const path = file(); const legacy = createV1Workspace(path); const s = open(path);
-    expect(s.snapshot()).toEqual({ ...legacy, folders: [], attachments: [], notes: legacy.notes.map(n => ({ ...n, folderId: null })) });
+    expect(s.snapshot()).toEqual({ ...legacy, folders: [], attachments: [], notes: legacy.notes.map(n => ({ ...n, folderId: null, syntaxVersion: 'legacy-v0.2' })) });
     expect(s.migrationBackupPath).toBeTruthy(); expect(existsSync(s.migrationBackupPath!)).toBe(true);
     const backup = new DatabaseSync(s.migrationBackupPath!, { readOnly: true });
     try {
@@ -125,7 +125,7 @@ describe('schema 2 and durable note hierarchy', () => {
     const v1 = exportMarkdown(original).replace(/<!-- grasp-workspace (\{[^\n]*\}) -->/, (_all, json: string) => {
       const h = JSON.parse(json); delete h.folders; h.version = 1; return `<!-- grasp-workspace ${JSON.stringify(h)} -->`;
     }).replace(/<!-- grasp-note (\{[^\n]*\}) -->/g, (_all, json: string) => {
-      const n = JSON.parse(json); delete n.folderId; return `<!-- grasp-note ${JSON.stringify(n)} -->`;
+      const n = JSON.parse(json); delete n.folderId; delete n.syntaxVersion; return `<!-- grasp-note ${JSON.stringify(n)} -->`;
     });
     const folder = s.createFolder('After export', null).folders[0]!;
     const current = s.moveNote(original.notes[0]!.id, folder.id, original.notes[0]!.revision);

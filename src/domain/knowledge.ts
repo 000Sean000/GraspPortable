@@ -1,6 +1,7 @@
-import type { Definition, Diagnostic, Note, ParseResult, SourceLocation, StructuredRecord } from './model';
+import type { Definition, Diagnostic, Note, ParseResult, Reference, SourceLocation, StructuredRecord } from './model';
 import { IDENTIFIER_PATTERN, parseTemplate } from './template';
 import { parser as markdownParser } from '@lezer/markdown';
+import { parseNoteLanguage } from './note-language';
 
 function isEscaped(source: string, offset: number): boolean {
   let count = 0;
@@ -42,6 +43,10 @@ function duplicateDiagnostics(definitions: Definition[]): Diagnostic[] {
 }
 
 export function parseNote(note: Note): ParseResult {
+  if (note.syntaxVersion === 'grasp-v1') return parseVersionOneNote(note);
+  if (note.syntaxVersion !== undefined && note.syntaxVersion !== 'legacy-v0.2') return {
+    definitions: [], references: [], diagnostics: [{ kind: 'syntax', message: 'Unknown note syntax version; source was preserved.', location: { noteId: note.id, from: 0, to: note.markdown.length, line: 1 } }],
+  };
   const result: ParseResult = { definitions: [], references: [], diagnostics: [] };
   const source = note.markdown;
   const mask = codeMask(source);
@@ -88,6 +93,40 @@ export function parseNote(note: Note): ParseResult {
   }
   for (const diagnostic of duplicateDiagnostics(result.definitions)) result.diagnostics.push(diagnostic);
   return result;
+}
+
+function parseVersionOneNote(note: Note): ParseResult {
+  const parsed = parseNoteLanguage(note.markdown, note.revision);
+  const lineStarts = [0];
+  for (let at = 0; at < note.markdown.length; at++) {
+    if (note.markdown[at] === '\r') { if (note.markdown[at + 1] === '\n') at++; lineStarts.push(at + 1); }
+    else if (note.markdown[at] === '\n') lineStarts.push(at + 1);
+  }
+  const location = (from: number, to: number): SourceLocation => {
+    let low = 0, high = lineStarts.length;
+    while (low < high) { const mid = (low + high) >>> 1; if (lineStarts[mid] <= from) low = mid + 1; else high = mid; }
+    return { noteId: note.id, from, to, line: low };
+  };
+  const owner = { kind: 'note' as const, noteId: note.id };
+  const definitions: Definition[] = parsed.bindings.map(node => ({
+    name: node.name, template: node.raw, syntaxVersion: 'grasp-v1', owner,
+    location: location(node.from, node.to), nameLocation: location(node.nameRange.from, node.nameRange.to),
+    dependencies: [...new Set(node.dependencies)],
+    parts: node.parts.map(part => part.kind === 'literal'
+      ? { kind: 'literal', value: part.value, location: location(part.from, part.to) }
+      : { kind: 'identifier', name: part.name, location: location(part.from, part.to) }),
+  }));
+  const references: Reference[] = parsed.references.map(node => ({
+    name: node.identifier, kind: 'reference', owner, representation: node.kind, cachedValue: node.value,
+    location: location(node.from, node.to), nameLocation: location(node.nameFrom, node.nameTo),
+  }));
+  for (const definition of definitions) for (const part of definition.parts ?? []) if (part.kind === 'identifier') {
+    references.push({ name: part.name, kind: 'dependency', owner, location: part.location!, nameLocation: part.location });
+  }
+  return { definitions, references, diagnostics: [
+    ...parsed.diagnostics.filter(item => item.code !== 'context-excluded').map(item => ({ kind: 'syntax' as const, message: item.message, location: location(item.from, item.to) })),
+    ...duplicateDiagnostics(definitions),
+  ] };
 }
 
 export function buildKnowledge(notes: Note[], records: StructuredRecord[] = []): ParseResult {

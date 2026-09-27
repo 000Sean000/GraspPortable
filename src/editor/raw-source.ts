@@ -93,6 +93,19 @@ export function insertedSourceEffects(tr: Transaction, source: string): StateEff
   return inserted.length ? [restoreBreaks.of(inserted)] : [];
 }
 
+/** Explicit post-change positions avoid confusing equal normalized inserts with different EOLs. */
+export function insertedSourcesEffects(insertions: readonly { at: number; source: string }[]): StateEffect<unknown>[] {
+  const breaks: Break[] = [];
+  for (const insertion of insertions) {
+    let removed = 0;
+    for (const match of insertion.source.matchAll(/\r\n?|\n/g)) {
+      breaks.push({ at: insertion.at + match.index! - removed, text: match[0] as Separator });
+      if (match[0] === '\r\n') removed++;
+    }
+  }
+  return breaks.length ? [restoreBreaks.of(breaks)] : [];
+}
+
 export function rawDocument(state: EditorState): string {
   const text = state.doc.toString(), extra = state.field(rawSourceField).extra;
   if (!extra.length) return text;

@@ -2,20 +2,21 @@ import { randomUUID } from 'node:crypto';
 import type { Diagnostic, Folder, ImportPlan, Note, StructuredRecord, WorkspaceSnapshot } from '../src/domain/model.js';
 import { buildKnowledge } from '../src/domain/knowledge.js';
 import { ValueGraph } from '../src/domain/graph.js';
+import { parseNoteLanguage } from '../src/domain/note-language.js';
 import { StoreError, requireRevision, requireString, validateFolder, validateHierarchy, validateNote, validateRecord, type ImportPayload } from './store.js';
 
-interface ExchangeHeader { format: 'grasp-markdown'; version: 2; workspaceId: string; workspaceRevision: number; notes: string[]; folders: Folder[]; records: StructuredRecord[] }
+interface ExchangeHeader { format: 'grasp-markdown'; version: 3; workspaceId: string; workspaceRevision: number; notes: string[]; folders: Folder[]; records: StructuredRecord[] }
 const PREAMBLE = '# GraspPortable · Markdown Exchange\n\n修改筆記正文或 metadata 中的 title / records，保留 workspace、note ID 與邊界。匯入會先顯示差異；此檔案不會自動同步回資料庫。';
 // Escaping HTML punctuation makes metadata safe even for titles/record values containing comment terminators.
 function metadata(value: unknown): string {
   return JSON.stringify(value).replace(/[<>&]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 export function exportMarkdown(snapshot: WorkspaceSnapshot): string {
-  const header: ExchangeHeader = { format: 'grasp-markdown', version: 2, workspaceId: snapshot.id, workspaceRevision: snapshot.revision, notes: snapshot.notes.map(n => n.id), folders: snapshot.folders, records: snapshot.records };
+  const header: ExchangeHeader = { format: 'grasp-markdown', version: 3, workspaceId: snapshot.id, workspaceRevision: snapshot.revision, notes: snapshot.notes.map(n => n.id), folders: snapshot.folders, records: snapshot.records };
   const sections = snapshot.notes.map(n => {
     let end = randomUUID();
     while (n.markdown.includes(`<!-- grasp-end ${end} -->`)) end = randomUUID();
-    return `<!-- grasp-note ${metadata({ id: n.id, title: n.title, revision: n.revision, folderId: n.folderId, end })} -->\n${n.markdown}\n<!-- grasp-end ${end} -->`;
+    return `<!-- grasp-note ${metadata({ id: n.id, title: n.title, revision: n.revision, folderId: n.folderId, syntaxVersion: n.syntaxVersion ?? 'legacy-v0.2', end })} -->\n${n.markdown}\n<!-- grasp-end ${end} -->`;
   });
   return `<!-- grasp-workspace ${metadata(header)} -->\n\n${PREAMBLE}\n\n${sections.join('\n\n')}\n`;
 }
@@ -44,8 +45,8 @@ export function parseExchange(markdown: string, snapshot: WorkspaceSnapshot): Im
     return { notes: [{ id: randomUUID(), title, markdown, folderId: null }] };
   }
   const h = parseJson(first[1]!, 'Workspace metadata');
-  if (h.format !== 'grasp-markdown' || (h.version !== 1 && h.version !== 2)) throw new StoreError('不支援的 Markdown exchange 格式版本。');
-  exactKeys(h, ['format', 'version', 'workspaceId', 'workspaceRevision', 'notes', 'records', ...(h.version === 2 ? ['folders'] : [])], 'Workspace metadata');
+  if (h.format !== 'grasp-markdown' || (h.version !== 1 && h.version !== 2 && h.version !== 3)) throw new StoreError('不支援的 Markdown exchange 格式版本。');
+  exactKeys(h, ['format', 'version', 'workspaceId', 'workspaceRevision', 'notes', 'records', ...(h.version !== 1 ? ['folders'] : [])], 'Workspace metadata');
   if (h.workspaceId !== snapshot.id) throw new StoreError('這份匯出來自另一個 workspace；請先開啟原 workspace。一般 Markdown 可作為新筆記匯入。');
   requireRevision(h.workspaceRevision);
   if (!Array.isArray(h.notes) || !h.notes.every(id => typeof id === 'string') || new Set(h.notes).size !== h.notes.length) throw new StoreError('筆記 ID 清單不完整或重複。');
@@ -58,7 +59,7 @@ export function parseExchange(markdown: string, snapshot: WorkspaceSnapshot): Im
   });
   if (new Set(records.map(r => r.id)).size !== records.length || new Set(records.map(r => `${r.collection}\0${r.name}`)).size !== records.length) throw new StoreError('Record metadata 有重複 ID 或 name。');
   let folders: Folder[] | undefined;
-  if (h.version === 2) {
+  if (h.version !== 1) {
     if (!Array.isArray(h.folders)) throw new StoreError('資料夾 metadata 不完整。');
     folders = h.folders.map(f => {
       const validated = validateFolder(f);
@@ -76,8 +77,9 @@ export function parseExchange(markdown: string, snapshot: WorkspaceSnapshot): Im
   while ((next = startPattern.exec(markdown))) {
     checkOutsideNotes(markdown.slice(lastEnd, next.index), notes.length === 0);
     const n = parseJson(next[1]!, 'Note metadata');
-    exactKeys(n, ['id', 'title', 'revision', 'end', ...(h.version === 2 ? ['folderId'] : [])], 'Note metadata');
-    if (h.version === 2 && !Object.hasOwn(n, 'folderId')) throw new StoreError('Note metadata 缺少 folderId。');
+    exactKeys(n, ['id', 'title', 'revision', 'end', ...(h.version !== 1 ? ['folderId'] : []), ...(h.version === 3 ? ['syntaxVersion'] : [])], 'Note metadata');
+    if (h.version !== 1 && !Object.hasOwn(n, 'folderId')) throw new StoreError('Note metadata 缺少 folderId。');
+    if (h.version === 3 && !Object.hasOwn(n, 'syntaxVersion')) throw new StoreError('Note metadata 缺少 syntaxVersion。');
     const end = requireString(n.end, 'Note boundary', 100);
     if (!/^[0-9a-f-]{36}$/.test(end)) throw new StoreError('Note boundary 不合法。');
     requireRevision(n.revision);
@@ -89,7 +91,7 @@ export function parseExchange(markdown: string, snapshot: WorkspaceSnapshot): Im
     // source must not be mistaken for our export's LF separator and discarded.
     const separatorLength = next[0].endsWith('\r\n') && markdown.slice(bodyEnd - 2, bodyEnd) === '\r\n' ? 2 : 1;
     const body = markdown.slice(bodyStart, bodyEnd - separatorLength);
-    notes.push(validateNote({ id: n.id, title: n.title, markdown: body, ...(h.version === 2 ? { folderId: n.folderId } : {}) }));
+    notes.push(validateNote({ id: n.id, title: n.title, markdown: body, ...(h.version !== 1 ? { folderId: n.folderId } : {}), ...(h.version === 3 ? { syntaxVersion: n.syntaxVersion } : {}) }));
     startPattern.lastIndex = bodyEnd + endMarker.length;
     lastEnd = startPattern.lastIndex;
   }
@@ -101,9 +103,11 @@ export function parseExchange(markdown: string, snapshot: WorkspaceSnapshot): Im
 }
 
 interface PendingImport { plan: ImportPlan; payload: ImportPayload; workspaceId: string; createdAt: number }
+export interface ExternalChangeClassification { noteId: string; kinds: ('prose-or-binding' | 'cache-observation' | 'syntax-version')[] }
+export type ClassifiedImportPlan = ImportPlan & { classifications: ExternalChangeClassification[] };
 export class ExchangeService {
   private pending = new Map<string, PendingImport>();
-  plan(markdown: string, snapshot: WorkspaceSnapshot): ImportPlan {
+  plan(markdown: string, snapshot: WorkspaceSnapshot): ClassifiedImportPlan {
     let payload: ImportPayload;
     let proposedFolders: Folder[];
     try {
@@ -116,7 +120,7 @@ export class ExchangeService {
       validateHierarchy(proposedFolders, [...byNote.values()]);
     }
     catch (error) {
-      return { token: '', workspaceRevision: snapshot.revision, changes: [], folders: [], records: [], diagnostics: [{ kind: 'syntax', message: error instanceof Error ? error.message : '匯入驗證失敗。' }], canApply: false };
+      return { token: '', workspaceRevision: snapshot.revision, changes: [], folders: [], records: [], diagnostics: [{ kind: 'syntax', message: error instanceof Error ? error.message : '匯入驗證失敗。' }], canApply: false, classifications: [] };
     }
     const originals = new Map(snapshot.notes.map(n => [n.id, n]));
     const changes: ImportPlan['changes'] = payload.notes.map(n => {
@@ -125,11 +129,32 @@ export class ExchangeService {
       return { id: n.id, title: n.title, before: old?.markdown ?? '', after: n.markdown, beforeFolderId: old?.folderId ?? null, afterFolderId, kind: !old ? 'create' : old.markdown === n.markdown && old.title === n.title && old.folderId === afterFolderId ? 'unchanged' : 'update' };
     });
     const combined = new Map(snapshot.notes.map(n => [n.id, n]));
-    for (const n of payload.notes) combined.set(n.id, { ...n, folderId: n.folderId === undefined ? originals.get(n.id)?.folderId ?? null : n.folderId, revision: 0, updatedAt: '' } as Note);
+    for (const n of payload.notes) combined.set(n.id, { ...n, syntaxVersion: n.syntaxVersion ?? originals.get(n.id)?.syntaxVersion ?? 'legacy-v0.2', folderId: n.folderId === undefined ? originals.get(n.id)?.folderId ?? null : n.folderId, revision: 0, updatedAt: '' } as Note);
     const parsed = buildKnowledge([...combined.values()], payload.records ?? snapshot.records);
     const diagnostics: Diagnostic[] = new ValueGraph().update(parsed, snapshot.revision).diagnostics;
+    const classifications: ExternalChangeClassification[] = [];
+    for (const n of payload.notes) {
+      const old = originals.get(n.id); const targetSyntax = n.syntaxVersion ?? old?.syntaxVersion ?? 'legacy-v0.2';
+      const kinds: ExternalChangeClassification['kinds'] = [];
+      if (!old || old.markdown !== n.markdown) kinds.push('prose-or-binding');
+      if (old && targetSyntax !== (old.syntaxVersion ?? 'legacy-v0.2')) {
+        kinds.push('syntax-version');
+        diagnostics.push({ kind: 'syntax', message: '外部匯入不可隱式切換既有筆記的語法版本；請在 App 內明確處理。', location: { noteId: n.id, from: 0, to: 0, line: 1 } });
+      }
+      if (old && targetSyntax === 'grasp-v1' && old.markdown !== n.markdown) {
+        const before = parseNoteLanguage(old.markdown, old.revision).references;
+        const after = parseNoteLanguage(n.markdown, old.revision).references;
+        // A supplied cache is an observation. Even a simultaneous prose/binding
+        // edit cannot silently promote that observation to shared write authority.
+        if (after.some((ref, i) => before[i] && ref.identifier === before[i].identifier && ref.kind === before[i].kind && ref.value !== before[i].value)) {
+          kinds.push('cache-observation');
+          diagnostics.push({ kind: 'syntax', message: '外部檔案修改了 reference cached value；這是 observation，不能作為共享值修改直接套用。請在 App 編輯 definition，或先還原 cache 再匯入其他文字。', location: { noteId: n.id, from: 0, to: n.markdown.length, line: 1 } });
+        }
+      }
+      if (kinds.length) classifications.push({ noteId: n.id, kinds });
+    }
     const token = randomUUID();
-    const plan: ImportPlan = { token, workspaceRevision: snapshot.revision, changes, folders: proposedFolders, records: payload.records ?? snapshot.records, diagnostics, canApply: !diagnostics.some(d => d.kind === 'syntax' || d.kind === 'duplicate' || d.kind === 'limit') };
+    const plan: ClassifiedImportPlan = { token, workspaceRevision: snapshot.revision, changes, folders: proposedFolders, records: payload.records ?? snapshot.records, diagnostics, classifications, canApply: !diagnostics.some(d => d.kind === 'syntax' || d.kind === 'duplicate' || d.kind === 'limit') };
     const now = Date.now();
     for (const [key, p] of this.pending) if (now - p.createdAt > 30 * 60_000) this.pending.delete(key);
     while (this.pending.size >= 10) this.pending.delete(this.pending.keys().next().value!);

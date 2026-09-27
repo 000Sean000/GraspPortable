@@ -3,9 +3,10 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { testDirectory } from './fixtures';
 
 const origin = 'http://127.0.0.1:43844';
-const folder = resolve('.cache/fallback-e2e', `${Date.now()}-${process.pid}`);
+const folder = testDirectory('fallback');
 const broken = resolve(folder, 'damaged.grasp.db');
 const bytes = Buffer.from('Synthetic damaged database. Preserve these exact bytes.');
 let server: ChildProcess;

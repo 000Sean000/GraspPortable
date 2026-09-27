@@ -83,3 +83,9 @@ User reported resetting quota. Live snapshot **2026-09-27 15:38:17 UTC** confirm
 Codex usage-limits tool: ordinaryUsageAllowed=true; normal account bucket usedPercent=8; windowDurationMins=10080; resetsAt=1791128122. Same user-reset window as 15:38:17 UTC / 0%: account observation +8 percentage points in 18m 08s, not a task invoice. No Reserve / Luna / reset credit used by the agent.
 
 Output: removed context pass ceiling with scaling evidence, exact single-note source bundles and readable representation, 10 synthetic Scratch fixtures, 29 files / 361 tests pass, production build pass. Desktop Obsidian / Explorer / native IME remain unverified. Next: milestone commit/push, then M2 shared editing without a new approval gate.
+
+## M2 shared editing validation — 2026-09-27 16:50:35 UTC
+
+Codex usage-limits tool: **31% used**, ordinaryUsageAllowed=true, normal 10,080-minute bucket/reset `1791128122`. Since M1 at 15:56:25 UTC / 8%: **23 percentage points / 54m 10s**, account-wide observation rather than task-exclusive billing. Intermediate check at 16:35:19 UTC was 24%. No Luna/Reserve or reset credit invoked.
+
+Output: versioned shared semantics and persisted caches; durable draft/source journals; part-specific reference editing; operation receipts/replay/guarded shared undo; source patch and in-flight typing rebase; Reading mode; draft recovery/discard safeguards. Tests and benchmark scope/results are in [M2 verification](M2-VERIFICATION.md). Full A+B product Goal remains active; M3 semantic-unit strategy/full fallback and M4 MainVault roundtrip are next. Checkpoint locator subject: `feat: deliver consistent shared editing and durable drafts`.

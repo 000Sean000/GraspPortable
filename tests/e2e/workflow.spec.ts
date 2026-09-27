@@ -3,10 +3,11 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { once } from 'node:events';
+import { markLegacyFixture, testDirectory } from './fixtures';
 
 const port = 43829;
 const url = `http://127.0.0.1:${port}`;
-const folder = resolve('.cache/e2e', String(Date.now()));
+const folder = testDirectory('legacy-workflow');
 const database = resolve(folder, 'test.grasp.db');
 let server: ChildProcess;
 let workspacePath = database;
@@ -39,7 +40,7 @@ async function source(page: Page, markdown: string) {
 }
 function value(page: Page, name: string) { return page.locator('.value-card').filter({ has: page.getByRole('button', { name, exact: true }) }).locator('.value-text'); }
 
-test.describe.serial('production build complete workflow', () => {
+test.describe.serial('production legacy v0.2 compatibility workflow', () => {
   test.beforeAll(async () => { mkdirSync(folder, { recursive: true }); mkdirSync('docs/benchmarks', { recursive: true }); await start(); });
   test.afterAll(stop);
 
@@ -50,6 +51,7 @@ test.describe.serial('production build complete workflow', () => {
     workspacePath = resolve(folder, 'created.grasp.db');
     await page.getByLabel('資料庫路徑', { exact: true }).fill(workspacePath); await page.getByLabel('新 workspace 名稱').fill('驗證工作區'); await page.getByRole('button', { name: '建立新 workspace', exact: true }).click();
     await expect(page.locator('#workspace-name')).toHaveText('驗證工作區');
+    await saved(page); await markLegacyFixture(url); await page.reload(); await saved(page);
     await page.getByLabel('筆記標題', { exact: true }).fill('我的測試筆記'); await source(page, sample);
     await expect(value(page, 'greeting')).toHaveText('你好，Sean Wu！');
     await source(page, sample.replace('"Sean"', '"小明"'));
@@ -104,7 +106,9 @@ test.describe.serial('production build complete workflow', () => {
   });
 
   test('large reference workload remains editable while worker recalculates', async ({ page }) => {
-    await page.goto(url); await saved(page); await page.locator('#new-note').click(); await page.getByLabel('筆記標題', { exact: true }).fill('Performance workload');
+    await page.goto(url); await saved(page); await page.locator('#new-note').click(); await saved(page);
+    await expect(page.getByLabel('筆記標題', { exact: true })).toHaveValue('未命名筆記');
+    await markLegacyFixture(url); await page.reload(); await saved(page); await page.getByLabel('筆記標題', { exact: true }).fill('Performance workload');
     const size = 12000;
     const markdown = '# Workload\n\n@root_value = "A"\n' + Array.from({ length: size }, (_, i) => `@v${i} = "{root_value}:${i}"`).join('\n') + '\n\n' + Array.from({ length: 1000 }, (_, i) => `{{v${i}}}`).join(' ') + '\n';
     await source(page, markdown); await expect(page.locator('#runtime-status')).toContainText('12008 個值');
@@ -130,7 +134,7 @@ test.describe.serial('production build complete workflow', () => {
     // Search commands preserve a real editor selection; replacing its short value
     // triggers a large dependency cascade without replacing the whole document.
     await page.keyboard.insertText('"B"');
-    const response = page.waitForResponse(r => r.url().includes('/api/notes/') && r.request().method() === 'PUT');
+    const response = page.waitForResponse(r => r.url().endsWith('/api/shared/commands') && r.request().method() === 'POST' && r.request().postDataJSON()?.intent?.kind === 'commit-draft');
     await page.keyboard.press('ControlOrMeta+s'); await response;
     const duringRecalculation: number[] = [];
     // Keep focus at the declaration: no locator/focus/scroll roundtrip can hide

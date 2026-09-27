@@ -5,10 +5,11 @@ import { resolve } from 'node:path';
 import { once } from 'node:events';
 import { DatabaseSync } from 'node:sqlite';
 import type { WorkspaceSnapshot } from '../../src/domain/model';
+import { testDirectory } from './fixtures';
 
 const port = 43830;
 const origin = `http://127.0.0.1:${port}`;
-const folder = resolve('.cache/concurrency', `${Date.now()}-${process.pid}`);
+const folder = testDirectory('concurrency');
 let server: ChildProcess;
 let fixture: { path: string; workspace: WorkspaceSnapshot; originalId: string; otherId: string };
 let caseNumber = 0;
@@ -54,9 +55,9 @@ function deferred() {
 async function holdFirstSaveResponse(page: Page) {
   const received = deferred(), release = deferred();
   let intercepted = false;
-  const pattern = `**/api/notes/${fixture.originalId}`;
+  const pattern = '**/api/shared/commands';
   const handler = async (route: Route) => {
-    if (route.request().method() !== 'PUT' || intercepted) { await route.continue(); return; }
+    if (route.request().method() !== 'POST' || route.request().postDataJSON()?.intent?.kind !== 'commit-draft' || intercepted) { await route.continue(); return; }
     intercepted = true;
     // Commit to the real SQLite host, but hold the HTTP response while the user
     // keeps editing. This reproduces the difficult commit/acknowledgement gap.
@@ -136,7 +137,7 @@ test.describe.serial('production concurrency and draft safety', () => {
   test('an already-rendered References result flushes shifted draft text and selects its current occurrence', async ({ page }) => {
     const original = '# Reference navigation\n\n@name = "Sean"\n\nFirst {{name}}.\nSecond {{name}}.\n';
     const current = (await snapshot()).notes.find(note => note.id === fixture.originalId)!;
-    await api(`/notes/${fixture.originalId}`, 'PUT', { title: current.title, markdown: original, revision: current.revision });
+    await api(`/notes/${fixture.originalId}`, 'PUT', { title: current.title, markdown: original, revision: current.revision, syntaxVersion: 'legacy-v0.2' });
     await openSource(page);
     const valueCard = page.locator('.value-card').filter({ has: page.getByRole('button', { name: 'name', exact: true }) });
     await valueCard.getByRole('button', { name: 'References', exact: true }).click();
@@ -182,7 +183,7 @@ test.describe.serial('production concurrency and draft safety', () => {
 
   test('failed save retains draft, blocks replacement commands, guards reload, and can retry', async ({ page }) => {
     await openSource(page);
-    const pattern = `**/api/notes/${fixture.originalId}`;
+    const pattern = '**/api/drafts/*';
     let failures = 0;
     const fail = async (route: Route) => { failures++; await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Injected SQLite storage outage' }) }); };
     await page.route(pattern, fail);
@@ -222,7 +223,7 @@ test.describe.serial('production concurrency and draft safety', () => {
     await otherTab.getByRole('button', { name: '建立新 workspace', exact: true }).click();
     await expect(otherTab.locator('#workspace-name')).toHaveText('Workspace from another tab'); await saved(otherTab);
     const secondBefore = await snapshot();
-    const rejection = page.waitForResponse(response => response.url().endsWith(`/api/notes/${fixture.originalId}`) && response.request().method() === 'PUT');
+    const rejection = page.waitForResponse(response => response.url().includes('/api/drafts/') && response.request().method() === 'PUT');
     await edit(page, '# Old tab\n\nMust never reach the other workspace.');
     const response = await rejection;
     expect(response.status()).toBe(409);
@@ -262,9 +263,9 @@ test.describe.serial('production concurrency and draft safety', () => {
     await openSource(page);
     const otherTab = await context.newPage(); await openSource(otherTab);
     const received = deferred(), release = deferred(); let intercepted = false;
-    const pattern = `**/api/notes/${fixture.originalId}`;
+    const pattern = '**/api/shared/commands';
     const handler = async (route: Route) => {
-      if (route.request().method() !== 'PUT' || intercepted) { await route.continue(); return; }
+      if (route.request().method() !== 'POST' || route.request().postDataJSON()?.intent?.kind !== 'commit-draft' || intercepted) { await route.continue(); return; }
       intercepted = true; received.resolve(); await release.promise;
       await route.fulfill({ response: await route.fetch() });
     };
@@ -274,10 +275,13 @@ test.describe.serial('production concurrency and draft safety', () => {
       await edit(page, draft); await received.promise;
       const newer = '# Original\n\nTab B independently committed text.';
       await edit(otherTab, newer); await otherTab.locator('#save').click(); await saved(otherTab);
-      const rejected = page.waitForResponse(response => response.url().endsWith(`/api/notes/${fixture.originalId}`) && response.request().method() === 'PUT');
+      const rejected = page.waitForResponse(response => response.url().endsWith('/api/shared/commands') && response.request().method() === 'POST');
       release.resolve(); expect((await rejected).status()).toBe(409);
-      await expect(page.locator('#save-status')).toHaveText('儲存失敗 · 草稿仍保留');
+      await expect(page.locator('#save-status')).toHaveText('✓ 草稿已保存 · 共享值使用已提交版本');
+      await expect(page.locator('#draft-status')).toContainText('共享提交未完成');
       await expect(page.locator('.cm-content')).toContainText('Tab A unsaved conflicting draft — 不可丟失。');
+      const durableDrafts: Array<{ noteId: string; markdown: string }> = await (await fetch(origin + '/api/drafts')).json();
+      expect(durableDrafts.some(item => item.noteId === fixture.originalId && item.markdown === draft)).toBe(true);
       expect((await snapshot()).notes.find(note => note.id === fixture.originalId)!.markdown).toBe(newer);
       expect(readMarkdown(fixture.path, fixture.originalId)).toBe(newer);
     } finally { release.resolve(); await page.unroute(pattern, handler); }

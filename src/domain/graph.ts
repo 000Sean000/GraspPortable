@@ -27,6 +27,37 @@ export class ValueGraph {
   findReferences(name: string): readonly Reference[] { return this.references.get(name) ?? []; }
   getValue(name: string): ValueResult { return this.cache.get(name) ?? missing(name); }
 
+  /** A transaction candidate may be calculated and discarded without changing committed state. */
+  fork(): ValueGraph {
+    const candidate = new ValueGraph({ maxValueLength: this.maxValueLength, maxTotalValueLength: this.maxTotalValueLength });
+    candidate.nodes = new Map(this.nodes); candidate.reverse = new Map(this.reverse);
+    candidate.cache = new Map(this.cache); candidate.references = new Map(this.references);
+    candidate.budgetLimited = new Set(this.budgetLimited); candidate.latest = this.latest;
+    return candidate;
+  }
+
+  /** Refresh exact source locations after cache serialization, without recalculating values. */
+  reindex(parsed: ParseResult): RuntimeResult | undefined {
+    if (!this.latest) return;
+    const references = new Map<string, Reference[]>();
+    for (const reference of parsed.references) {
+      const entries = references.get(reference.name) ?? []; entries.push(reference); references.set(reference.name, entries);
+    }
+    for (const definition of parsed.definitions) {
+      const previous = this.nodes.get(definition.name);
+      if (previous) this.nodes.set(definition.name, { ...previous, definition });
+    }
+    this.references = references;
+    const diagnostics = [...parsed.diagnostics];
+    for (const reference of parsed.references) if (!this.nodes.has(reference.name)) diagnostics.push({ kind: 'missing', name: reference.name,
+      location: reference.location, message: `Identifier “${reference.name}” is not defined.` });
+    for (const diagnostic of this.latest.diagnostics) if (diagnostic.kind === 'cycle' || diagnostic.kind === 'limit') {
+      diagnostics.push({ ...diagnostic, location: diagnostic.name ? this.nodes.get(diagnostic.name)?.definition.location : diagnostic.location });
+    }
+    this.latest = { ...this.latest, definitions: parsed.definitions, references: parsed.references, diagnostics };
+    return this.latest;
+  }
+
   update(parsed: ParseResult, revision: number, options: GraphUpdateOptions = {}): RuntimeResult {
     // A late worker result or retried snapshot may never replace newer state.
     if (this.latest && revision <= this.latest.revision) return this.latest;
@@ -38,9 +69,12 @@ export class ValueGraph {
     for (const definition of parsed.definitions) {
       const existing = next.get(definition.name);
       if (existing) { existing.duplicate = true; continue; }
-      const signature = JSON.stringify([definition.template, definition.dependencies]);
+      const signature = JSON.stringify([definition.parts?.map(part => part.kind === 'literal' ? ['literal', part.value] : ['identifier', part.name]) ?? definition.template, definition.dependencies]);
       const previous = this.nodes.get(definition.name);
-      const parts = previous?.signature === signature ? previous.parts : parseTemplate(definition.template);
+      const parts: TemplatePart[] = previous?.signature === signature ? previous.parts : definition.parts
+        ? definition.parts.map(part => part.kind === 'literal' ? { kind: 'text', text: part.value }
+          : { kind: 'reference', name: part.name, from: part.location?.from ?? 0, to: part.location?.to ?? 0 })
+        : parseTemplate(definition.template);
       next.set(definition.name, { definition, signature, parts, duplicate: false });
       for (const dependency of definition.dependencies) {
         let dependents = reverse.get(dependency);

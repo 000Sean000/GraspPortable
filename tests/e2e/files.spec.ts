@@ -5,9 +5,10 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { FileEntry, FilesStatus } from '../../src/domain/files';
 import type { WorkspaceSnapshot } from '../../src/domain/model';
+import { markLegacyFixture, testDirectory } from './fixtures';
 
 const origin = 'http://127.0.0.1:43845';
-const folder = resolve('.cache/files-e2e', `${Date.now()}-${process.pid}`);
+const folder = testDirectory('files');
 let database = resolve(folder, 'files.grasp.db');
 let server: ChildProcess;
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jCNkAAAAASUVORK5CYII=', 'base64');
@@ -34,7 +35,7 @@ test.describe.serial('one readable projection, attachment authority, and reviewe
   test.afterAll(stop);
   test('uploads assets, inserts an image, and reviews an inbox return into the same Markdown projection', async ({ page }) => {
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto(origin); await saved(page);
+    await markLegacyFixture(origin); await page.goto(origin); await saved(page);
     await source(page, '# File workflow\n\n@name = "Before AI"\n\n{{name}}\n\nEnd');
     await page.locator('#files').click(); await expect(page.locator('.gp-files-panel')).toBeVisible();
     await page.getByLabel('加入 Markdown 或附件（可多選）').setInputFiles([{ name: 'pixel.png', mimeType: 'image/png', buffer: png }, { name: 'guide.txt', mimeType: 'text/plain', buffer: Buffer.from('Attachment text') }]);
@@ -119,6 +120,7 @@ test.describe.serial('one readable projection, attachment authority, and reviewe
     await page.getByRole('textbox', { name: '新增資料夾', exact: true }).fill('Explorer folder');
     await page.locator('.gp-nav-dialog').getByRole('button', { name: '儲存', exact: true }).click();
     await page.getByRole('button', { name: '開啟資料夾 Explorer folder', exact: true }).click(); await page.locator('#new-note').click();
+    await expect(page.getByLabel('筆記標題', { exact: true })).toHaveValue('未命名筆記');
     await page.getByLabel('筆記標題', { exact: true }).fill('Explorer note'); await source(page, '# Physical note\n\nPending draft is flushed.');
     const initial = await snapshot(), note = initial.notes.find(note => note.title === 'Explorer note')!, noteFolder = initial.folders.find(folder => folder.id === note.folderId)!;
     const revealed: string[] = [], opened: string[] = [];

@@ -1,12 +1,14 @@
 export interface Folder { id: string; parentId: string | null; name: string; revision: number }
 export interface Attachment { id: string; name: string; path: string; mimeType: string; sha256: string; size: number; revision: number; createdAt: string }
-export interface Note { id: string; title: string; markdown: string; revision: number; updatedAt: string; folderId: string | null }
+export type NoteSyntaxVersion = 'legacy-v0.2' | 'grasp-v1';
+export interface Note { id: string; title: string; markdown: string; revision: number; updatedAt: string; folderId: string | null; syntaxVersion?: NoteSyntaxVersion }
 export interface StructuredRecord { id: string; collection: string; name: string; fields: Record<string, string>; revision: number }
 export interface WorkspaceSnapshot { id: string; name: string; revision: number; notes: Note[]; folders: Folder[]; attachments: Attachment[]; records: StructuredRecord[]; settings: Record<string, string> }
 export interface SourceLocation { noteId: string; from: number; to: number; line: number }
 export type ValueOwner = { kind: 'note'; noteId: string } | { kind: 'record'; recordId: string; collection: string; recordName: string; field: string };
-export interface Definition { name: string; template: string; location: SourceLocation; dependencies: string[]; owner?: ValueOwner; nameLocation?: SourceLocation }
-export interface Reference { name: string; location: SourceLocation; kind: 'reference' | 'dependency'; owner?: ValueOwner; nameLocation?: SourceLocation }
+export type ValuePart = { kind: 'literal'; value: string; location?: SourceLocation } | { kind: 'identifier'; name: string; identifierId?: string; location?: SourceLocation };
+export interface Definition { name: string; template: string; parts?: ValuePart[]; location: SourceLocation; dependencies: string[]; owner?: ValueOwner; nameLocation?: SourceLocation; syntaxVersion?: NoteSyntaxVersion }
+export interface Reference { name: string; location: SourceLocation; kind: 'reference' | 'dependency'; owner?: ValueOwner; nameLocation?: SourceLocation; representation?: 'pure' | 'wiki' | 'legacy'; cachedValue?: string }
 export interface Diagnostic { kind: 'syntax' | 'duplicate' | 'missing' | 'cycle' | 'limit'; message: string; location?: SourceLocation; name?: string }
 export interface ValueResult { value: string; status: 'ok' | 'missing' | 'cycle' | 'error'; message?: string }
 export interface ParseResult { definitions: Definition[]; references: Reference[]; diagnostics: Diagnostic[] }

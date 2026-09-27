@@ -46,3 +46,27 @@
 .gp-query th { background: #edf3e9; font-weight: 600; position: sticky; top: 0; }
 .gp-query-error { color: #a56024; }
 @media (max-width: 720px) { .gp-editor .cm-content { padding: 16px 15px 40vh; } .gp-editor { font-size: 15px; } }
+.gp-editor-surface { min-height: 100%; }
+.gp-editor-surface[hidden], .gp-reading[hidden] { display: none !important; }
+.gp-reading { padding: 24px 36px 80px; font: 16px/1.8 'Segoe UI', 'Noto Sans TC', system-ui, sans-serif; color: var(--ink, #26352f); overflow-wrap: anywhere; }
+.gp-rendered-markdown > :first-child { margin-top: 0; }
+.gp-rendered-markdown > :last-child { margin-bottom: 0; }
+.gp-rendered-markdown p { margin: .5em 0; }
+.gp-rendered-markdown h1, .gp-rendered-markdown h2, .gp-rendered-markdown h3 { line-height: 1.4; margin: 1em 0 .45em; }
+.gp-rendered-markdown pre { overflow: auto; white-space: pre; padding: 12px; background: #f0f3ef; border-radius: 6px; font: 14px/1.6 ui-monospace, Consolas, monospace; }
+.gp-rendered-markdown code { font: .9em ui-monospace, Consolas, monospace; background: #edf0ec; border-radius: 3px; }
+.gp-rendered-markdown pre code { font: inherit; background: none; }
+.gp-rendered-markdown table { border-collapse: collapse; display: block; max-width: 100%; overflow: auto; }
+.gp-rendered-markdown th, .gp-rendered-markdown td { border: 1px solid #d6dfd5; padding: 6px 10px; text-align: left; }
+.gp-rendered-markdown th { background: #edf3e9; }
+.gp-rendered-markdown blockquote { border-left: 3px solid #bed2c3; margin: .5em 0; padding-left: 16px; color: #4a6155; }
+.gp-rendered-markdown img { max-width: 100%; max-height: 420px; object-fit: contain; }
+.gp-rendered-markdown a { color: var(--accent, #26705b); text-decoration: underline; }
+.gp-formatted-value { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; max-width: 100%; vertical-align: baseline; padding: 3px 6px; }
+.gp-formatted-value > .gp-value-text { display: inline-block; min-width: 0; max-width: 100%; white-space: normal; cursor: pointer; }
+.gp-formatted-value > .gp-value-text:hover { text-decoration: none; outline: 1px dotted #72a491; outline-offset: 2px; }
+.gp-formatted-value .gp-rendered-markdown { display: block; max-width: 100%; }
+.gp-value-state { display: inline-block; color: #865f27; font: 11px/1.5 system-ui; padding: 0 4px; border: 1px solid #dccaa8; border-radius: 4px; }
+.gp-value .gp-value-edit { opacity: .7; padding: 0 3px; }
+.gp-value .gp-value-edit:hover { opacity: 1; }
+@media (max-width: 720px) { .gp-reading { padding: 16px; } }

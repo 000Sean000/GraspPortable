@@ -152,13 +152,24 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
         const activeStore = currentStore; const activeFiles = files;
         const reply = (snapshot: WorkspaceSnapshot) => { activeFiles.schedule(snapshot, sha => activeStore.readBlob(sha)); json(res, snapshot); };
         if (method === 'GET' && path === '/api/workspace') { json(res, activeStore.snapshot()); return true; }
+        if (method === 'GET' && path === '/api/shared/state') { json(res, activeStore.sharedState()); return true; }
+        if (method === 'GET' && path === '/api/drafts') { json(res, activeStore.drafts(url.searchParams.get('clientId') ?? undefined)); return true; }
+        const draft = /^\/api\/drafts\/([^/]+)$/.exec(path);
+        if (draft && method === 'PUT') { const b = await read(req); json(res, activeStore.saveDraft(decodeURIComponent(draft[1]!), b)); return true; }
+        if (draft && method === 'DELETE') { const b = await read(req); activeStore.deleteDraft(decodeURIComponent(draft[1]!), requireRevision(b.revision)); json(res, { deleted: true }); return true; }
+        const operation = /^\/api\/shared\/operations\/([^/]+)$/.exec(path);
+        if (operation && method === 'GET') { json(res, activeStore.operation(decodeURIComponent(operation[1]!))); return true; }
+        if (method === 'POST' && path === '/api/shared/commands') {
+          const b = await read(req); const result = activeStore.commitShared(b);
+          activeFiles.schedule(result.snapshot, sha => activeStore.readBlob(sha)); json(res, result); return true;
+        }
         if (method === 'POST' && path === '/api/notes') {
-          const b = await read(req); reply(activeStore.createNote(b.title, b.markdown, b.folderId)); return true;
+          const b = await read(req); reply(activeStore.createNote(b.title, b.markdown, b.folderId, b.syntaxVersion)); return true;
         }
         const noteMove = /^\/api\/notes\/([^/]+)\/move$/.exec(path);
         if (noteMove && method === 'PUT') { const b = await read(req); reply(activeStore.moveNote(decodeURIComponent(noteMove[1]!), b.folderId, requireRevision(b.revision))); return true; }
         const note = /^\/api\/notes\/([^/]+)$/.exec(path);
-        if (note && method === 'PUT') { const b = await read(req); reply(activeStore.updateNote(decodeURIComponent(note[1]!), b.title, b.markdown, requireRevision(b.revision), b.folderId)); return true; }
+        if (note && method === 'PUT') { const b = await read(req); reply(activeStore.updateNote(decodeURIComponent(note[1]!), b.title, b.markdown, requireRevision(b.revision), b.folderId, b.syntaxVersion)); return true; }
         if (note && method === 'DELETE') { const b = await read(req); reply(activeStore.deleteNote(decodeURIComponent(note[1]!), requireRevision(b.revision))); return true; }
         if (method === 'POST' && path === '/api/folders') { const b = await read(req); reply(activeStore.createFolder(b.name, b.parentId)); return true; }
         const folder = /^\/api\/folders\/([^/]+)$/.exec(path);
@@ -249,11 +260,11 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           const payload = exchange.take(token, revision, currentStore.snapshot()); externalReviews.delete(token);
           reply(activeStore.applyImport(payload, revision)); return true;
         }
-        if (method === 'POST' && path === '/api/rename/plan') { const b = await read(req); json(res, rename.plan(b, currentStore.snapshot())); return true; }
+        if (method === 'POST' && path === '/api/rename/plan') { const b = await read(req); json(res, rename.plan(b, currentStore.snapshot(), currentStore.semanticState())); return true; }
         if (method === 'POST' && path === '/api/rename/apply') {
           const b = await read(req); const revision = requireRevision(b.workspaceRevision);
           const reviewed = rename.take(requireString(b.token, 'Rename token', 100), revision, currentStore.snapshot());
-          reply(activeStore.applyImport(reviewed.payload, revision, reviewed.reason)); return true;
+          reply(activeStore.applyImport(reviewed.payload, revision, reviewed.reason, reviewed.identityHints)); return true;
         }
         if (method === 'GET' && path === '/api/history') { json(res, currentStore.history()); return true; }
         const historyPreview = /^\/api\/history\/(\d+)\/preview$/.exec(path);
