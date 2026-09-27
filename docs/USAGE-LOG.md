@@ -55,3 +55,11 @@ Checkpoint association is deliberately obtained from Git rather than inventing t
 Start: **2026-09-27 15:07:39 UTC, 95% used**. Validation snapshot: **2026-09-27 15:16:52 UTC, 97% used**, both ordinaryUsageAllowed=true, Codex get_usage_limits, same 10,080-minute window/reset `1791048521`. Account-wide change **2 pp over 9m 13s**, not exclusive task billing; excludes subsequent documentation/Git closeout. No reserve model/reset credit used.
 
 Delivered bounded segment: lossless raw-literal/binding and two-form reference codecs, exact UTF-16 spans, exhaustive/fixed-seed/adversarial cases, reviewed host diagnostics. Build and 26 files / 276 tests pass. Full M1 context/host/reconstruction gate and M2–M4 remain outstanding; full A+B Goal is not complete. Checkpoint locator: `git log origin/master --format='%H %s' --grep='^feat: add lossless binding and reference codecs$' -1`.
+
+Lexical checkpoint: `8048da627fc7e27f26d5de6b7ab7fcc295d7fac9`, pushed to origin/master and exact remote SHA verified at 2026-09-27 15:21:01 UTC; 97% used, ordinaryUsageAllowed=true.
+
+## Product Goal — bounded context and source fidelity segment
+
+Start snapshot **2026-09-27 15:21:01 UTC, 97% used**; validation **2026-09-27 15:28:26 UTC, 99% used**. Both ordinaryUsageAllowed=true, same Codex account window/reset `1791048521`: **2 pp / 7m 25s**, not exclusive task billing, excludes subsequent documentation/Git closeout. No Luna/Reserve/reset used.
+
+Validated context shielding and fake-fence regression, 29 context tests, 3 raw-source/DTO integration tests, full 308-test suite and build. CLI parser benchmark and 8-pass limitation are in M1-VERIFICATION; M1 not complete. Human accepted durable draft/missing-cycle commit/independent semantic undo decisions, now saved in SHARED-VALUE-CONTRACT. Checkpoint subject: `feat: isolate note syntax contexts and preserve source edits`.

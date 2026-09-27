@@ -43,7 +43,7 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 
 程式版本 0.2.0；publication 前 Git baseline `187be53ef5138bd9b24bc96a7c76f3a0901dfd04`。TypeScript／CodeMirror／worker ValueGraph／Node 24+／SQLite；路徑與 API 見 implementation contract。
 
-現有 App runtime 仍是逐行 JSON-string binding、brace interpolation／`{{name}}`。M1 已新增純 `binding-language.ts`／`reference-language.ts` codec，尚未接 Markdown context、runtime、DB 或 editor；沒有 stable Binding／Occurrence DB rows、新 persistent-cache transaction 或 semantic-unit strategy。現有 migration rehearsal 是 160 notes／44 folders／11 assets，不是全 MainVault 搬運完成。歷史完整 inventory 為 3,365 files／2,820 Markdown／506 assets；512 MiB aggregate migration cap 與全量 bytes 的落差需 M4 處理，先重新 inventory，不要求讀取每篇私人內容。
+現有 App runtime 仍是逐行 JSON-string binding、brace interpolation／`{{name}}`。M1 已有 `binding-language.ts`／`reference-language.ts` codec、`note-language.ts` context adapter，並驗證新語法穿過既有 raw-source adapter 的 patch／undo；尚未接正式 runtime、DB 或 UI。沒有 stable Binding／Occurrence DB rows、新 persistent-cache transaction 或 semantic-unit strategy。現有 migration rehearsal 是 160 notes／44 folders／11 assets，不是全 MainVault 搬運完成。歷史完整 inventory 為 3,365 files／2,820 Markdown／506 assets；512 MiB aggregate migration cap 與全量 bytes 的落差需 M4 處理，先重新 inventory，不要求讀取每篇私人內容。
 
 歷史 v0.2 build／189 tests／21 production E2E，以及 warm projection 約 9.25 秒，只描述當時實作；不是新契約驗收。新 reference 的 32 個診斷測試曾通過，但僅證明 host 限制。
 
@@ -59,24 +59,24 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 | --- | --- |
 | v0.2 Acceptance Preparation | 歷史已完成；保留可啟動版本及既有資料 |
 | Continuity publication | 已完成，`6bb2024` 已推送並核對遠端；本 Goal 已從此接續 |
-| M1 | **純 lexical codec 段落完成；整體 gate 尚未通過**。Parser／serializer 與 exhaustive/generative tests 已通過；Markdown context、表示重建及 Obsidian reading 待完成 |
+| M1 | **Codec 與有界 context adapter 已完成測試；整體 gate 尚未通過**。308 tests/build 通過。仍有 8-pass context ceiling；synthetic DTO 重建已測，外部表示／source-layout bundle／Obsidian reading 尚未驗完整 |
 | M2 | Shared semantic editing、draft／cache／DB consistency 尚待實作 |
 | M3 | Strategy review、semantic grouping、完整 exporter／checkpoint／rebuild 尚待實作 |
 | M4 | 全副本往返、真實 GUI、failure recovery、性能及整合驗收尚待完成 |
 
-Current handoff point：**M1 純 lexical codec 已驗證，準備 checkpoint 後接 context／representation reconstruction**。產品 Goal 仍 active，未宣稱 M1 或 A+B 完成；沒有 routine Human approval gate。沒有尚待 Human 再次確認的 link 視覺取捨。
+Current handoff point：**M1 context adapter 與 raw-source 整合測試已驗證，準備保存第二個 checkpoint**。第一個 checkpoint `8048da627fc7e27f26d5de6b7ab7fcc295d7fac9` 已推送並 exact remote SHA verified。產品 Goal 仍 active，未宣稱 M1 或 A+B 完成；沒有 routine Human approval gate。沒有尚待 Human 再次確認的 link 視覺取捨。
 
 Continuity review：一個未繼承原對話的 reviewer 從本頁出發，讀 Seed、Plan、三份 contracts、gate 與 baseline/evidence 後，已能恢復 WHY、settled decisions、actual repo、完整 plan、stop point、next action、Git locator 與 quota rule。初次發現缺 Projection／授權措辭不明，補齊後第二次判定 PASS。這是文件續作檢查，不是 M1/M2/M3/M4 產品驗收；Git 發布仍以實際 commit／remote verification 為準。
 
-Open items：新語法的精確邊界／escape/context 需依推薦 contract 實驗；需要改變已接受資料含義時才回 Human。Shared Value contract 第 3–5 節列出 M2 的 error commit、durable draft 顯示、跨 Note Ctrl+Z／外部 observation 更新權限政策待核定，不能把工程推薦當無條件來源權限；這些不阻擋純 M1 codec。Obsidian／Explorer 真實 GUI、IME／zoom 尚缺當次驗證；既有 Notepad approval 及 mock/spawn 不足以證明這些。上次工具列表無 Browser／Computer Use 操作能力，新 session 再查一次可用性，不反覆初始化或用 shell 冒充 GUI。
+Open items：新語法 context 與表示重建仍需驗證。**2026-09-27 Human 已接受 M2 的 DB durable draft＋明示 last committed value、語法完整 missing/cycle 可保存且顯示錯誤，以及獨立共享撤銷／本地 Ctrl+Z**，詳見 Shared Value contract 第 3–4 節；這些不再待批准，也尚未實作。外部 observation 更新權限仍未授予，不能套用舊 Config；需要該權限的實際案例才回 Human。Obsidian／Explorer 真實 GUI、IME／zoom 尚缺當次驗證；既有 Notepad approval 及 mock/spawn 不足以證明這些。本次工具列表也無 Browser／Computer Use 操作能力，不反覆初始化或用 shell 冒充 GUI。
 
 ## 6. Exact next executable step
 
 1. 確認正常高能力額度；恢复／major milestone 前 status、fetch、比較 HEAD/upstream。保留工作樹，只有需要且安全時 ff-only 同步；目前正常額度仍可用但接近上限。
-2. 在純 codec 上補 Markdown context adapter，保持 binding／reference 的 opaque spans；真實 code、escaped openers、link destination／HTML／metadata 的排除須明確且可重現。不能直接用現有 codeMask，因 raw literal 裏的 fence 可能遮蔽後续正常正文。
-3. 完成同一 synthetic corpus 的表示輸出／重建，保留 exact values、ordered dependencies、source spans／相鄰正文；M1 synthetic DTO 不冒充 M3 fresh-DB fallback。
+2. 接續 `src/domain/note-language.ts`：處理合法長 fake-fence chain 觸發 8-pass ceiling 的限制，保留 fail-closed 與 bounded work；不能以無界重掃或只調大常數假裝修好。迴歸案例在 `tests/note-language.test.ts`，必須繼續防止暫時遮蔽外層 opener 導致啟用 payload 內的假 binding/reference。保持 context source offsets，true code／escaped opener／HTML／URL／metadata 排除。
+3. `tests/language-source-roundtrip.test.ts` 已證明兩式 patch＋raw EOL／undo、synthetic JSON DTO／composition 重建；下一步完成同 corpus 的實際可讀表示輸出、source-layout bundle 重建與比對。不能以 DTO 測試冒充 M3 full package／fresh DB。
 4. 驗證 paragraph／heading／list／quote／table 與實際 Obsidian reading。native Link 外觀不是硬 gate；工具缺口明列，不能聲稱實際 GUI 通過。語义反例先修正，必要時才以具體例子請 Human 裁定。
-5. M1 整體完成後更新 evidence、checkpoint／push，直接接 M2–M4。M2 前處理下列真正待裁定政策；不為普通 bugs 或 library choices 加 Human gate。
+5. M1 整體完成後更新 evidence、checkpoint／push，直接接 M2–M4。M2 draft/error/undo 政策已接受，直接照 contract 實作；外部 observation 的權限若產生必須裁定的具體案例才提出。
 
 ## 7. Branch、checkpoint locator 與 rehydrate
 

@@ -52,7 +52,7 @@ Serializer 負責 marker level 避碰、宿主 escaping 及 cache source patch�
 
 一致性以受影響資料的版本／依賴 fingerprint 核對；不要求每改一個值就無效化所有未受影響 caches。可另區分 semantic version 與 UI settings revision，避免 recents 更新使值計算過期；這是內部 HOW，不能降低 owner/version guards。
 
-**狀態規則：** current `ok` result 才能提供當前有效 logical value。Missing、cycle、error、stale 必須可觀察；若保留 last-known-good display，它有自己的成功版本，不能標成此次操作的 current value。Assigned empty string 與 unassigned／missing 要分開；其 source 字面表示須由 grammar 契約定案。能否提交引入特定 error 的有效 binding 由已接受政策決定，不能默認清空資料或自行改寫 composition。
+**狀態規則：** current `ok` result 才能提供當前有效 logical value。Missing、cycle、error、stale 必須可觀察；若保留 last-known-good display，它有自己的成功版本，不能標成此次操作的 current value。Assigned empty string 與 unassigned／missing 要分開。**2026-09-27 Human 已接受：語法完整但有 missing／cycle 的 binding 可以提交保存，保留原結構並顯示錯誤；不得以空值冒充成功。** 其他執行失敗仍依交易規則 rollback，不代表所有 internal error 都可提交。
 
 ## 4. Draft、Editor、undo 與 IME
 
@@ -71,12 +71,12 @@ Serializer 負責 marker level 避碰、宿主 escaping 及 cache source patch�
 
 Editor adapter 需要窄的 semantic patch 接面：expected document version/hash、raw-range edits、operation ID、origin 與 selection/history mapping。不能把目前 `setDocument(newMarkdown)` 當成共享 cache 更新接面，因為原文改變時它會重建 editor state。
 
-**尚待裁定的使用者行為：**
+**2026-09-27 產品 Goal 中 Human 已接受的使用者行為（待 M2 實作驗證）：**
 
-- 建議把未完成／無效 source 存為可恢復的 DB draft，與 committed semantic state 分開；其他引用暫用明確標示的 last committed value。這不是無聲保留一個仍標 `ok` 的舊值，也不是將未完成 draft 宣告為新的共享 definition。需要確認 source autosave／恢復顯示的語義，才能定案資料遷移與完成提示。
-- 建議普通 Ctrl+Z 處理本地 source edits，共享操作使用明示的整體撤銷；若要 Ctrl+Z 直接撤銷跨 Note 操作，須先定義命令排序、其他分頁更新與 redo 衝突的使用者行為。不能只撤銷一處 cache 而留下 definition 已更新。
+- 未完成／無效 source 自動存為可恢復的 DB draft，與 committed semantic state 分開；其他引用保留並明確標示 last committed value。不是把未完成 draft 宣告為新共享 definition，也不能把舊 cache 標成此次結果 `ok`。
+- 普通 Ctrl+Z 處理本地 source edits，已提交的共享操作提供獨立「撤銷共享修改」，經版本檢查執行完整反向命令。不能只撤銷一處 cache 而留下 definition 已更新；遇其他分頁更新造成 stale 時保留資料並提示重新審查。
 
-上述推薦不授權任何第三方來源、外部 occurrence 或舊 Config 更新政策成為最高 authority。
+上述已接受決策不授權任何第三方來源、外部 occurrence 或舊 Config 更新政策成為最高 authority；外部 observation 的定案政策仍依第 5 節，未默認授權。
 
 ## 5. 外部 Review：基底、來源及 payload 都要核對
 
