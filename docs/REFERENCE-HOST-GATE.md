@@ -1,6 +1,6 @@
 # Multiline reference：第一里程碑 gate
 
-2026-09-27；觀測基底 `187be53`，現有套件。**M1 尚未實作／驗證通過；link 視覺取捨已裁定。** 本文件保存 host 呈現限制與驗收條件；動態停點／下一步見 [Working State](EXECUTION-STATE.md)。不將 host AST 等同 Grasp semantic AST。
+2026-09-27；觀測基底 `187be53`，現有套件。**Link 視覺取捨已裁定。** 本文件保存 host 呈現限制與驗收條件；M1 新實作證據見 [M1 verification](M1-VERIFICATION.md)，動態停點／下一步見 [Working State](EXECUTION-STATE.md)。不將 host AST 等同 Grasp semantic AST。
 
 ## 最小反例
 
@@ -32,7 +32,7 @@ second](:ref:Text)
 | --- | --- |
 | Source | `src/editor/editor.ts` 使用 `markdown({ base: markdownLanguage })`；本測試針對其 Markdown 基底 AST，不是整個 Grasp renderer |
 | 實際 parser probes | 已取得上述 AST，未修改筆記或私人 workspace |
-| 自動化 diagnostic suite | 本機曾執行 `npm test -- tests/reference-host-gate.test.ts`：32 tests pass，2026-09-27 21:40:12 Asia/Taipei；斷言是上述限制可以重現，**不是 new-reference conformance pass**。此 test 是先前 Planning 越界新增的 untracked 檔，本 docs-only checkpoint 不發布它；新 clone 不應執行不存在的測試或假設可由該檔續作。M1 從下列矩陣建立正式 tests |
+| 自動化 diagnostic suite | `npm test -- tests/reference-host-gate.test.ts`：32 tests pass，2026-09-27 23:13:49 Asia/Taipei 重新驗證；斷言是上述限制可以重現，**不是 new-reference conformance pass**。此前未追蹤測試已在本次授權的產品 Goal 審閱，納入 codec checkpoint |
 | 首次測試嘗試 | Vite `.vite-temp` EPERM，測試未啟動；之後正常取得工作目錄寫入權限再執行，未更改 dependency 或配置 |
 | Obsidian／可視 renderer | 本輪工具不可用，未操作、未證明成功或失敗 |
 | Serializer／rebuild | 新 reference serializer、raw literal generative round trips、完整 reconstruction 尚未完成，無通過證據 |

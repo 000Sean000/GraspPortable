@@ -4,13 +4,13 @@
 
 ## 1. Current objective、WHY 與範圍
 
-當前交付是 **durable continuity publication（docs-only）**：將已完成 Planning、最新決策、實作現況與下一步發布至既有 `master`，經遠端及獨立 rehydration 檢查後，才可進 M1 coding。先前 Planning 階段的文件寫入限制，已由使用者本次明確「正式落盤、commit、push」授權取代。
+當前交付是 **正式產品 Goal，完整 A+B，依 M1–M4 自主推進**。使用者於 2026-09-27 明確授權 coding、驗證及每個 coherent milestone 的 commit／push；M1 通過後直接接續 M2–M4，不設例行人工批准。前次 docs-only publication 已在 `6bb2024959d39dc0753e3b0baac6d25cdd45d244` 完成並確認遠端。
 
-下一個完整產品 Goal 仍是兩條配套流程：**A 共享 Identifier／Value 一致編輯**；**B MainVault 副本確定性匯入 → 審查保存分組策略 → 可讀 Markdown → 完整 fallback 重建**。WHY 是自然筆記、可追溯的共享資料與低管理負擔；獨立 DB identities 不必各占一個 Markdown 檔案。日用 Obsidian Vault 尚未切換 authority，Grasp 使用副本。
+本次完整產品 Goal 是兩條配套流程：**A 共享 Identifier／Value 一致編輯**；**B MainVault 副本確定性匯入 → 審查保存分組策略 → 可讀 Markdown → 完整 fallback 重建**。WHY 是自然筆記、可追溯的共享資料與低管理負擔；獨立 DB identities 不必各占一個 Markdown 檔案。日用 Obsidian Vault 尚未切換 authority，Grasp 使用副本。
 
-本 publication 不交付 M1 codec，也不代表 A+B 完成。後續先執行有界 M1，通過語義／往返 gate 後才接 M2–M4；不以第一個小實驗替代完整產品目標。
+先完成 M1 語義／往返 gate 再接 M2–M4；不以 codec 或第一個小實驗替代完整產品目標。普通實作問題自行修正，只有需要改變已接受語義、重大產品行為或未裁定資料權限時才交回 Human。
 
-**授權狀態明示**：本次有效 Goal 的交付界線是 docs-only publication，完成後停在 M1 coding 前。Publication 是 M1 必要前置條件，不自行構成新增 source/tests 的授權；M1 由明確要求續作該產品里程碑的有效 Goal 承接。下面第 6 節第 3–5 步是該續作 Goal 的可執行路線，不是在本 docs checkpoint 偷跑 coding。
+**授權狀態明示**：最新使用者直接要求「現在開始 Goal」完成兩條完整流程，取代前次 docs-only 停點；可以修改產品、tests 及必要設定。各契約記述的 publication-only 授權是歷史背景，不是本次限制。仍待裁定的資料含義／來源政策不因此自動定案。
 
 ## 2. Read order 與 authority
 
@@ -43,7 +43,7 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 
 程式版本 0.2.0；publication 前 Git baseline `187be53ef5138bd9b24bc96a7c76f3a0901dfd04`。TypeScript／CodeMirror／worker ValueGraph／Node 24+／SQLite；路徑與 API 見 implementation contract。
 
-現有 language 是逐行 JSON-string binding、brace interpolation／`{{name}}`；尚無新 raw codec、stable Binding／Occurrence DB rows、新 persistent-cache transaction 或 semantic-unit strategy。現有 migration rehearsal 是 160 notes／44 folders／11 assets，不是全 MainVault 搬運完成。歷史完整 inventory 為 3,365 files／2,820 Markdown／506 assets；512 MiB aggregate migration cap 與全量 bytes 的落差需 M4 處理，先重新 inventory，不要求讀取每篇私人內容。
+現有 App runtime 仍是逐行 JSON-string binding、brace interpolation／`{{name}}`。M1 已新增純 `binding-language.ts`／`reference-language.ts` codec，尚未接 Markdown context、runtime、DB 或 editor；沒有 stable Binding／Occurrence DB rows、新 persistent-cache transaction 或 semantic-unit strategy。現有 migration rehearsal 是 160 notes／44 folders／11 assets，不是全 MainVault 搬運完成。歷史完整 inventory 為 3,365 files／2,820 Markdown／506 assets；512 MiB aggregate migration cap 與全量 bytes 的落差需 M4 處理，先重新 inventory，不要求讀取每篇私人內容。
 
 歷史 v0.2 build／189 tests／21 production E2E，以及 warm projection 約 9.25 秒，只描述當時實作；不是新契約驗收。新 reference 的 32 個診斷測試曾通過，但僅證明 host 限制。
 
@@ -51,20 +51,20 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 
 本 publication 的 baseline validation：2026-09-27 22:23 Asia/Taipei，`npm run build` 成功；使用 `git ls-files 'tests/*.test.ts'` 列出 **23 個已追蹤測試檔**後傳給 `npm test -- <tracked paths>`，**189 tests pass，4.66 秒**，明確排除 untracked diagnostic。沒有重跑 production E2E／benchmark，也沒有以這些舊語法測試聲稱新 codec 完成。Seed、產品 source、tests/config 沒有本輪修改。
 
-Publication 前保留三份 untracked：兩份規劃草稿將在本 docs checkpoint 納入；`tests/reference-host-gate.test.ts` **故意不納入 docs-only commit**，也不刪除。該 test 曾在 Planning 越界建立；不是新 thread 續作必需輸入。SHA-256 `EBD38707A437F6FCCAB826386729D8E8C51A56357462B035B0B7DB19C29FAB74`。新 clone 沒有它是預期；M1 依 contract 重建／審閱正式 tests，不能宣稱此 test 已由 Git 發布。
+前次 publication 排除的 `tests/reference-host-gate.test.ts`，本次產品 Goal 已審閱並重跑 32 tests，納入純 codec checkpoint。它仍只驗證 host AST 限制，不是 Obsidian GUI 或新版語義 conformance。新 codec、generative/adversarial tests 與完整驗證數據見 [M1 evidence](M1-VERIFICATION.md)。本次 `npm test` 共 **26 files／276 tests pass**（4.28 秒）；`npm run build` 通過。沒有修改私人 workspace，未重跑 production E2E。
 
 ## 5. Milestone progress、open items、exact stop point
 
 | 段落 | 目前位置／待完成 |
 | --- | --- |
 | v0.2 Acceptance Preparation | 歷史已完成；保留可啟動版本及既有資料 |
-| Continuity publication | 文件、37 個相對 links、獨立無對話背景 rehydration review 已通過；此 docs-only checkpoint 承載規劃。當固定 subject 的 commit 可由 origin/master 到達，即完成 durable publication；尚未到達則先處理 push，不能只憑本頁文字宣稱已發布 |
-| M1 | **尚未實作／未通過**；視覺優先順序已裁定，語義 parser／serializer、generative round trips、host reading／reconstruction 待驗 |
+| Continuity publication | 已完成，`6bb2024` 已推送並核對遠端；本 Goal 已從此接續 |
+| M1 | **純 lexical codec 段落完成；整體 gate 尚未通過**。Parser／serializer 與 exhaustive/generative tests 已通過；Markdown context、表示重建及 Obsidian reading 待完成 |
 | M2 | Shared semantic editing、draft／cache／DB consistency 尚待實作 |
 | M3 | Strategy review、semantic grouping、完整 exporter／checkpoint／rebuild 尚待實作 |
 | M4 | 全副本往返、真實 GUI、failure recovery、性能及整合驗收尚待完成 |
 
-Exact stop point：**M1 產品 coding 之前**。Publication 完成與否用上列 Git 條件明確判定；完成後本 docs-only Goal 停止，下一段為有明確授權的 M1。沒有活躍 migration／codec 工作可視為已完成。沒有尚待 Human 再次確認的 link 視覺取捨。
+Current handoff point：**M1 純 lexical codec 已驗證，準備 checkpoint 後接 context／representation reconstruction**。產品 Goal 仍 active，未宣稱 M1 或 A+B 完成；沒有 routine Human approval gate。沒有尚待 Human 再次確認的 link 視覺取捨。
 
 Continuity review：一個未繼承原對話的 reviewer 從本頁出發，讀 Seed、Plan、三份 contracts、gate 與 baseline/evidence 後，已能恢復 WHY、settled decisions、actual repo、完整 plan、stop point、next action、Git locator 與 quota rule。初次發現缺 Projection／授權措辭不明，補齊後第二次判定 PASS。這是文件續作檢查，不是 M1/M2/M3/M4 產品驗收；Git 發布仍以實際 commit／remote verification 為準。
 
@@ -72,11 +72,11 @@ Open items：新語法的精確邊界／escape/context 需依推薦 contract 實
 
 ## 6. Exact next executable step
 
-1. 從 Git 讀本頁與 locator；依下面命令確認 docs checkpoint 已在 origin/master、連結目標齊全。若尚未發布，先完成 docs validation／commit／push，**不 coding**。
-2. 確認正常高能力額度；執行 `git status`、`git fetch origin`、比較 HEAD/origin/master。乾淨且可安全 fast-forward 才 pull；有本機成果先分類保留及 reconcile，不 reset。
-3. 在續作 M1 的 Goal 中，先以 synthetic fixtures 實作純 Binding/Reference codec 與 generative tests；建議入口 `src/domain/binding-language.ts`、`tests/binding-language.test.ts`，使用既有 raw-source adapter，API／invariants 見 Binding contract。審閱本機既有 diagnostic test 後才決定是否納入 M1 checkpoint。此 publication 本身不修改 tests。
-4. 同案例完成多段 value、相鄰 prose、escape、不同 Markdown context、輸出／reconstruction；native Link 外觀不是硬 gate。Obsidian 工具不可用則明列缺口，不能稱 M1 全部通過。遇真實資料／語義反例停在 gate，提供具體 input/expected/actual，不加第三種 syntax。M1 不接正式 DB／MainVault migration。
-5. M1 完成後更新本頁 evidence、progress、stop point、next step，checkpoint／push；按完整 Plan 進 M2–M4。每個 major milestone 前 fetch、後更新本頁，禁止將必要停點只留在 provider memory。
+1. 確認正常高能力額度；恢复／major milestone 前 status、fetch、比較 HEAD/upstream。保留工作樹，只有需要且安全時 ff-only 同步；目前正常額度仍可用但接近上限。
+2. 在純 codec 上補 Markdown context adapter，保持 binding／reference 的 opaque spans；真實 code、escaped openers、link destination／HTML／metadata 的排除須明確且可重現。不能直接用現有 codeMask，因 raw literal 裏的 fence 可能遮蔽後续正常正文。
+3. 完成同一 synthetic corpus 的表示輸出／重建，保留 exact values、ordered dependencies、source spans／相鄰正文；M1 synthetic DTO 不冒充 M3 fresh-DB fallback。
+4. 驗證 paragraph／heading／list／quote／table 與實際 Obsidian reading。native Link 外觀不是硬 gate；工具缺口明列，不能聲稱實際 GUI 通過。語义反例先修正，必要時才以具體例子請 Human 裁定。
+5. M1 整體完成後更新 evidence、checkpoint／push，直接接 M2–M4。M2 前處理下列真正待裁定政策；不為普通 bugs 或 library choices 加 Human gate。
 
 ## 7. Branch、checkpoint locator 與 rehydrate
 
@@ -91,7 +91,7 @@ git ls-remote origin refs/heads/master
 
 原機 sandbox user 若遇 ownership 或 SChannel 問題，可在單次命令加入 `-c safe.directory=C:/Users/ASUS/MyData/AgentWorkspace/All-of-Me/GraspProject/GraspPortableWorkspace/GraspPortable -c http.sslBackend=openssl`；不更改全域 Git config。其他機器使用自己的實際 checkout path。
 
-此次 preflight：2026-09-27 14:14–14:16 UTC；三份 untracked 保留，fetch 成功；HEAD/origin/master 同 `187be53`、ahead/behind `0/0`、無 remote diff；ff-only pull Already up to date，重讀 rc.3。Publication 只 stage 明列 docs，核對 staged tree、remote exact SHA，禁止 test／private data／dist 混入。
+產品 Goal preflight：2026-09-27 15:08 UTC，fetch origin 成功，HEAD/origin/master 同 `6bb2024`、ahead/behind `0/0`，無需 pull；既有 untracked host diagnostic test 保留。已讀 SandboxRoot/AGENTS.md 與現行 rc.3／contracts。第一個產品 checkpoint subject 為 `feat: add lossless binding and reference codecs`；只 stage 明列 source/tests/docs，禁止 private data／dist 混入。發布狀態以 origin/master 到達該 subject 對應 SHA 為準。
 
 ## 8. Local workspace、quota 與 continuation
 
@@ -99,6 +99,6 @@ git ls-remote origin refs/heads/master
 
 Sandbox 的 `Acceptance/MainVault-Source` 與原 MainVault 唯讀；`Acceptance/MainVault-Grasp/.grasp/workspace.grasp.db` 為既有 rehearsal DB，唯一可讀樹是 `Acceptance/MainVault-Grasp/Markdown`。寫入測試只能在 repo 外 `Scratch` 獨立副本。私人檔案不在 Git，異機 clone 沒有是預期：可先跑 synthetic M1，不得聲稱已驗 MainVault；全量驗收需原機副本。啟動既有驗收用 Sandbox `開啟 MainVault 驗收.cmd`／`README-驗收.md`；一般 repo `npm ci`、`npm run build`、`npm start`（Node 24+），開新 Scratch workspace，勿用私人 workspace 測試新 code。
 
-Quota start：2026-09-27 14:14:41 UTC，Codex account-wide 89% used，ordinaryUsageAllowed=true，window 10,080 分鐘、reset `1791048521`。後續觀測見 [Usage log](USAGE-LOG.md)，不要把此歷史 snapshot 當未來可用額度。只用正常高能力額度；耗盡或只剩 Luna Reserve／GPT-5.6 Luna 就停止實作、研究、debug、benchmark，不開始長工作、不切 Reserve。只做可負擔的 coherent 保存／validation／commit／push，標 **因額度停止**、留下 exact next step，不把產品標完成。
+本產品 Goal quota start：2026-09-27 15:07:39 UTC，Codex account-wide 95% used；純 codec validation snapshot：15:16:52 UTC，97% used；兩次 ordinaryUsageAllowed=true，window 10,080 分鐘、reset `1791048521`。後續觀測見 [Usage log](USAGE-LOG.md)，不要把歷史 snapshot 當未來可用額度。只用正常高能力額度；耗盡或只剩 Luna Reserve／GPT-5.6 Luna 就停止實作、研究、debug、benchmark，不開始長工作、不切 Reserve。只做可負擔的 coherent 保存／validation／commit／push，標 **因額度停止**、留下 exact next step，不把產品標完成。
 
 每個 coherent milestone 已授權直接 commit／push，不重複問 Human。Temporary network failure 保留 local commit／待 push 標記；branch protection、conflict、credential/history risk 停 Git mutation，不破壞性 workaround。Quota 恢復且仍有有效續作授權才繼續。Native 新 executable 若需要 application approval，另取得核准；舊 Notepad GUI confirmation 不涵蓋新 App。

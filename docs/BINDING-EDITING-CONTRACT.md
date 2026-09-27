@@ -7,7 +7,7 @@ scope: parsing, serialization, source fidelity, multiline and editing
 
 # Binding and Reference Editing Contract
 
-本文件保存已接受決策與待 M1 驗證的候選 contract，不是 codec／產品完成證據。Authority 是 [Project Seed](Project_Seed/README.md) 指向的 rc.3 文件及使用者最新明確決策；本次授權只將 Planning state 正式落盤，不包含產品、tests、config 或 script 修改。整體範圍見 [Goal Plan](GOAL-PLAN.md)。共享修改的一致性細節另見 [Shared Value Contract](SHARED-VALUE-CONTRACT.md)。
+本文件保存已接受決策與待 M1 驗證的候選 contract，不是 codec／產品完成證據。Authority 是 [Project Seed](Project_Seed/README.md) 指向的 rc.3 文件及使用者最新明確決策；目前有效授權及實作證據見 [Working State](EXECUTION-STATE.md)。整體範圍見 [Goal Plan](GOAL-PLAN.md)。共享修改的一致性細節另見 [Shared Value Contract](SHARED-VALUE-CONTRACT.md)。
 
 ## 1. 已接受與待驗證的界線
 

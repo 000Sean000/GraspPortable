@@ -1,6 +1,6 @@
 # Projection Strategy、Export 與 Reconstruction Contract
 
-更新：2026-09-27。狀態：已接受方向的 supplemental planning contract；schema、checkpoint 與 filesystem 方案為工程推薦，**尚未實作／驗證**。Current Working State 唯一入口為 [EXECUTION-STATE.md](EXECUTION-STATE.md)；authority 由 [Seed](Project_Seed/README.md) 路由，完整範圍見 [Goal Plan](GOAL-PLAN.md)。本次只發布 docs，不修改產品或私人資料。
+更新：2026-09-27。狀態：已接受方向的 supplemental planning contract；schema、checkpoint 與 filesystem 方案為工程推薦，**尚未實作／驗證**。Current Working State 唯一入口為 [EXECUTION-STATE.md](EXECUTION-STATE.md)，亦記錄目前有效授權；authority 由 [Seed](Project_Seed/README.md) 路由，完整範圍見 [Goal Plan](GOAL-PLAN.md)。
 
 ## 1. 已接受的產品責任
 

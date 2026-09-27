@@ -1,6 +1,6 @@
 # 下一個 Goal：共享編輯與可攜往返
 
-更新：2026-09-27。狀態：完整 A+B 的配套 Plan／執行基線；**link 視覺取捨已裁定，M1 語義／往返 gate 尚未實作及驗證**。Current objective、授權、progress、stop point 與 next action 只由 [EXECUTION-STATE.md](EXECUTION-STATE.md) 路由。本文件不冒稱 v0.2 已完成新的契約。
+更新：2026-09-27。狀態：完整 A+B 的配套 Plan／執行基線；**link 視覺取捨已裁定**。Current objective、授權、progress、stop point 與 next action 只由 [EXECUTION-STATE.md](EXECUTION-STATE.md) 路由。本文件不冒稱 v0.2 已完成新的契約。
 
 ## 決策入口
 
@@ -59,7 +59,7 @@ Authority 由 [Project_Seed/README.md](Project_Seed/README.md) 路由到 Core Re
 | M3 策略與 fallback | 同一 Note 的兩個 bindings 獨立分組；Review／Apply；外部可讀；fresh DB rebuild | 重複 canonical assignment、source slots/lineage、partial coverage、unassigned、stale proposal、attachment bytes、path relocation、failure injection、保留版本 |
 | M4 整合驗收 | 全 MainVault 副本匯入 → 策略 → 外部閱讀 → 重建 → 重新共享修改 | 來源前後 count/hash；必要資訊逐項核對；真實 Explorer／Obsidian；阻擋流程 UI 修正；性能報告及已測平台界線 |
 
-M1 gate 尚未通過。目前只有現有 host parser 的呈現限制證據；raw codec 未寫，generative round-trip、reference serializer、reconstruction 尚未實作／驗證。視覺取捨已接受，下一步依 Working State 完成 publication 後執行有界 M1；通過後再接 M2–M4。M1 先以 synthetic DTO／source bundle 證明表示重建，M3 再做完整 fresh-DB rebuild；不可用前者冒充後者。一次實驗不代表全部未知政策已接受。
+視覺取捨已接受，依 Working State 執行 M1；通過後接 M2–M4，不另設例行 Human gate。M1 先以 synthetic DTO／source bundle 證明表示重建，M3 再做完整 fresh-DB rebuild；不可用前者冒充後者。一次實驗不代表全部未知政策已接受。實際 codec 進度與證據見 [M1 verification](M1-VERIFICATION.md)，不在本 Plan 維護第二份動態狀態。
 
 ### UI 驗收範圍
 
