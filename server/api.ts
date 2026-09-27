@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { basename, dirname, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { WorkspaceStore, StoreError, requireRevision, requireString, MAX_ATTACHMENT_BYTES } from './store.js';
 import { ExchangeService, exportMarkdown } from './exchange.js';
@@ -45,7 +45,12 @@ async function openDirectory(path: string): Promise<void> {
   const child = spawn(process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open', [path], { windowsHide: true, detached: true, stdio: 'ignore' });
   await new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('spawn', resolve); }); child.unref();
 }
-export function createApi(options: { defaultPath?: string; openDirectory?: (path: string) => Promise<void> } = {}): { handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>; close(): Promise<void> } {
+async function revealFile(path: string): Promise<void> {
+  const command = process.platform === 'win32' ? ['explorer.exe', ['/select,', path]] as const : process.platform === 'darwin' ? ['open', ['-R', path]] as const : ['xdg-open', [dirname(path)]] as const;
+  const child = spawn(command[0], [...command[1]], { windowsHide: true, detached: true, stdio: 'ignore' });
+  await new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('spawn', resolve); }); child.unref();
+}
+export function createApi(options: { defaultPath?: string; openDirectory?: (path: string) => Promise<void>; revealFile?: (path: string) => Promise<void> } = {}): { handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>; close(): Promise<void> } {
   const defaultPath = options.defaultPath ?? resolve('workspaces/Welcome.grasp.db');
   // This file is only a host launcher pointer. Notes/settings/records remain solely in SQLite.
   // Explicit defaultPath is used by isolated tests/CLI hosts and never reads or writes the pointer.
@@ -86,6 +91,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
   // Preserve a failed pointer until an explicit successful switch, to avoid losing its recovery hint.
   if (!warning) remember();
   const exchange = new ExchangeService();
+  const externalReviews = new Map<string, { path: string; sha256: string; workspaceId: string }>();
   const rename = new RenameService();
   const checkTarget = (target: WorkspaceStore | undefined) => { if (changing || closed || target !== currentStore) throw new StoreError('請求期間 workspace 已切換或正在切換；請重新載入後操作。', 409); };
   async function read(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -101,7 +107,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
     await files?.close();
     currentStore?.close(); currentStore = next; store = next;
     files = new WorkspaceFiles(next.path); files.schedule(next.snapshot(), sha => next.readBlob(sha));
-    exchange.clear(); rename.clear(); warning = undefined; unavailablePath = undefined; startupError = undefined; remember();
+    exchange.clear(); externalReviews.clear(); rename.clear(); warning = undefined; unavailablePath = undefined; startupError = undefined; remember();
   }
   return {
     async handle(req, res) {
@@ -180,11 +186,30 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           download(res, metadata.name, metadata.mimeType, bytes, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(metadata.mimeType)); return true;
         }
         if (attachment && method === 'DELETE') { const b = await read(req); reply(activeStore.deleteAttachment(decodeURIComponent(attachment[1]!), requireRevision(b.revision))); return true; }
-        if (method === 'GET' && path === '/api/files/status') { json(res, activeFiles.status()); return true; }
+        if (method === 'GET' && path === '/api/files/status') { const status = await withFiles(() => activeFiles.inspect()); checkTarget(activeStore); json(res, status); return true; }
         if (method === 'GET' && path === '/api/files') { const entries = await withFiles(() => activeFiles.list(url.searchParams.get('path') ?? '')); checkTarget(activeStore); json(res, entries); return true; }
         if (method === 'GET' && path === '/api/files/download') {
           const file = await withFiles(() => activeFiles.read(requireString(url.searchParams.get('path'), '相對檔案路徑', 4096))); checkTarget(activeStore);
           download(res, file.name, file.mimeType, file.bytes); return true;
+        }
+        if (method === 'POST' && path === '/api/files/locate') {
+          const b = await read(req); if (!['note', 'folder', 'attachment'].includes(String(b.kind))) throw new StoreError('Unsupported projection item.');
+          activeFiles.schedule(activeStore.snapshot(), sha => activeStore.readBlob(sha));
+          await withFiles(() => activeFiles.flush()); checkTarget(activeStore);
+          const entry = await withFiles(() => activeFiles.locate(b.kind as 'note' | 'folder' | 'attachment', requireString(b.id, 'Entity ID', 200))); checkTarget(activeStore); json(res, entry); return true;
+        }
+        if (method === 'POST' && path === '/api/files/reveal') {
+          const b = await read(req); const entry = await withFiles(() => activeFiles.revealPath(requireString(b.path, 'Relative path', 4096))); checkTarget(activeStore);
+          await withFiles(() => entry.kind === 'directory' ? (options.openDirectory ?? openDirectory)(entry.absolutePath) : (options.revealFile ?? revealFile)(entry.absolutePath)); json(res, { path: entry.absolutePath }); return true;
+        }
+        if (method === 'POST' && path === '/api/files/external/plan') {
+          const b = await read(req); const source = await withFiles(() => activeFiles.reviewExternalNote(requireString(b.path, 'Projection note path', 4096), activeStore.snapshot())); checkTarget(activeStore);
+          const snapshot = activeStore.snapshot();
+          if (source.workspaceId !== snapshot.id || source.workspaceRevision !== snapshot.revision) throw new StoreError('Workspace changed; review the file again.', 409);
+          const proposed = { ...snapshot, notes: snapshot.notes.map(n => n.id === source.noteId ? { ...n, markdown: source.markdown } : n) };
+          const plan = exchange.plan(exportMarkdown(proposed), snapshot);
+          if (plan.canApply) { while (externalReviews.size >= 10) externalReviews.delete(externalReviews.keys().next().value!); externalReviews.set(plan.token, { path: source.path, sha256: source.sha256, workspaceId: snapshot.id }); }
+          json(res, plan); return true;
         }
         if (method === 'POST' && path === '/api/files/inbox') {
           const bytes = await rawBody(req, 32 * 1024 * 1024); checkTarget(activeStore);
@@ -215,8 +240,13 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
         }
         if (method === 'POST' && path === '/api/import/plan') { const b = await read(req); json(res, exchange.plan(requireString(b.markdown, 'Markdown', 32 * 1024 * 1024), currentStore.snapshot())); return true; }
         if (method === 'POST' && path === '/api/import/apply') {
-          const b = await read(req); const revision = requireRevision(b.workspaceRevision);
-          const payload = exchange.take(requireString(b.token, 'Import token', 100), revision, currentStore.snapshot());
+          const b = await read(req); const revision = requireRevision(b.workspaceRevision); const token = requireString(b.token, 'Import token', 100);
+          const external = externalReviews.get(token);
+          if (external) {
+            const source = await withFiles(() => activeFiles.read(external.path, 32 * 1024 * 1024)); checkTarget(activeStore);
+            if (external.workspaceId !== activeStore.id || createHash('sha256').update(source.bytes).digest('hex') !== external.sha256) throw new StoreError('外部檔案在審查後又被修改，請重新預覽；資料庫尚未變更。', 409);
+          }
+          const payload = exchange.take(token, revision, currentStore.snapshot()); externalReviews.delete(token);
           reply(activeStore.applyImport(payload, revision)); return true;
         }
         if (method === 'POST' && path === '/api/rename/plan') { const b = await read(req); json(res, rename.plan(b, currentStore.snapshot())); return true; }
@@ -240,6 +270,6 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
       }
       return true;
     },
-    async close() { if (closed) return; closed = true; exchange.clear(); rename.clear(); await Promise.allSettled([...fileOperations]); await files?.close(); currentStore?.close(); },
+    async close() { if (closed) return; closed = true; exchange.clear(); externalReviews.clear(); rename.clear(); await Promise.allSettled([...fileOperations]); await files?.close(); currentStore?.close(); },
   };
 }

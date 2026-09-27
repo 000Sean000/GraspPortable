@@ -29,7 +29,7 @@ node scripts/launch.mjs --workspace "C:\Notes\My.grasp.db"
 1. **找到與整理筆記。** 建立資料夾和中文筆記，用側欄搜尋標題、路徑或內容。Ctrl/⌘+P 快速切換；試試最近開啟、前後導覽，以及筆記「⋯」中的移動。資料夾位置與筆記 ID 分開保存。
 2. **寫作與連動。** 在範例修改 `@first_name`；離開該行後看 nested values 更新。點值前往定義，從 References 看來源、依賴與影響，再試「重新命名／移動 Namespace」的差異預覽。中文、Markdown、Source／Live Preview 與 Ctrl/⌘+Z／Shift+Z 使用同一編輯器。
 3. **操作資料。** 在「資料」搜尋 record，修改欄位值，以 collection 或欄位計算值精確篩選。建立 table 筆記；點列名開啟 record，或按「開啟全部結果」分頁瀏覽。欄位詳細資料可以查看引用、插入 `{{collection.name.field}}`。
-4. **走一次 AI 交換。** 在「檔案與 Mirror」加入圖片與 Markdown、插入附件、檢查實際路徑，並建立給 AI 的資料夾匯出。要更新既有筆記，使用「匯出 Markdown」產生的 `.grasp.md`，保留其 metadata；把修改後內容放進 inbox，審查差異後確認套用。一般 Markdown 匯入會新增筆記。
+4. **走一次 AI 交換。** 在「檔案與 Markdown」加入圖片與 Markdown、插入附件、檢查實際路徑，直接在檔案總管開啟唯一 Markdown projection。要更新既有筆記，使用「匯出 Markdown」產生的 `.grasp.md`，保留其 metadata；把修改後內容放進 inbox，審查差異後確認套用。一般 Markdown 匯入會新增筆記。
 5. **驗證保存與復原。** 關閉 host 再啟動，檢查筆記、records、附件和最近筆記。從「復原紀錄」查看一次修改的影響範圍。需要測試 mirror 重建時，指定完整 manifest 路徑與一個尚不存在的新 `.db`，保留原資料庫。
 
 ## 筆記與知識管理
@@ -69,23 +69,33 @@ Records 可搜尋名稱、原始欄位值與計算值，並依名稱、collectio
 
 ## 檔案、附件與攜帶
 
-**SQLite 是唯一 runtime authority，附件原始 bytes 也在 DB 裡。** `<workspace>.grasp.db.files/` 是旁邊的可讀檔案層：
+**SQLite 是唯一 runtime authority，附件原始 bytes 也在 DB 裡。** 一個 human-readable projection 同時供 Obsidian、AI 上傳、人工檢查與重建使用，不再產生第二套 persistent AI folder。
 
-| 位置 | 用途 |
-| --- | --- |
-| `exchange/inbox/` | AI 回傳或外部 Markdown，經預覽／確認才進入 DB |
-| `exchange/outbox/` | 明確匯出的 `.grasp.md` 與給 AI 的完整資料夾 |
-| `mirror/notes/` | 保留原文的不可覆寫修訂檔 |
-| `mirror/index/`、`mirror/manifests/` | 每次完整發佈的閱讀索引與重建 metadata |
-| `attachments/` | DB 附件的檔案副本 |
+驗收 workspace 的外觀：
 
-檔案面板會顯示絕對路徑、mirror 修訂、更新失敗或外部修改，並提供重新整理／重試。Mirror 在背景建立，檔案失敗不會撤銷已成功提交的 DB 保存；外部修改也不會自動同步回 DB 或被覆寫。修訂檔目前不自動清理。
+```text
+MainVault-Grasp/
+├─ .grasp/
+│  ├─ workspace.grasp.db
+│  ├─ manifests/
+│  ├─ internal/
+│  └─ exchange/
+└─ Markdown/
+   ├─ <logical folders and ordinary .md files>
+   └─ <attachments at logical paths>
+```
 
-附件可多選上傳；每個附件上限 64 MiB，inbox 文字上限 32 MiB。PNG／JPEG／GIF／WebP 可在 Live Preview 顯示；SVG、HTML、PDF 等提供下載。新增連結使用穩定的 `grasp-asset:<id>`，已能解析的原始相對圖片路徑／wiki embeds 保留原文。給 AI 的資料夾保留 Markdown 原始語法，因此自訂 identifier、query 和資產連結不保證在其他 Markdown 軟體呈現相同效果。
+將 `Markdown/` 當 Obsidian vault 開啟。它是最新成功發布的可讀 projection；文件 ID、records、修訂與重建 metadata 位於 `.grasp`。修改筆記後會背景更新 projection；外部編輯、遺失檔案或路徑衝突會顯示 dirty 並暫停發布，保留目前檔案，不會偷偷覆寫。外部 Markdown 可從檔案面板「審查外部修改」預覽，確認後才更新原 note ID；若 DB 或檔案在審查後又改變，必須重新審查。
 
-**攜帶完整工作資料：停止 host 後複製 `.grasp.db` 即可，包含附件。** 若也要攜帶離線閱讀副本、既有 inbox／outbox 和 DB 損壞時的 fallback，將同名 `.grasp.db.files/` 整個目錄一起複製。只有 DB 時，App 可重新產生 mirror；未匯入的 inbox 檔與舊匯出成果不在 DB 裡。運行中不要只複製 DB 主檔。
+工具列「顯示筆記檔」直接在 File Explorer 選取目前筆記；「開啟資料夾」開啟目前筆記所在資料夾。筆記／資料夾操作選單及附件列也有 Explorer 入口。檔案面板顯示 absolute paths、workspace root、Markdown root；inbox/outbox 與重建 metadata 收在進階區。無須先 export 才能拖檔給 ChatGPT。
 
-重建入口在 workspace 對話框，選擇已發佈的 mirror manifest 或完整 AI 匯出資料夾的 `grasp-manifest.json`，再指定新的 `.db`。重建會驗證 metadata 與每個檔案的 checksum，保留實體 ID、建立新的 workspace ID，拒絕覆蓋既有資料庫。被外部修改的檔案不能直接冒充原 manifest 的可信內容，應走 inbox 審查。原 DB 無法開啟時，launcher 仍會提供開啟另一個 DB／重建的畫面。
+一般 Markdown 匯入仍會新增筆記；帶原 workspace IDs 的 `.grasp.md` exchange 更新既有資料。對已發布 projection 的外部修改，使用其專用審查入口才能依 manifest 辨識原筆記。`.grasp/exchange/inbox` 保存待審查回傳；outbox 只保存明確產生的 controlled exchange 檔，不建立另一套完整 projection。
+
+附件上限 64 MiB；PNG/JPEG/GIF/WebP 可在 App Live Preview 顯示。Projection 保留原 Markdown 與附件 logical path，使原本有效的相對路徑／wiki embeds 可由外部工具讀取。Grasp 自訂值語法、query 與 `grasp-asset:` links 仍需要 Grasp 解讀，其他 viewer 不保證相同呈現。
+
+以 `.grasp/workspace.grasp.db` 開啟時，workspace root 為其上兩層。既有任意位置的 `.db` 仍使用旁邊的 `<db>.files/` 作為 projection root，內部同樣採 `Markdown/` + `.grasp/`。舊 mirror 不自動刪除；驗收準備已把本機舊演練與交換資料移到 SandboxRoot/Scratch 保留。
+
+停止 host 後，攜帶整個 workspace，包括 `Markdown` 與 `.grasp`。DB 單檔仍含全部已提交內容及附件；未匯入 inbox 和外部 dirty 檔案不在 DB。不要直接編輯 database、manifests 或 internal recovery。從已發布 manifest 重建只會建立全新的 DB，驗證 checksum 並保留 entity IDs；外部修改過的 projection 須先審查，不能冒充原始 checksum。
 
 ## 保存與復原邊界
 
@@ -116,6 +126,7 @@ E2E 在 Windows 優先使用已安裝 Edge，其他環境須先 `npx playwright 
 - [Phase 2 驗證紀錄](docs/PHASE2-VERIFICATION.md)與[執行計畫](docs/PHASE2-PLAN.md)
 - [計算與編輯器效能](docs/PERFORMANCE.md)、[檔案投影效能](docs/FILES-PERFORMANCE.md)
 - [技術決策](docs/DECISIONS.md)與[已知限制](docs/LIMITATIONS.md)
+- [本機驗收目錄與入口](docs/ACCEPTANCE.md)
 - [完整驗證結果](docs/VERIFICATION.md)、[MainVault 遷移演練](docs/MIGRATION.md)與[額度紀錄](docs/USAGE-LOG.md)
 
-`GraspPortable.slnx` 是起始 repository 的歷史 solution；實際 build 入口為 npm scripts。
+實際 build 入口為 npm scripts。

@@ -374,3 +374,9 @@ test-results/
 *.grasp.db-wal
 *.grasp.db.files/
 *.grasp.db.schema*-backup-*.db
+
+# Acceptance data must stay outside Git, even if accidentally copied here
+Acceptance/
+Scratch/
+MainVault-Source/
+MainVault-Grasp/

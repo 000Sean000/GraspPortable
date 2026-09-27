@@ -7,13 +7,14 @@ const hasChromium = existsSync(chromium.executablePath());
 const hasEdge = process.platform === 'win32' && existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe');
 const harness = `<!doctype html><div id="navigation" style="width:290px;height:850px"></div><script type="module">
 import {createNavigator} from '/src/app/navigation.ts';
-window.errors=[];window.patches=[];window.active='n0';window.lastRange=null;
+window.errors=[];window.patches=[];window.fileCalls=[];window.active='n0';window.lastRange=null;
 window.data={id:'w1',name:'Test',settings:{},folders:Array.from({length:6},(_,i)=>({id:'f'+i,name:'層 '+i,parentId:i?'f'+(i-1):null,revision:1})),notes:Array.from({length:3000},(_,i)=>({id:'n'+i,title:'Note '+i,folderId:i<2275?'f0':'f5',markdown:'# '+i+'\\n\\nbody '+i,revision:1,updatedAt:''}))};
 window.data.notes[2999].title='測試筆記';window.data.notes[2999].markdown='前言\\n關鍵搜尋測試 <script>malicious</'+'script>';
 window.sync=()=>window.nav.setWorkspace(window.data,window.active);
 window.select=async(id,range)=>{window.active=id;window.lastRange=range;window.sync()};
 window.nav=createNavigator(document.querySelector('#navigation'),{
  onSelect:window.select,
+ onRevealNote:id=>window.fileCalls.push(['note',id]),onOpenFolder:id=>window.fileCalls.push(['folder',id]),
  onCreateNote:folderId=>{window.data.notes.push({id:'created',title:'New note',folderId,markdown:'',revision:1,updatedAt:''});window.active='created';window.sync()},
  onRenameNote:(id,title)=>{window.data.notes=window.data.notes.map(n=>n.id===id?{...n,title}:n);window.sync()},
  onMoveNote:(id,folderId)=>{window.data.notes=window.data.notes.map(n=>n.id===id?{...n,folderId}:n);window.sync()},
@@ -38,6 +39,20 @@ describe.skipIf(!hasChromium && !hasEdge)('bounded note navigator in real browse
   }, 30000);
   beforeEach(async () => { await page.goto(`${server.resolvedUrls!.local[0]}__navigation-test`); await page.waitForFunction(() => Boolean((window as any).nav)); });
   afterAll(async () => { await browser?.close(); await server?.close(); });
+
+  it('reveals note files and opens the current or selected folder without changing navigation', async () => {
+    await page.getByRole('button', { name: '筆記操作 Note 0', exact: true }).click();
+    await page.getByRole('button', { name: '在檔案總管顯示筆記', exact: true }).click();
+    await page.getByRole('button', { name: '在檔案總管開啟所在資料夾', exact: true }).click();
+    await page.getByRole('button', { name: '關閉導航對話框', exact: true }).click();
+    await page.getByRole('button', { name: '在檔案總管開啟目前資料夾', exact: true }).click();
+    await page.getByRole('button', { name: '目前資料夾操作', exact: true }).click();
+    await page.getByRole('button', { name: '在檔案總管開啟資料夾', exact: true }).click();
+    expect(await page.evaluate(() => (window as any).fileCalls)).toEqual([['note', 'n0'], ['folder', 'f0'], ['folder', 'f0'], ['folder', 'f0']]);
+    expect(await page.evaluate(() => (window as any).active)).toBe('n0');
+    expect(await page.evaluate(() => (window as any).data.notes.length)).toBe(3000);
+    expect(errors).toEqual([]);
+  });
 
   it('pages through 2275 siblings and finds late Unicode content with precise source range', async () => {
     expect(await page.locator('#note-list .gp-nav-row').count()).toBe(80);

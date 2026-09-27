@@ -12,15 +12,15 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
 async function host(options: { dir?: string; prepare?: (path: string) => void } = {}) {
   const dir = options.dir ?? mkdtempSync(join(tmpdir(), 'grasp-files-api-')); const path = join(dir, 'workspace.db'); options.prepare?.(path);
-  const opened: string[] = [];
-  const api = createApi({ defaultPath: path, openDirectory: async directory => { opened.push(directory); } });
+  const opened: string[] = []; const revealed: string[] = [];
+  const api = createApi({ defaultPath: path, openDirectory: async directory => { opened.push(directory); }, revealFile: async file => { revealed.push(file); } });
   const server = createServer((req, res) => { void api.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('TCP address missing');
   let stopped = false;
   const stop = async () => { if (stopped) return; await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await api.close(); stopped = true; };
   cleanups.push(async () => { await stop(); if (!options.dir) rmSync(dir, { recursive: true, force: true }); });
-  return { base: `http://127.0.0.1:${address.port}`, dir, path, opened, stop };
+  return { base: `http://127.0.0.1:${address.port}`, dir, path, opened, revealed, stop };
 }
 const request = (base: string, path: string, value: unknown = {}, method = 'POST') => fetch(base + path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
 const getSnapshot = async (base: string) => await (await fetch(base + '/api/workspace')).json() as WorkspaceSnapshot;
@@ -50,7 +50,7 @@ describe('managed files and startup recovery HTTP workflows', () => {
   it('saves visible outbox/inbox files and applies edited Markdown only after review', async () => {
     const h = await host(); const before = await getSnapshot(h.base);
     const entry = await (await request(h.base, '/api/files/exchange')).json() as FileEntry;
-    expect(entry.path).toMatch(/^exchange\/outbox\//); expect(existsSync(entry.absolutePath)).toBe(true);
+    expect(entry.path).toMatch(/^\.grasp\/exchange\/outbox\//); expect(existsSync(entry.absolutePath)).toBe(true);
     const exported = await (await fetch(h.base + `/api/files/download?path=${encodeURIComponent(entry.path)}&workspace=${before.id}`)).text();
     const edited = exported.replace('@first_name = "Sean"', '@first_name = "Inbox"');
     const inbox = await (await fetch(h.base + '/api/files/inbox?name=AI.md', { method: 'POST', headers: { 'Content-Type': 'text/markdown' }, body: edited })).json() as FileEntry;
@@ -60,10 +60,10 @@ describe('managed files and startup recovery HTTP workflows', () => {
     expect(applied.notes[0]?.markdown).toContain('"Inbox"');
     const status = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
     expect(status.mirror.state).toBe('ready'); expect(status.mirror.revision).toBe(applied.revision);
-    const listed = await (await fetch(h.base + '/api/files?path=exchange%2Finbox')).json() as FileEntry[];
+    const listed = await (await fetch(h.base + '/api/files?path=.grasp%2Fexchange%2Finbox')).json() as FileEntry[];
     expect(listed.some(file => file.path === inbox.path)).toBe(true);
-    expect((await request(h.base, '/api/files/open-folder', { path: 'exchange/inbox' })).status).toBe(200);
-    expect(h.opened).toEqual([resolve(`${h.path}.files`, 'exchange/inbox')]);
+    expect((await request(h.base, '/api/files/open-folder', { path: '.grasp/exchange/inbox' })).status).toBe(200);
+    expect(h.opened).toEqual([resolve(`${h.path}.files`, '.grasp/exchange/inbox')]);
     expect((await fetch(h.base + '/api/files/download?path=..%2Fworkspace.db')).status).toBe(400);
     expect((await request(h.base, '/api/files/open-folder', { path: '../' })).status).toBe(400); expect(h.opened).toHaveLength(1);
     const bad = await (await fetch(h.base + '/api/files/inbox?name=invalid.md', { method: 'POST', body: Buffer.from([0xff, 0xfe]) })).json() as FileEntry;
@@ -80,6 +80,32 @@ describe('managed files and startup recovery HTTP workflows', () => {
     const applied = await (await request(h.base, '/api/import/apply', { token: plan.token, workspaceRevision: plan.workspaceRevision })).json() as WorkspaceSnapshot;
     const added = applied.notes.filter(note => !before.notes.some(previous => previous.id === note.id));
     expect(added).toHaveLength(1); expect(Buffer.from(added[0]!.markdown, 'utf8')).toEqual(Buffer.from(raw, 'utf8'));
+  });
+
+  it('reveals current projection files and reviews external edits into the same identity without silent overwrite', async () => {
+    const h = await host(); let snapshot = await getSnapshot(h.base); const original = snapshot.notes[0]!;
+    snapshot = await (await request(h.base, `/notes/${original.id}`.replace('/notes/', '/api/notes/'), { title: 'Readable note', markdown: '# Raw\r\n\r\nOriginal', revision: original.revision }, 'PUT')).json() as WorkspaceSnapshot;
+    const status = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
+    expect(status.mirror.state).toBe('ready'); expect(status.directories.mirror).toBe(resolve(status.root, 'Markdown'));
+    const located = await (await request(h.base, '/api/files/locate', { kind: 'note', id: original.id })).json() as FileEntry;
+    expect(located.name).toBe('Readable note.md'); expect(located.path).toBe('Markdown/Readable note.md');
+    expect((await request(h.base, '/api/files/reveal', { path: located.path })).status).toBe(200); expect(h.revealed).toEqual([located.absolutePath]);
+    expect((await request(h.base, '/api/files/reveal', { path: '../workspace.db' })).status).toBe(400); expect(h.revealed).toHaveLength(1);
+    const external = '# Raw\r\n\r\nHuman changed this'; writeFileSync(located.absolutePath, external);
+    const dirty = await (await fetch(h.base + '/api/files/status')).json() as FilesStatus;
+    expect(dirty.mirror.state).toBe('dirty'); expect(dirty.mirror.dirtyPaths).toContain(located.path); expect(await getSnapshot(h.base)).toEqual(snapshot);
+    const blocked = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
+    expect(blocked.mirror.state).toBe('dirty'); expect(readFileSync(located.absolutePath, 'utf8')).toBe(external);
+    const preview = await (await request(h.base, '/api/files/external/plan', { path: located.path })).json() as ImportPlan;
+    expect(preview.canApply).toBe(true); expect(preview.changes.filter(c => c.kind === 'update')).toHaveLength(1);
+    expect(preview.changes.find(c => c.kind === 'update')!.id).toBe(original.id);
+    writeFileSync(located.absolutePath, external + ' again');
+    expect((await request(h.base, '/api/import/apply', { token: preview.token, workspaceRevision: preview.workspaceRevision })).status).toBe(409); expect(await getSnapshot(h.base)).toEqual(snapshot);
+    const fresh = await (await request(h.base, '/api/files/external/plan', { path: located.path })).json() as ImportPlan;
+    const applied = await (await request(h.base, '/api/import/apply', { token: fresh.token, workspaceRevision: fresh.workspaceRevision })).json() as WorkspaceSnapshot;
+    expect(applied.notes).toHaveLength(snapshot.notes.length); expect(applied.notes.find(n => n.id === original.id)!.markdown).toBe(external + ' again');
+    const clean = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
+    expect(clean.mirror.state).toBe('ready'); expect(clean.mirror.dirtyPaths).toEqual([]); expect(readFileSync(located.absolutePath, 'utf8')).toBe(external + ' again');
   });
 
   it('keeps host recovery alive for a corrupt default database and never overwrites it while opening another DB', async () => {

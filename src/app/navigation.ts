@@ -11,6 +11,8 @@ export interface NavigationCallbacks {
   onRenameNote(noteId: string, title: string): Promise<unknown> | unknown;
   onMoveNote(noteId: string, folderId: string | null): Promise<unknown> | unknown;
   onDeleteNote(noteId: string): Promise<unknown> | unknown;
+  onRevealNote?(noteId: string): Promise<unknown> | unknown;
+  onOpenFolder?(folderId: string | null): Promise<unknown> | unknown;
   onCreateFolder(parentId: string | null, name: string): Promise<unknown> | unknown;
   onRenameFolder(folderId: string, name: string): Promise<unknown> | unknown;
   onMoveFolder(folderId: string, parentId: string | null): Promise<unknown> | unknown;
@@ -258,6 +260,7 @@ export class Navigator {
     this.crumbs.replaceChildren(this.button('⌂', () => this.openFolder(null), '開啟根資料夾'));
     for (const folder of this.index.ancestors(this.folderId)) this.crumbs.append(el('span', '', '/'), this.button(folder.name, () => this.openFolder(folder.id), `開啟資料夾 ${this.index.folderPath(folder.id)}`));
     if (this.folderId) this.crumbs.append(this.button('⋯', () => this.folderActions(this.folderId!), '目前資料夾操作'));
+    if (this.callbacks.onOpenFolder) this.crumbs.append(this.button('↗', () => this.callbacks.onOpenFolder!(this.folderId), '在檔案總管開啟目前資料夾'));
     const rows = this.rows();
     if (revealActive) { const active = rows.findIndex(row => row.kind === 'note' && row.note.id === this.activeId); if (active >= 0) this.page = Math.floor(active / PAGE_SIZE); }
     this.page = Math.max(0, Math.min(this.page, Math.ceil(rows.length / PAGE_SIZE) - 1));
@@ -309,14 +312,19 @@ export class Navigator {
   }
   private noteActions(id: string) {
     const note = this.index.notes.get(id); if (!note) return;
-    const body = this.openDialog(note.title); body.append(el('p', 'muted', this.index.notePath(id)),
+    const body = this.openDialog(note.title);
+    if (this.callbacks.onRevealNote) body.append(this.button('在檔案總管顯示筆記', () => this.callbacks.onRevealNote!(id)));
+    if (this.callbacks.onOpenFolder) body.append(this.button('在檔案總管開啟所在資料夾', () => this.callbacks.onOpenFolder!(folderOf(note))));
+    body.append(el('p', 'muted', this.index.notePath(id)),
       this.button('重新命名筆記', () => this.nameDialog('重新命名筆記', note.title, title => this.callbacks.onRenameNote(id, title))),
       this.button('移動筆記', () => this.folderPicker('移動筆記', new Set(), target => this.callbacks.onMoveNote(id, target))),
       this.button('刪除筆記…', () => this.confirmDelete(`刪除「${note.title}」？內容可從復原紀錄取回。`, () => this.callbacks.onDeleteNote(id))));
   }
   private folderActions(id: string) {
     const folder = this.index.folders.get(id); if (!folder) return;
-    const body = this.openDialog(folder.name); body.append(el('p', 'muted', this.index.folderPath(id)),
+    const body = this.openDialog(folder.name);
+    if (this.callbacks.onOpenFolder) body.append(this.button('在檔案總管開啟資料夾', () => this.callbacks.onOpenFolder!(id)));
+    body.append(el('p', 'muted', this.index.folderPath(id)),
       this.button('在這裡新增筆記', async () => { this.dialog.close(); await this.callbacks.onCreateNote(id); }),
       this.button('重新命名資料夾', () => this.folderNameDialog(folder)),
       this.button('移動資料夾', () => this.folderPicker('移動資料夾', this.index.descendants(id), target => this.callbacks.onMoveFolder(id, target))),

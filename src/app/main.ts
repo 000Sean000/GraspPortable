@@ -6,7 +6,7 @@ import { KnowledgePanel } from './knowledge-panel';
 import { RecordsPanel } from './records-panel';
 import { FilesPanel } from './files-panel';
 import { attachmentMarkdown } from '../editor/query';
-import type { FileEntry, FileExportResult, FilesStatus } from '../domain/files';
+import type { FileEntry, FilesStatus } from '../domain/files';
 import type { RecordQuery } from '../editor/query';
 import type { RenamePlan } from '../domain/rename';
 import type { RecoveryPreview } from '../../server/store';
@@ -19,10 +19,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 02</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
   <section id="navigation" aria-label="筆記與資料夾"></section>
-  <div class="sidebar-bottom"><button id="files">▧ 檔案與 Mirror</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
+  <div class="sidebar-bottom"><button id="files">▧ 檔案與 Markdown</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
 </aside>
 <main class="main-pane">
-  <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
+  <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="reveal-note" title="在檔案總管顯示目前筆記">顯示筆記檔</button><button id="open-note-folder" title="在檔案總管開啟目前筆記的資料夾">開啟資料夾</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
   <div class="document-heading"><div class="eyebrow">YOUR CONNECTED NOTEBOOK</div><input id="note-title" aria-label="筆記標題" placeholder="未命名筆記"><div class="document-meta"><span id="note-meta"></span><span class="mode-hint">游標所在行編輯原文，其他位置即時呈現</span></div></div>
   <div id="editor" aria-label="Markdown 編輯區"></div>
   <footer class="statusbar"><span id="save-status" role="status">載入中</span><span id="runtime-status">準備計算…</span><span id="document-stats"></span></footer>
@@ -100,6 +100,8 @@ const navigator = createNavigator($('navigation'), {
   onRenameFolder: (id, name) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name, parentId: folder.parentId, revision: folder.revision }; })),
   onMoveFolder: (id, parentId) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name: folder.name, parentId, revision: folder.revision }; })),
   onDeleteFolder: id => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'DELETE', () => ({ revision: snapshot.folders.find(f => f.id === id)!.revision, workspaceRevision: snapshot.revision, recursive: true }))),
+  onRevealNote: id => navigationCommand(() => revealNote(id)),
+  onOpenFolder: id => navigationCommand(() => openLogicalFolder(id)),
   onPersistSettings: saveNavigationSettings,
   onError: message => toast(message, true),
 });
@@ -142,7 +144,7 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   const changedWorkspace = snapshot && next.id !== snapshot.id;
   snapshot = next;
   $('navigation').inert = false;
-  for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files']) ($<HTMLButtonElement>(id)).disabled = false;
+  for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = false;
   setWorkspaceId(next.id);
   if (changedWorkspace) {
     runtime = undefined; selectedIdentifier = undefined; valueFilter = ''; ($('note-search') as HTMLInputElement).value = '';
@@ -194,6 +196,7 @@ function showActiveNote() {
   const draft = drafts.get(activeId);
   ($('note-title') as HTMLInputElement).value = draft?.title ?? note?.title ?? '';
   ($('note-title') as HTMLInputElement).disabled = !note;
+  $<HTMLButtonElement>('reveal-note').disabled = !note;
   $('editor').classList.toggle('no-note', !note);
   editor.setDocument(draft?.markdown ?? note?.markdown ?? '', `${snapshot.id}:${activeId}`);
   editorBase = note ? { workspaceId: snapshot.id, noteId: note.id, revision: draft?.baseRevision ?? note.revision } : undefined;
@@ -275,15 +278,27 @@ async function upload<T>(path: string, bytes: Blob | string, type = 'text/markdo
 function downloadFile(entry: FileEntry) {
   const link = element('a'); link.href = `/api/files/download?path=${encodeURIComponent(entry.path)}&workspace=${encodeURIComponent(snapshot.id)}`; link.download = entry.name; link.click();
 }
+async function revealNote(noteId = activeId) {
+  await flush(); if (!noteId) throw new Error('請先選擇筆記。');
+  const entry = await request<FileEntry>('/files/locate', 'POST', { kind: 'note', id: noteId });
+  await request('/files/reveal', 'POST', { path: entry.path }); toast(entry.absolutePath);
+}
+async function openLogicalFolder(folderId: string | null) {
+  await flush();
+  const entry = folderId ? await request<FileEntry>('/files/locate', 'POST', { kind: 'folder', id: folderId }) : undefined;
+  const path = entry?.path ?? (await request<FilesStatus>('/files/status')).projection.path;
+  const opened = await request<{ path: string }>('/files/open-folder', 'POST', { path }); toast(opened.path);
+}
 async function filesDialog() {
   await flush();
-  await filesPanel.show(openModal('檔案、附件與 Markdown Mirror'), {
+  await filesPanel.show(openModal('檔案、附件與 Markdown'), {
     getSnapshot: () => snapshot,
     getDatabasePath: async () => (await request<{ path: string }>('/host')).path,
     getStatus: () => request<FilesStatus>('/files/status'),
     list: path => request<FileEntry[]>(`/files?path=${encodeURIComponent(path)}`),
     retryMirror: () => navigationCommand(async () => { await flush(); return request<FilesStatus>('/files/mirror/refresh', 'POST', {}); }),
-    buildExport: () => navigationCommand(async () => { await flush(); return request<FileExportResult>('/files/export', 'POST', {}); }),
+    revealFile: path => request('/files/reveal', 'POST', { path }),
+    reviewExternal: path => navigationCommand(async () => { await flush(); showImportPlan(await request<ImportPlan>('/files/external/plan', 'POST', { path })); }),
     openFolder: path => request('/files/open-folder', 'POST', { path }),
     downloadFile,
     stageMarkdown: files => navigationCommand(async () => { for (const file of files) await upload<FileEntry>(`/files/inbox?name=${encodeURIComponent(file.name)}`, file); }),
@@ -350,14 +365,14 @@ function workspaceDialog() {
   body.append(labeled('資料庫路徑', path), labeled('新 workspace 名稱（建立時使用）', name));
   const action = async (create: boolean) => transition(async () => { await flush(); if (!path.value.trim()) throw new Error('請輸入資料庫路徑。'); const next = await request<WorkspaceSnapshot>('/workspace/open', 'POST', { path: path.value.trim(), create, name: name.value.trim() || '我的知識庫' }); activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); });
   const actions = element('div', 'form-actions'); actions.append(button('開啟既有資料庫', () => action(false)), button('建立新 workspace', () => action(true), 'primary')); body.append(actions);
-  const fallback = element('details', 'diff-card'); fallback.append(element('summary', '', '從 Markdown mirror 重建到新的資料庫'));
-  fallback.append(element('p', 'muted', '選擇 mirror 的完整 manifest 路徑與尚不存在的 .db 路徑。會驗證所有內容與附件；原始資料庫和 mirror 都會保留。重建後是新的 workspace，筆記與資料的 ID 仍保留。'));
-  const manifest = input('', 'C:\\…\\Knowledge.grasp.db.files\\mirror\\manifests\\…json'); manifest.setAttribute('aria-label', 'Mirror manifest 路徑');
+  const fallback = element('details', 'diff-card'); fallback.append(element('summary', '', '從 Markdown 投影重建到新的資料庫'));
+  fallback.append(element('p', 'muted', '選擇 .grasp/manifests 內的完整 manifest 路徑與尚不存在的 .db 路徑。會驗證所有內容與附件；原始資料庫和 Markdown 都會保留。重建後是新的 workspace，筆記與資料的 ID 仍保留。'));
+  const manifest = input('', 'C:\\…\\MainVault-Grasp\\.grasp\\manifests\\…json'); manifest.setAttribute('aria-label', '重建 manifest 路徑');
   const target = input('', 'C:\\…\\Recovered.grasp.db'); target.setAttribute('aria-label', '重建的新資料庫路徑');
-  fallback.append(labeled('Mirror manifest', manifest), labeled('新的 .db 路徑', target), button('驗證並重建新 workspace', async () => transition(async () => {
+  fallback.append(labeled('重建 manifest', manifest), labeled('新的 .db 路徑', target), button('驗證並重建新 workspace', async () => transition(async () => {
     await flush(); if (!manifest.value.trim() || !target.value.trim()) throw new Error('請填寫 manifest 與新的資料庫路徑。');
     const next = await request<WorkspaceSnapshot>('/workspace/rebuild', 'POST', { manifestPath: manifest.value.trim(), newPath: target.value.trim() });
-    activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); toast('已驗證 mirror 並重建至新資料庫；原檔保留。');
+    activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); toast('已驗證 Markdown 投影並重建至新資料庫；原檔保留。');
   }), 'primary')); body.append(fallback);
 }
 function recordDialog(record?: StructuredRecord) {
@@ -452,6 +467,8 @@ $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
 $('files').onclick = () => void run(filesDialog);
+$('reveal-note').onclick = () => void run(() => revealNote());
+$('open-note-folder').onclick = () => void run(() => openLogicalFolder(snapshot.notes.find(n => n.id === activeId)?.folderId ?? null));
 $('export').onclick = () => void run(async () => { await flush(); const entry = await request<FileEntry>('/files/exchange', 'POST', {}); downloadFile(entry); toast(`已保存至 outbox 並下載：${entry.absolutePath}`); });
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
@@ -472,7 +489,7 @@ void run(async () => {
     $('workspace-name').textContent = '選擇可用的 Workspace'; $('runtime-status').textContent = '尚未開啟資料庫';
     ($('note-title') as HTMLInputElement).disabled = true;
     setSaveStatus('資料庫未開啟 · 原檔保留', true); $('navigation').inert = true; $('editor').classList.add('no-note');
-    for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files']) ($<HTMLButtonElement>(id)).disabled = true;
+    for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = true;
     workspaceDialog(); toast(error instanceof Error ? error.message : String(error), true); return;
   }
   mode = initial.settings.mode === 'source' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live'));

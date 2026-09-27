@@ -5,7 +5,7 @@ process.chdir(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 const root = process.cwd();
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 if (!existsSync('dist/server.mjs')) throw new Error('Run npm run build before packaging.');
-const documentation = ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md', 'PHASE2-PLAN.md', 'PHASE2-VERIFICATION.md', 'FILES-PERFORMANCE.md', 'IMPLEMENTATION-CONTRACT.md', 'USAGE-LOG.md'];
+const documentation = ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md', 'PHASE2-PLAN.md', 'PHASE2-VERIFICATION.md', 'FILES-PERFORMANCE.md', 'IMPLEMENTATION-CONTRACT.md', 'USAGE-LOG.md', 'ACCEPTANCE.md'];
 for (const name of documentation) if (!existsSync(join('docs', name))) throw new Error(`Required delivery document missing: docs/${name}`);
 // Only explicitly public migration reports enter the package, never .cache/private rehearsal files.
 documentation.push(...readdirSync('docs').filter(name => /^MIGRATION(?:-[A-Za-z0-9_-]+)?\.md$/i.test(name)));

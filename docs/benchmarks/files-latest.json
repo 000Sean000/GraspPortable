@@ -1,37 +1,48 @@
 {
-  "timestamp": "2026-09-27T01:18:02.984Z",
-  "node": "v24.19.0",
+  "schemaVersion": 2,
+  "timestamp": "2026-09-27T05:43:31.647Z",
+  "node": "v24.18.0",
   "platform": "win32",
   "corpus": "synthetic only",
+  "layout": "Workspace/.grasp/workspace.grasp.db + one live Workspace/Markdown projection",
   "notes": 2820,
   "noteBytes": 6318510,
   "records": 100,
   "attachments": 1,
-  "coldMirror": {
-    "milliseconds": 2540.99,
+  "coldProjection": {
+    "milliseconds": 15152.69,
     "writtenFiles": 2821,
     "reusedFiles": 0
   },
-  "wholeAiFolder": {
-    "milliseconds": 2239.08,
-    "files": 2823,
-    "payloadBytes": 6322606
+  "existingProjectionReuse": {
+    "milliseconds": 2718.66,
+    "path": "Markdown",
+    "files": 2821,
+    "payloadBytes": 6322606,
+    "samePath": true,
+    "unchangedFilesystemInventory": true,
+    "publicProjectionTrees": 1,
+    "secondPersistentTreeCreated": false
   },
   "warmOneChange": {
-    "milliseconds": 674.37,
+    "milliseconds": 9251.46,
     "writtenFiles": 1,
     "reusedFiles": 2820,
-    "manifestBytes": 1254355,
-    "changedNoteBytes": 2259
+    "manifestBytes": 1009520,
+    "changedNoteBytes": 2259,
+    "sameProjectionPaths": true
   },
-  "validatedRebuild": {
-    "milliseconds": 4427.8,
+  "validatedRebuildRead": {
+    "milliseconds": 2756.1,
     "notes": 2820,
-    "blobs": 1
+    "blobs": 1,
+    "snapshotExact": true,
+    "attachmentBytesExact": true
   },
   "limits": [
-    "Warm update still scans metadata/stats for every current projected file and writes a full manifest/index.",
-    "Stat signature cache avoids rehashing unchanged projection bytes; rebuild always reads and verifies all bytes.",
-    "This measures filesystem projection, not editor latency. No background pruning."
+    "Warm update still scans file metadata and publishes full manifest/index plus internal recovery metadata.",
+    "The compatibility buildAiFolder call validates/reuses the existing projection; it does not build or time another AI tree.",
+    "Stat signature cache avoids rehashing unchanged projection bytes; rebuild reads and verifies all bytes.",
+    "Inventory assertions are outside measured operations. This measures filesystem projection, not editor latency. No background pruning."
   ]
 }
