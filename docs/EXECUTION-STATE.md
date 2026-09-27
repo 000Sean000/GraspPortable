@@ -1,6 +1,6 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28 05:36（Asia/Taipei）。本輪為 **v0.3 UI 操作修復 Goal**。產品修正與新版入口已完成，**Goal 尚未完成：原 Acceptance 的 Markdown 目錄替換仍遭 Windows EPERM 拒絕，等待 Human 解除占用／確認權限後驗最後發布與定位**。這不是額度停工，也不是 Human 驗收通過。
+更新：2026-09-28 05:53（Asia/Taipei）。本輪為 **v0.3 UI 操作修復 Goal**。產品修正與新版入口已完成，**Goal 尚未完成：原 Acceptance 的 Markdown 目錄替換仍遭 Windows EPERM 拒絕，等待 Human 解除占用／確認權限後驗最後發布與定位**。這不是額度停工，也不是 Human 驗收通過。
 
 ## 授權與 authority
 
@@ -26,6 +26,8 @@
 原projection仍在revision13。直接checkpoint明確回傳EPERM：rename Markdown到.grasp/internal/projection/old-UUID被拒絕；原資料夾ACL與Scratch相同、非readonly，尚未指認占用程序。固定journal inventory與目前Markdown3,333/3,333files、615,863,057bytes完全一致，無missing／extra／hash／size／unreadable／unstable；70條長路徑均可讀，沒有.obsidian。不能僅因Obsidian程序存在就認定它是原因。
 
 0.3.2於21:36:07及21:36:13UTC兩次GET projection/state仍正確保留error與Windows提示，dirtyPaths空；DB53／public13未變。未修改ACL、未關閉外部App、未手動刪stage／journal。已向Human提出：關閉使用此Markdown資料夾的Explorer／Obsidian／terminal視窗，然後回覆。尚未收到答覆。
+
+續作診斷21:49–21:53UTC：一般Windows使用者（不啟用額外privilege）對原Markdown及Scratch root的DELETE-access／share RWD／OPEN_EXISTING／BACKUP_SEMANTICS handle均成功開啟後立即關閉；原tree共3,594個檔案／目錄亦全部成功。沒有rename/delete/write。預設Codex sandbox的相同root probe均error5，屬不同權限環境，不能拿來推論原host失敗原因。實際43861 host PID20676與正常probe的token均IsTokenRestricted=false。成功開handle不證明整棵tree可rename，也不排除transient/filter限制。21:51:01UTC正式checkpoint仍回EPERM（52.050s），DB53／public13／recovery53不變，無active journal；不能指認Explorer／Obsidian／ACL。產品source review的SafeTree.read已在finally關handle，未找到持續佔用的產品stream。private證據：directory-access-probe-private.json、tree-access-probe-private.json、host-token-probe-private.json、checkpoint-after-access-probe-private.json，均在Scratch/UI-Repair-Deployment。
 
 **精確下一步**：取得Human解除占用／權限的回覆後，先核對43861的build4102...及DB，從App「分組策略與Fallback」建立checkpoint（或使用同等既有POST /api/projection/checkpoint，帶目前workspace header）。確認state=ready、manifest對齊當時DB revision，再驗原驗收筆記／folder定位、可讀檔內容與dirty保護。不要未有新資訊便反覆耗時重試；若仍EPERM，需定位實際Windows占用／權限，不以force move、關未知process或複製另一份DB掩蓋問題。完成最後原路徑驗證後更新此文件、commit/push，才能標此Goal完成。
 
@@ -54,7 +56,7 @@ master → origin/master，https://github.com/000Sean000/GraspPortable.git；21:
 
 Computer Use SKILL先前已讀，但本輪無node_repl／Windows GUI callable入口。Playwright Edge真browser可用；Explorer reveal是stub＋檔案stat，不能冒稱桌面驗收。Explorer／Obsidian／實體IME及Human最終操作仍未驗。沒有以API或spawn當畫面證据。
 
-本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。最新21:43:05UTC正常額度89%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
+本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。最新21:52:58UTC正常額度90%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
 
 停止原因是待解除原資料夾Windows阻擋，**不是因額度停止，也不宣稱Goal完成**。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
 

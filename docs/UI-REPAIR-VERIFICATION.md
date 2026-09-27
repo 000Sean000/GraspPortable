@@ -58,3 +58,11 @@ Computer Use 所需 node_repl／Windows GUI 入口在本輪不可呼叫；使用
 Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files／541unit+integration tests通過（7.75s），全部45production Edge E2E通過（1.2m，無skip/flaky）。包含新標題恢復test與既有UI操作紅綠回歸；EPERM regression為真實檔案fixture＋注入rename失敗，不能代替原Windows目錄已解鎖的證據。原Acceptance publication仍受EPERM阻擋，Goal尚未完成。
 
 0.3.2實際入口21:35:49UTC核對build4102f62d-bfca-4a69-90d5-3c7027963cdc、同一DB／2,821notes／revision53／2個assets。21:36:07與21:36:13兩次GET state均保留error及可操作Windows提示；原EPERM未解除，public revision仍13。完整53-file套件smoke21:34:05UTC通過。當前停止位置是等待Human解除原目錄Windows阻擋後重試並驗證，而非Goal完成／額度停止。
+
+## 原路徑唯讀存取診斷（21:49–21:53UTC）
+
+未改動資料的Win32 probe：CreateFileW要求DELETE access、share R/W/D、OPEN_EXISTING、BACKUP_SEMANTICS，沒有DELETE_ON_CLOSE；成功立即close。原Markdown及Scratch root成功，原tree的3,594個檔案／目錄全部成功。預設Codex restricted sandbox兩root回5，而正常Windows使用者均成功；因此受限sandbox結果不當作原host權限結論。實際host與probe token均IsTokenRestricted=false，沒有提權或改ACL。此probe只測當下handle的access/share compatibility，不測完整rename、目的parent、filter或競態。[CreateFileW官方契約](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)。
+
+基於新probe證據重試正式checkpoint一次：21:51:01UTC、HTTP200、52.050s、state=error，仍是Markdown→internal old-generation的EPERM；DB53／public13／recovery53保留。開始的無Content-Type請求回415，於mutation前拒絕，沒有發布。重試後無active journal。read-only source追查未見產品未關閉handle：SafeTree.read在finally關閉，API先讀成bytes才回傳，SQLite在.grasp而非Markdown。不能以此排除其他Windows原因，亦未找到可安全自行關閉的確定占用程序。
+
+私人完整證據仍在Scratch/UI-Repair-Deployment：directory-access-probe-private.json、tree-access-probe-private.json、host-token-probe-private.json及checkpoint-after-access-probe-private.json。沒有外部App終止、權限變更、強制move或測試DB覆蓋。Human解除相關視窗占用／確認目錄存取的問題仍待答覆；未宣稱Goal完成。

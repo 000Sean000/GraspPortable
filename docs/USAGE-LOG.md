@@ -133,3 +133,7 @@ Subsequent validation completed in the same segment: all45production Edge E2E pa
 ## UI repair safe handoff — 2026-09-27 21:43:05 UTC
 
 Normal account bucket89%used (11%remaining), ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. No Reserve/reset credit used.0.3.2 implementation checkpoint a52b67ec9239d852700af62443982bc1c0c408d7 pushed and remote SHA verified; working tree clean at observation.541tests/45E2E/package smoke pass; actual acceptance host build4102f62d-bfca-4a69-90d5-3c7027963cdc returnsHTTP200 with originalDB. Stop is awaiting Human response to Windows directory EPERM, NOT quota exhaustion and NOT Goal complete. Publication-path privacy concern was resolved by normalizing80E2E source paths and auditing exact staged payloads before approval/push.
+
+## Original-directory diagnostic continuation — 2026-09-27 21:52:58 UTC
+
+Normal account bucket90%used (10%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Start21:45 and end21:52 both90%; account observation only. Read-only Win32 root/tree access and host-token diagnostics completed; all3594 original-tree handle opens succeeded outside Codex restricted sandbox, yet one existing App checkpoint still EPERM (52.050s). DB53/public13/recovery53 preserved, no active journal. No product changes/new heavy tests, no Reserve/reset or external application termination. Previous541tests/45E2E remain the product validation; these probes do not resolve original publication. Human response remains pending; Goal not complete and not quota-stopped.

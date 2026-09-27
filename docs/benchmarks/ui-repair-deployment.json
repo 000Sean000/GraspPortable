@@ -20,5 +20,28 @@
     "sqliteQuickCheck": "ok"
   },
   "goalComplete": false,
-  "stopReason": "Await original Windows directory access/unlock; normal quota remains"
+  "stopReason": "Await original Windows directory access/unlock; normal quota remains",
+  "directoryDiagnostics": {
+    "timestamp": "2026-09-27T21:52:58Z",
+    "mutatedOriginalFiles": false,
+    "rootDeleteAccessOpen": true,
+    "treeEntries": 3594,
+    "treeHandleOpenFailures": 0,
+    "hostTokenRestricted": false,
+    "probeTokenRestricted": false,
+    "restrictedCodexSandboxProbeExcluded": true,
+    "checkpointRetry": {
+      "timestamp": "2026-09-27T21:51:01.296Z",
+      "elapsedMs": 52050,
+      "http": 200,
+      "state": "error",
+      "errorCode": "EPERM",
+      "databaseRevision": 53,
+      "publicProjectionRevision": 13,
+      "recoveryRevision": 53
+    },
+    "activePublicationJournals": 0,
+    "identifiedBlockingProcess": false,
+    "fullRenameSuccessNotInferredFromHandleProbe": true
+  }
 }
