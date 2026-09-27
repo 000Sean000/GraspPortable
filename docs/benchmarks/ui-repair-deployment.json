@@ -43,5 +43,20 @@
     "activePublicationJournals": 0,
     "identifiedBlockingProcess": false,
     "fullRenameSuccessNotInferredFromHandleProbe": true
+  },
+  "goalStatus": "blocked",
+  "blockedAudit": {
+    "timestamp": "2026-09-27T21:56:16.752Z",
+    "consecutiveGoalTurns": 3,
+    "liveHostVerified": true,
+    "state": "error",
+    "errorCode": "EPERM",
+    "databaseRevision": 53,
+    "publicProjectionRevision": 13,
+    "recoveryRevision": 53,
+    "dirtyPathCount": 0,
+    "activePublicationJournals": 0,
+    "humanResponsePending": true,
+    "quotaStop": false
   }
 }

@@ -137,3 +137,7 @@ Normal account bucket89%used (11%remaining), ordinaryUsageAllowed=true, same1008
 ## Original-directory diagnostic continuation — 2026-09-27 21:52:58 UTC
 
 Normal account bucket90%used (10%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Start21:45 and end21:52 both90%; account observation only. Read-only Win32 root/tree access and host-token diagnostics completed; all3594 original-tree handle opens succeeded outside Codex restricted sandbox, yet one existing App checkpoint still EPERM (52.050s). DB53/public13/recovery53 preserved, no active journal. No product changes/new heavy tests, no Reserve/reset or external application termination. Previous541tests/45E2E remain the product validation; these probes do not resolve original publication. Human response remains pending; Goal not complete and not quota-stopped.
+
+## Blocked audit — 2026-09-27 21:54:55–21:56 UTC
+
+Normal account bucket91%used (9%remaining), ordinaryUsageAllowed=true; unchanged10080-minute/reset1791128122 window. Live host/state check confirms existing EPERM, DB53/public13/recovery53, dirty0 and no active journal. Same blocker persisted across three consecutive Goal turns; all workers completed and Human response is pending. Goal tool now reports blocked (not complete, not quota-stop). No new product mutation, checkpoint retry or heavy tests this turn. Existing validation retained; only minimal durable blocked-state handoff. No Reserve/reset used.
