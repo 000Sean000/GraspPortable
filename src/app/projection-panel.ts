@@ -1,4 +1,4 @@
-import { request } from './api';
+import { request, requestFileLocation, FILES_INSPECTION_TIMEOUT_MS } from './api';
 import type { ProjectionApiState, ProjectionStatus, ProjectionStrategyReview } from '../../server/projection';
 import type { ProjectionPlanningPackage, ProjectionProposal, ProjectionUnitId } from '../domain/projection';
 import type { FileEntry, FileExportResult } from '../domain/files';
@@ -21,6 +21,7 @@ export class ProjectionPanel {
   private actions?: ProjectionActions;
   private state?: ProjectionApiState;
   private generation = 0;
+  private reads?: AbortController;
   private busy = false;
   private selected = new Set<ProjectionUnitId>();
   private filter = '';
@@ -35,16 +36,23 @@ export class ProjectionPanel {
 
   async show(container: HTMLElement, actions: ProjectionActions, initialNoteId?: string) {
     this.destroy(); this.container = container; this.actions = actions; this.selected.clear(); this.review = undefined;
+    this.reads = new AbortController();
     this.proposalText = ''; this.exported = undefined; this.message = ''; this.failure = ''; this.filter = ''; this.page = 0;
     const generation = this.generation;
-    container.textContent = '載入分組策略與 Markdown 狀態…';
-    const state = await request<ProjectionApiState>('/projection/state');
-    if (generation !== this.generation) return;
-    this.state = state;
-    if (initialNoteId) this.selected = new Set(state.catalog.units.filter(unit => unit.owner.kind === 'note' && unit.owner.id === initialNoteId).map(unit => unit.id));
-    this.render();
+    container.textContent = '正在檢查分組策略與 Markdown 狀態；大型資料庫可能需要數分鐘。可先關閉此視窗並繼續操作…';
+    try {
+      const state = await request<ProjectionApiState>('/projection/state', 'GET', undefined, { signal: this.reads.signal, timeoutMs: FILES_INSPECTION_TIMEOUT_MS });
+      if (generation !== this.generation) return;
+      this.state = state;
+      if (initialNoteId) this.selected = new Set(state.catalog.units.filter(unit => unit.owner.kind === 'note' && unit.owner.id === initialNoteId).map(unit => unit.id));
+      this.render();
+    } catch (error) {
+      if (generation !== this.generation) return;
+      container.replaceChildren(el('p', `載入未完成：${error instanceof Error ? error.message : String(error)}`, 'validation-error'),
+        this.button('重試載入', () => this.show(container, actions, initialNoteId)));
+    }
   }
-  destroy() { this.generation++; this.container = undefined; this.actions = undefined; this.busy = false; }
+  destroy() { this.generation++; this.reads?.abort(); this.reads = undefined; this.container = undefined; this.actions = undefined; this.busy = false; }
   private async wait<T>(pending: Promise<T>): Promise<T> {
     const generation = this.generation, result = await pending;
     if (generation !== this.generation || !this.container?.isConnected) throw new Error('分組面板已關閉；此回應不會套用到另一個 workspace。');
@@ -63,7 +71,7 @@ export class ProjectionPanel {
     button.onclick = () => void this.run(action); return button;
   }
   private async refresh() {
-    const generation = this.generation; const next = await request<ProjectionApiState>('/projection/state');
+    const generation = this.generation; const next = await request<ProjectionApiState>('/projection/state', 'GET', undefined, { signal: this.reads?.signal, timeoutMs: FILES_INSPECTION_TIMEOUT_MS });
     if (generation !== this.generation) throw new Error('分組面板已關閉。');
     this.state = next;
     const available = new Set(next.catalog.units.map(unit => unit.id));
@@ -170,16 +178,21 @@ export class ProjectionPanel {
       for (const change of review.changes) changes.append(el('p', `${state.catalog.units.find(unit => unit.id === change.unitId)?.label ?? change.unitId}：${change.before?.path ?? '未分配'} → ${change.after?.path ?? '未分配'}`));
       preview.append(changes, el('p', '分組只決定輸出位置；不移動原始定義、不合併不同資料身分。', 'muted'));
       const apply = this.button('確認保存分組策略', async () => {
-        await this.wait(this.actions!.flush());
-        const result = await this.wait(request<{ snapshot: WorkspaceSnapshot }>('/projection/strategy/apply', 'POST', { token: review.token }));
-        this.actions!.accept(result.snapshot); this.review = undefined; await this.refresh(); this.message = '分組策略已保存。建立 checkpoint 後即可從檔案總管取得新配置。';
+        const actions = this.actions!, generation = this.generation;
+        await this.wait(actions.flush());
+        // A committed mutation outlives its dialog; the host guards workspace/revision.
+        const result = await request<{ snapshot: WorkspaceSnapshot }>('/projection/strategy/apply', 'POST', { token: review.token });
+        actions.accept(result.snapshot);
+        if (generation !== this.generation) return;
+        this.review = undefined; await this.refresh(); this.message = '分組策略已保存。建立 checkpoint 後即可從檔案總管取得新配置。';
       }, true); apply.disabled ||= !review.canApply || !review.token; preview.append(apply); body.append(preview);
     }
     this.container.replaceChildren(body);
   }
 }
 
-export async function locateProjectionUnit(unitId: ProjectionUnitId): Promise<FileEntry> {
-  const located = await request<{ entry: FileEntry }>('/projection/locate', 'POST', { unitId });
+export async function locateProjectionUnit(unitId: ProjectionUnitId, checkCurrent: () => void = () => {}): Promise<FileEntry> {
+  const located = await requestFileLocation<{ entry: FileEntry }>('/projection/locate', { unitId });
+  checkCurrent();
   await request('/files/reveal', 'POST', { path: located.entry.path }); return located.entry;
 }

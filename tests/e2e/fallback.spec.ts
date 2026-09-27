@@ -39,6 +39,10 @@ test('a damaged DB leaves the launcher and recovery UI usable without modifying 
   await page.getByRole('button', { name: '建立新 workspace', exact: true }).click();
   await expect(page.locator('#modal')).not.toBeVisible(); await expect(page.locator('#workspace-name')).toHaveText('從錯誤中繼續');
   await expect(page.locator('#save')).toBeEnabled(); await expect(page.locator('#runtime-status')).toContainText('個值');
+  await expect(page.locator('#projection')).toBeEnabled();
+  await page.locator('#projection').click();
+  await expect(page.locator('.gp-projection-panel')).toBeVisible({ timeout: 120_000 });
+  await page.locator('#modal-close').click();
   expect(readFileSync(broken)).toEqual(bytes);
   await page.getByLabel('筆記標題', { exact: true }).fill('可以繼續寫作'); await page.locator('#save').click();
   await expect(page.locator('#save-status')).toHaveText('✓ 已儲存至 SQLite');

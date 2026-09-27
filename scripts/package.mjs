@@ -8,7 +8,7 @@ if (!existsSync('dist/server.mjs')) throw new Error('Run npm run build before pa
 if (!existsSync('dist/build-info.json')) throw new Error('Build identity is missing. Run npm run build before packaging.');
 const buildInfo = JSON.parse(readFileSync('dist/build-info.json', 'utf8'));
 if (buildInfo.format !== 'grasp-build' || buildInfo.version !== 1 || buildInfo.productVersion !== pkg.version || typeof buildInfo.buildId !== 'string') throw new Error('Build identity/version does not match this package. Run npm run build before packaging.');
-const documentation = ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md', 'PHASE2-PLAN.md', 'PHASE2-VERIFICATION.md', 'FILES-PERFORMANCE.md', 'IMPLEMENTATION-CONTRACT.md', 'USAGE-LOG.md', 'ACCEPTANCE.md', 'EXECUTION-STATE.md', 'GOAL-PLAN.md', 'BINDING-EDITING-CONTRACT.md', 'SHARED-VALUE-CONTRACT.md', 'PROJECTION-CONTRACT.md', 'REFERENCE-HOST-GATE.md'];
+const documentation = ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md', 'PHASE2-PLAN.md', 'PHASE2-VERIFICATION.md', 'FILES-PERFORMANCE.md', 'IMPLEMENTATION-CONTRACT.md', 'USAGE-LOG.md', 'ACCEPTANCE.md', 'EXECUTION-STATE.md', 'GOAL-PLAN.md', 'BINDING-EDITING-CONTRACT.md', 'SHARED-VALUE-CONTRACT.md', 'PROJECTION-CONTRACT.md', 'REFERENCE-HOST-GATE.md', 'UI-REPAIR-VERIFICATION.md'];
 for (const name of documentation) if (!existsSync(join('docs', name))) throw new Error(`Required delivery document missing: docs/${name}`);
 // Only explicitly public migration reports enter the package, never .cache/private rehearsal files.
 documentation.push(...readdirSync('docs').filter(name => /^MIGRATION(?:-[A-Za-z0-9_-]+)?\.md$/i.test(name)));

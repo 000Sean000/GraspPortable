@@ -138,13 +138,15 @@ test.describe.serial('one readable projection, attachment authority, and reviewe
     // routes are intercepted so automation never opens a desktop window.
     await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+End'); await page.keyboard.insertText('\nUncommitted before reveal');
     const noteLocation = page.waitForResponse(response => response.url().endsWith('/api/files/locate'));
-    await page.locator('#reveal-note').click(); const locatedNote: FileEntry = await (await noteLocation).json();
+    await page.locator('#reveal-note').click(); const noteResponse = await noteLocation;
+    expect(noteResponse.ok(), await noteResponse.text()).toBe(true); const locatedNote: FileEntry = await noteResponse.json();
     await expect.poll(() => revealed.length).toBe(1);
     expect(locatedNote.path).toBe(revealed[0]); expect(readFileSync(locatedNote.absolutePath, 'utf8')).toContain('Uncommitted before reveal');
     const recovery = JSON.parse(readFileSync(resolve((await filesStatus()).root, 'Markdown/.grasp-export/recovery.json'), 'utf8'));
     expect(recovery.bundle.snapshot.notes.find((current: { id: string }) => current.id === note.id)?.markdown).toBe((await snapshot()).notes.find(current => current.id === note.id)?.markdown);
     const folderLocation = page.waitForResponse(response => response.url().endsWith('/api/files/locate'));
-    await page.locator('#open-note-folder').click(); const locatedFolder: FileEntry = await (await folderLocation).json();
+    await page.locator('#open-note-folder').click(); const folderResponse = await folderLocation;
+    expect(folderResponse.ok(), await folderResponse.text()).toBe(true); const locatedFolder: FileEntry = await folderResponse.json();
     await expect.poll(() => opened.length).toBe(1);
     expect(locatedFolder.kind).toBe('directory'); expect(locatedFolder.path).toBe(opened[0]); expect(existsSync(locatedFolder.absolutePath)).toBe(true);
     const status = await filesStatus(); expect(status.projection.folders.find(folder => folder.id === noteFolder.id)?.path).toBe(locatedFolder.path);

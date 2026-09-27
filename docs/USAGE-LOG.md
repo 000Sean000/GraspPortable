@@ -107,3 +107,19 @@ Full MainVault copy roundtrip passed at17:54:31UTC:2820notes/506attachments exac
 Normal Codex bucket **71% used**, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Since the18:06UTC/66% corpus checkpoint, observed+5percentagepoints/about16minutes account-wide; not task-exclusive billing. No Luna/Reserve/reset credit invoked.
 
 Final evidence:41files/528tests pass12.75s;36productionEdgeE2E pass1.8m;scale10 10k/50k fullsuite pass;12kdeep/fanout/mixed/repeated-edits/SQLite benchmark;fullcorpus browser9.089s locate with generation unchanged. Package and actual acceptance .cmd launch subsequently passed18:22–18:23UTC. M1–M4 product delivery complete with explicit nativeGUI and performance limitations, not a quota stop. Final checkpoint subject: `feat: deliver validated v0.3 acceptance package and scalable editing`.
+
+## UI repair Goal start — 2026-09-27 20:14 UTC
+
+Normal usage bucket73%used (27%remaining), ordinaryUsageAllowed=true,10080-minute window/reset1791128122. New authorized Goal diagnoses and repairs v0.3 unresponsive UI; prior M1–M4 completion is not evidence that this regression is fixed. Clean/fetched8e3d3f0 baseline, exact running package/build/workspace verified. User now explicitly permits normal-quota Luna subagents; two workers requested via actual model=gpt-6-luna selector. No separate serving-model metadata exposed. All workers still stop at100%; no Reserve/reset credit used.
+
+## UI repair validation in progress — 2026-09-27 20:37 UTC
+
+Normal bucket78%used, ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Start73%→78% is account observation, not exclusive task cost. User reported quota reset but current host still reports these values; no agent reset/reserve invoked. Production0.3.1 build,536tests and6focused browser regressions passed; full44 E2E first run43pass/1fixture-assumption failure, corrected and awaiting final rerun. Full-corpus private browser and packaging still pending.
+
+## UI repair integration continuation — 2026-09-27 about20:59 UTC
+
+Normal bucket82%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Second full44 E2E had43pass/1real locate pending-state race; retained at Scratch/UI-Repair-Integration-SecondRun.537unit tests passed before the server race fix. Full-corpus A flows passed; B/draft and package/launch remain pending. All agents remain on ordinary quota; no reset/reserve used.
+
+## UI repair core checkpoint — 2026-09-27 21:05:55 UTC
+
+Normal bucket84%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Start73%→84% is shared-account observation, not exclusive billing. User reset report has not appeared in host readings. Final0.3.1 build bcab7a56-8871-45b9-bd04-4430de960c4f passes42files/540tests (7.07s) and44productionEdgeE2E (1.2m). Metadata-only locate race has deterministic regressions; real content/dirty safeguards remain. Core fix is ready for checkpoint/push; private B/draft, package and actual launch update remain. No Reserve/reset invoked.

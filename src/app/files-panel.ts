@@ -5,9 +5,9 @@ import './files-panel.css';
 
 export interface FilesPanelCallbacks {
   getSnapshot(): WorkspaceSnapshot;
-  getDatabasePath(): Promise<string>;
-  getStatus(): Promise<FilesStatus>;
-  list(path: string): Promise<FileEntry[]>;
+  getDatabasePath(signal?: AbortSignal): Promise<string>;
+  getStatus(signal?: AbortSignal): Promise<FilesStatus>;
+  list(path: string, signal?: AbortSignal): Promise<FileEntry[]>;
   retryMirror(): Promise<FilesStatus>;
   openFolder(path: string): Promise<unknown>;
   revealFile(path: string): Promise<unknown>;
@@ -44,6 +44,7 @@ export class FilesPanel {
   private busy = false;
   private activity?: HTMLElement;
   private generation = 0;
+  private reads?: AbortController;
   private poll?: ReturnType<typeof setTimeout>;
   private aiName = 'ai-return.md';
   private aiSource = '';
@@ -54,18 +55,19 @@ export class FilesPanel {
   private aiDrafts = new Map<string, { name: string; source: string }>();
 
   async show(container: HTMLElement, callbacks: FilesPanelCallbacks): Promise<void> {
+    this.reads?.abort(); this.reads = new AbortController(); const signal = this.reads.signal;
     clearTimeout(this.poll); this.activity?.remove(); const generation = ++this.generation; this.callbacks = callbacks;
     if (this.workspaceId) this.aiDrafts.set(this.workspaceId, { name: this.aiName, source: this.aiSource });
     const workspaceId = callbacks.getSnapshot().id;
     if (this.workspaceId !== workspaceId) { const draft = this.aiDrafts.get(workspaceId); this.aiName = draft?.name ?? 'ai-return.md'; this.aiSource = draft?.source ?? ''; }
     this.workspaceId = workspaceId; this.busy = false; this.status = undefined; this.databasePath = ''; this.entries = [];
-    this.surface = el('section', '', 'gp-files-panel'); container.replaceChildren(this.surface); this.surface.append(el('p', '讀取檔案狀態…'));
+    this.surface = el('section', '', 'gp-files-panel'); container.replaceChildren(this.surface); this.surface.append(el('p', '正在檢查檔案狀態；大型資料庫可能需要數分鐘。可先關閉此視窗並繼續操作…'));
     this.tab = 'mirror'; this.path = 'Markdown'; this.page = 0; this.filter = ''; this.failure = ''; this.message = ''; this.deleteId = undefined;
     try {
-      const [status, databasePath] = await Promise.all([callbacks.getStatus(), callbacks.getDatabasePath()]);
+      const [status, databasePath] = await Promise.all([callbacks.getStatus(signal), callbacks.getDatabasePath(signal)]);
       if (!this.current(generation)) return;
       this.status = status; this.databasePath = databasePath; this.path = this.directory('mirror');
-      const entries = await callbacks.list(this.path); if (!this.current(generation)) return;
+      const entries = await callbacks.list(this.path, signal); if (!this.current(generation)) return;
       this.entries = entries; this.render(); this.pollMirror(generation);
     } catch (error) { if (!this.current(generation)) return; this.failure = error instanceof Error ? error.message : String(error); this.render(); callbacks.onError?.(this.failure); }
   }
@@ -86,13 +88,13 @@ export class FilesPanel {
   private button(label: string, action: () => unknown, className = '') { const node = el('button', label, className); node.type = 'button'; node.onclick = () => { void this.perform(action, label); }; return node; }
   private async refresh(generation = this.generation) {
     if (!this.current(generation) || !this.callbacks) return; const callbacks = this.callbacks, path = this.path, tab = this.tab;
-    const [status, entries] = await Promise.all([callbacks.getStatus(), tab !== 'assets' ? callbacks.list(path) : Promise.resolve(this.entries)]);
+    const [status, entries] = await Promise.all([callbacks.getStatus(this.reads?.signal), tab !== 'assets' ? callbacks.list(path, this.reads?.signal) : Promise.resolve(this.entries)]);
     if (!this.current(generation)) return;
     this.status = status; if (this.path === path && this.tab === tab) this.entries = entries; this.pollMirror(generation);
   }
   private async browse(path: string, tab = this.tab) {
     const generation = this.generation, callbacks = this.callbacks!;
-    const entries = tab === 'assets' ? [] : await callbacks.list(path);
+    const entries = tab === 'assets' ? [] : await callbacks.list(path, this.reads?.signal);
     if (!this.current(generation)) return;
     this.path = path; this.tab = tab; this.filter = ''; this.page = 0; this.entries = entries;
   }
@@ -100,7 +102,7 @@ export class FilesPanel {
     clearTimeout(this.poll); if (this.status?.mirror.state !== 'pending' || attempts >= 30) return;
     this.poll = setTimeout(async () => {
       if (!this.current(generation) || !this.callbacks) return;
-      try { const status = await this.callbacks.getStatus(); if (!this.current(generation)) return; this.status = status; this.renderMirror(this.surface.querySelector('.gp-files-mirror')!); this.pollMirror(generation, attempts + 1); }
+      try { const status = await this.callbacks.getStatus(this.reads?.signal); if (!this.current(generation)) return; this.status = status; this.renderMirror(this.surface.querySelector('.gp-files-mirror')!); this.pollMirror(generation, attempts + 1); }
       catch { /* Explicit refresh reports persistent transport errors. */ }
     }, 1000);
   }
@@ -233,5 +235,5 @@ export class FilesPanel {
     const next = this.button('檔案下一頁', () => { this.page++; }); next.disabled = (this.page + 1) * PAGE_SIZE >= total;
     pager.append(previous, el('span', `${this.page * PAGE_SIZE + 1}–${Math.min((this.page + 1) * PAGE_SIZE, total)} / ${total}`), next); this.surface.append(pager);
   }
-  destroy() { clearTimeout(this.poll); this.activity?.remove(); this.generation++; this.surface.remove(); this.callbacks = undefined; }
+  destroy() { clearTimeout(this.poll); this.reads?.abort(); this.reads = undefined; this.activity?.remove(); this.generation++; this.surface.remove(); this.callbacks = undefined; }
 }

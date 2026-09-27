@@ -12,7 +12,7 @@ import type { RecordQuery } from '../editor/query';
 import type { RenamePlan } from '../domain/rename';
 import type { RecoveryPreview } from '../../server/store';
 import type { DurableDraft, SharedIntent, SharedCommand, SharedStateResponse, SharedCommitResponse, OperationReceipt, SharedSourcePatch } from '../../server/semantic';
-import { request, ApiError, setWorkspaceId, workspaceHeaders } from './api';
+import { FILES_INSPECTION_TIMEOUT_MS, requestFileLocation, request, ApiError, setWorkspaceId, workspaceHeaders } from './api';
 import { serializeReference } from '../domain/reference-language';
 import { rebaseSourceEdits } from '../domain/edit-rebase';
 import type { WorkspaceSnapshot, RuntimeResult, ImportPlan, StructuredRecord, SourceLocation } from '../domain/model';
@@ -39,7 +39,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = '') => { const el = document.createElement(tag); el.className = className; el.textContent = text; return el; };
-const button = (text: string, action: () => unknown, className = '') => { const el = element('button', className, text); el.type = 'button'; el.addEventListener('click', () => void run(action)); return el; };
+const button = (text: string, action: () => unknown, className = '') => { const el = element('button', className, text); el.type = 'button'; el.addEventListener('click', () => void run(action, text)); return el; };
 let snapshot: WorkspaceSnapshot;
 let runtime: RuntimeResult | undefined;
 let runtimeFailure: string | undefined;
@@ -77,6 +77,32 @@ let modalEditor: EditorAdapter | undefined;
 let editorBase: { workspaceId: string; noteId: string; revision: number } | undefined;
 let pendingNavigation: { workspaceId: string; patch: Record<string, string> } | undefined;
 let actionTail: Promise<unknown> = Promise.resolve();
+let actionSequence = 0;
+const activities = new Map<number, { label: string; running: boolean }>();
+const operationStatus = element('div', 'workflow-status');
+operationStatus.id = 'operation-status'; operationStatus.hidden = true; operationStatus.setAttribute('role', 'status');
+$('draft-status').before(operationStatus);
+function showActivities() {
+  const running = [...activities.values()].filter(item => item.running), waiting = activities.size - running.length;
+  operationStatus.hidden = !activities.size;
+  operationStatus.textContent = `${running.map(item => `◌ ${item.label}…`).join(' · ')}${waiting ? ` · ${waiting} 項操作等待中` : ''}`;
+}
+function enqueueAction<T>(action: () => T | Promise<T>, label: string): Promise<T> {
+  const id = ++actionSequence; activities.set(id, { label, running: false }); showActivities();
+  const next = actionTail.then(async () => {
+    activities.get(id)!.running = true; showActivities();
+    try { return await action(); } finally { activities.delete(id); showActivities(); }
+  });
+  actionTail = next.catch(() => {}); return next;
+}
+// File reads/OS reveals do not own the editor's mutation queue. Keep their
+// progress visible while editing/navigation continues, after ordered draft save.
+async function beginFileAction(action: () => Promise<void>, label: string) {
+  await flush(); const id = ++actionSequence;
+  activities.set(id, { label, running: true }); showActivities();
+  void Promise.resolve().then(action).catch(error => toast(error instanceof Error ? error.message : String(error), true))
+    .finally(() => { activities.delete(id); showActivities(); });
+}
 const runtimeWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
 const worker = new RuntimeClient(result => {
   if (!snapshot || result.revision !== snapshot.revision) return;
@@ -101,8 +127,7 @@ const editor = createEditor($('editor'), {
 // pass through this application's ordered save/command queue.
 function navigationCommand<T>(action: () => Promise<T>): Promise<T> {
   const workspaceId = snapshot?.id;
-  const next = actionTail.then(async () => { if (workspaceId !== snapshot?.id) throw new Error('Workspace 已切換，請重新操作。'); return action(); });
-  actionTail = next.catch(() => {}); return next;
+  return enqueueAction(async () => { if (workspaceId !== snapshot?.id) throw new Error('Workspace 已切換，請重新操作。'); return action(); }, '處理筆記操作');
 }
 async function navigationMutation(path: string, method: 'POST' | 'PUT' | 'DELETE', payload: () => unknown) {
   await transition(async () => { await flush(); acceptSnapshot(await request<WorkspaceSnapshot>(path, method, payload()), true); setSaveStatus('✓ 已儲存至 SQLite'); });
@@ -125,19 +150,30 @@ const navigator = createNavigator($('navigation'), {
   onRenameFolder: (id, name) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name, parentId: folder.parentId, revision: folder.revision }; })),
   onMoveFolder: (id, parentId) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name: folder.name, parentId, revision: folder.revision }; })),
   onDeleteFolder: id => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'DELETE', () => ({ revision: snapshot.folders.find(f => f.id === id)!.revision, workspaceRevision: snapshot.revision, recursive: true }))),
-  onRevealNote: id => navigationCommand(() => revealNote(id)),
-  onOpenFolder: id => navigationCommand(() => openLogicalFolder(id)),
+  onRevealNote: id => navigationCommand(() => beginFileAction(() => revealNote(id), '定位筆記檔')),
+  onOpenFolder: id => navigationCommand(() => beginFileAction(() => openLogicalFolder(id), '開啟資料夾')),
   onPersistSettings: saveNavigationSettings,
   onError: message => toast(message, true),
 });
 
 function toast(message: string, persistent = false) {
   const el = $('toast'); el.replaceChildren(element('span', '', message), button('×', () => { el.hidden = true; }, 'toast-close')); el.hidden = false;
+  // Native dialogs occupy the top layer; an outside toast's z-index cannot put
+  // validation/transport errors over them. Keep the current form and its input.
+  if (($('modal') as HTMLDialogElement).open) {
+    el.hidden = true;
+    const notice = $('modal-body').querySelector<HTMLElement>('.modal-notice') ?? element('p', 'modal-notice validation-error');
+    notice.setAttribute('role', 'alert'); notice.textContent = message;
+    $('modal-body').prepend(notice); notice.scrollIntoView({ block: 'nearest' });
+  }
   if (!persistent) setTimeout(() => { if (el.textContent?.startsWith(message)) el.hidden = true; }, 5500);
 }
-function run(action: () => unknown): Promise<void> {
-  const next = actionTail.then(action).then(() => {}, error => { toast(error instanceof Error ? error.message : String(error), true); });
-  actionTail = next; return next;
+function run(action: () => unknown, label = '處理操作'): Promise<void> {
+  const workspaceId = snapshot?.id;
+  return enqueueAction(() => {
+    if (workspaceId !== snapshot?.id) throw new Error('Workspace 已切換，請重新操作。');
+    return action();
+  }, label).then(() => {}, error => { toast(error instanceof Error ? error.message : String(error), true); });
 }
 async function transition<T>(action: () => Promise<T>): Promise<T> {
   const main = document.querySelector<HTMLElement>('.main-pane')!;
@@ -434,7 +470,7 @@ async function sharedValueDialog(name: string) {
     edit.disabled = !!ownerNoteId && drafts.has(ownerNoteId); row.append(edit); body.append(row);
   });
   body.append(button('前往定義', async () => { closeModal(); await navigateIdentifier(name); }), button('重新命名', () => renameDialog(name)),
-    button('在檔案總管顯示定義', async () => { const entry = await locateProjectionUnit(`binding:${binding.id}`); toast(entry.absolutePath); }));
+    button('在檔案總管顯示定義', () => beginFileAction(() => revealUnit(`binding:${binding.id}`), '定位共享定義')));
 }
 function markDraft(markdown = editor.getDocument(), changes: readonly { from: number; to: number; insert: string }[] = []) {
   const previous = drafts.get(activeId);
@@ -460,7 +496,7 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false, sourcePatc
   const changedWorkspace = snapshot && next.id !== snapshot.id;
   snapshot = next;
   $('navigation').inert = false;
-  for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = false;
+  for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'projection', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = false;
   setWorkspaceId(next.id);
   if (changedWorkspace) {
     drafts.clear(); recoverableDrafts = []; lastSharedOperation = undefined;
@@ -656,27 +692,44 @@ function downloadFile(entry: FileEntry) {
 }
 async function projectionDialog(noteId?: string) {
   await flush(); const body = openModal('分組策略與可攜資料');
-  await projectionPanel.show(body, { flush, accept: value => acceptSnapshot(value), download }, noteId);
+  // The modal owns this cancellable read. Closing it must release navigation
+  // immediately, rather than leaving every application command behind its GET.
+  void projectionPanel.show(body, { flush, accept: value => {
+    if (value.id === snapshot.id && value.revision >= snapshot.revision) acceptSnapshot(value);
+  }, download }, noteId);
+}
+function checkFileWorkspace(workspaceId: string) {
+  if (snapshot.id !== workspaceId) throw new Error('Workspace 已切換；已取消舊 workspace 的檔案開啟。');
+}
+async function revealUnit(unitId: Parameters<typeof locateProjectionUnit>[0]) {
+  const workspaceId = snapshot.id;
+  const entry = await locateProjectionUnit(unitId, () => checkFileWorkspace(workspaceId)); toast(entry.absolutePath);
 }
 async function revealNote(noteId = activeId) {
-  await flush(); if (!noteId) throw new Error('請先選擇筆記。');
-  const entry = await request<FileEntry>('/files/locate', 'POST', { kind: 'note', id: noteId });
+  const workspaceId = snapshot.id; if (!noteId) throw new Error('請先選擇筆記。');
+  const entry = await requestFileLocation<FileEntry>('/files/locate', { kind: 'note', id: noteId });
+  checkFileWorkspace(workspaceId);
   await request('/files/reveal', 'POST', { path: entry.path }); toast(entry.absolutePath);
 }
 async function openLogicalFolder(folderId: string | null) {
-  await flush();
-  const entry = folderId ? await request<FileEntry>('/files/locate', 'POST', { kind: 'folder', id: folderId }) : undefined;
-  const path = entry?.path ?? (await request<FilesStatus>('/files/status')).projection.path;
+  const workspaceId = snapshot.id;
+  const entry = folderId ? await requestFileLocation<FileEntry>('/files/locate', { kind: 'folder', id: folderId }) : undefined;
+  const path = entry?.path ?? (await request<FilesStatus>('/files/status', 'GET', undefined, { timeoutMs: FILES_INSPECTION_TIMEOUT_MS })).projection.path;
+  checkFileWorkspace(workspaceId);
   const opened = await request<{ path: string }>('/files/open-folder', 'POST', { path }); toast(opened.path);
 }
 async function filesDialog() {
   await flush();
-  await filesPanel.show(openModal('檔案、附件與 Markdown'), {
+  void filesPanel.show(openModal('檔案、附件與 Markdown'), {
     getSnapshot: () => snapshot,
-    getDatabasePath: async () => (await request<{ path: string }>('/host')).path,
-    getStatus: () => request<FilesStatus>('/files/status'),
-    list: path => request<FileEntry[]>(`/files?path=${encodeURIComponent(path)}`),
-    retryMirror: () => navigationCommand(async () => { await flush(); return request<FilesStatus>('/files/mirror/refresh', 'POST', {}); }),
+    getDatabasePath: async signal => (await request<{ path: string }>('/host', 'GET', undefined, { signal })).path,
+    getStatus: signal => request<FilesStatus>('/files/status', 'GET', undefined, { signal, timeoutMs: FILES_INSPECTION_TIMEOUT_MS }),
+    list: (path, signal) => request<FileEntry[]>(`/files?path=${encodeURIComponent(path)}`, 'GET', undefined, { signal }),
+    retryMirror: async () => {
+      const workspaceId = snapshot.id; await navigationCommand(flush); checkFileWorkspace(workspaceId);
+      const status = await request<FilesStatus>('/files/mirror/refresh', 'POST', {});
+      checkFileWorkspace(workspaceId); return status;
+    },
     revealFile: path => request('/files/reveal', 'POST', { path }),
     reviewExternal: path => navigationCommand(async () => { await flush(); showImportPlan(await request<ImportPlan>('/files/external/plan', 'POST', { path })); }),
     openFolder: path => request('/files/open-folder', 'POST', { path }),
@@ -765,7 +818,7 @@ function workspaceDialog() {
 }
 function recordDialog(record?: StructuredRecord) {
   const body = openModal(record ? '編輯結構化資料' : '新增結構化資料');
-  if (record) body.append(button('在檔案總管顯示 Record', async () => { const entry = await locateProjectionUnit(`recordInfo:${record.id}`); toast(entry.absolutePath); }));
+  if (record) body.append(button('在檔案總管顯示 Record', () => beginFileAction(() => revealUnit(`recordInfo:${record.id}`), '定位 Record')));
   body.append(element('p', 'muted', '以 collection.name.field 引用欄位；值中可用 {identifier} 組合文字。名稱使用英數字、底線、點或連字號。'));
   const collection = input(record?.collection || 'aura'); collection.setAttribute('aria-label', 'Collection');
   const name = input(record?.name || ''); name.setAttribute('aria-label', 'Record 名稱');
@@ -863,8 +916,8 @@ function helpDialog() {
 $('note-title').oninput = () => markDraft();
 $('save').onclick = () => void run(flush);
 $('workspace-open').onclick = workspaceDialog;
-$('mode').onclick = () => void run(async () => { setMode(mode === 'live' ? 'source' : 'live'); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
-$('reading').onclick = () => void run(async () => { await flush(); setMode(mode === 'reading' ? 'live' : 'reading'); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
+$('mode').onclick = () => void run(async () => { setMode(mode === 'live' ? 'source' : 'live'); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); }, '切換編輯模式');
+$('reading').onclick = () => void run(async () => { await flush(); setMode(mode === 'reading' ? 'live' : 'reading'); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); }, '切換閱讀模式');
 $('shared-undo').onclick = () => void run(async () => {
   if (pendingSharedCommand) {
     const command = pendingSharedCommand; const result = await executeSharedCommand(command);
@@ -880,8 +933,8 @@ $('delete-note').onclick = () => void run(async () => { await flush(); const not
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
 $('files').onclick = () => void run(filesDialog);
 $('projection').onclick = () => void run(() => projectionDialog());
-$('reveal-note').onclick = () => void run(() => revealNote());
-$('open-note-folder').onclick = () => void run(() => openLogicalFolder(snapshot.notes.find(n => n.id === activeId)?.folderId ?? null));
+$('reveal-note').onclick = () => { const noteId = activeId; void run(() => beginFileAction(() => revealNote(noteId), '定位筆記檔')); };
+$('open-note-folder').onclick = () => { const folderId = snapshot.notes.find(n => n.id === activeId)?.folderId ?? null; void run(() => beginFileAction(() => openLogicalFolder(folderId), '開啟資料夾')); };
 $('export').onclick = () => void run(() => projectionDialog(activeId));
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);

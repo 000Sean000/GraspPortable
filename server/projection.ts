@@ -281,19 +281,21 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     if (this.projectionRunning) await this.projectionRunning;
     await this.initializeProjection();
     for (let attempt = 0; attempt < 2; attempt++) {
-      const stamp = this.store.projectionStamp(), capture = this.capture();
+      const capture = this.capture();
       if (!this.projectionCurrent || readingFingerprint(capture.snapshot, capture.strategy.revision) !== this.lastReadingFingerprint) {
         const status = await this.checkpoint();
-        if (status.state !== 'ready') throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
+        if (['dirty', 'error'].includes(status.state) || !this.projectionCurrent) throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
         continue;
       }
       const dirty = await this.dirty();
       this.statusValue.dirtyPaths = dirty;
       if (dirty.length) { this.statusValue.state = 'dirty'; throw new StoreError('Projection 有外部變更；請先審查或處理 dirty 檔案。', 409); }
       // A content mutation during filesystem inspection must not make an old
-      // reading view appear current. Settings/drafts may still leave fallback pending.
-      if (stamp === this.store.projectionStamp()) {
-        if (this.statusValue.state !== 'error') this.statusValue.state = this.projectionCurrent.stamp === stamp ? 'ready' : 'pending';
+      // reading view appear current. Settings/drafts may change the publication
+      // stamp during the scan without changing the bytes users will read.
+      const latest = this.capture();
+      if (readingFingerprint(latest.snapshot, latest.strategy.revision) === readingFingerprint(capture.snapshot, capture.strategy.revision)) {
+        if (this.statusValue.state !== 'error') this.statusValue.state = this.projectionCurrent.stamp === this.store.projectionStamp() ? 'ready' : 'pending';
         return;
       }
     }

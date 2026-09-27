@@ -54,6 +54,78 @@ describe('complete semantic projection host', () => {
     await expect(reopened.locate('note', note.id)).rejects.toThrow(/外部變更/);
     expect(readFileSync(changed.absolutePath, 'utf8')).toContain('External edit');
   });
+  it('locates newly published reading content when settings and a draft arrive during checkpoint', async () => {
+    const { store, service } = fixture();
+    await service.checkpoint(); await service.close();
+    const note = store.snapshot().notes[0];
+    store.updateNote(note.id, note.title, note.markdown + '\nCurrent reading content', note.revision);
+    let racing!: ProjectionWorkspaceFiles;
+    racing = new ProjectionWorkspaceFiles(store, { fail: point => {
+      if (point !== 'generation-complete') return;
+      const latest = store.snapshot().notes[0]!;
+      store.updateSettings({ editorMode: 'reading', activeNote: latest.id });
+      store.saveDraft('locate-race', { clientId: 'client', noteId: latest.id, title: latest.title, markdown: 'unfinished draft', syntaxVersion: 'grasp-v1', baseNoteRevision: latest.revision, revision: 0 });
+      racing.schedule(store.snapshot(), sha => store.readBlob(sha));
+    } });
+    files.push(racing);
+
+    const entry = await racing.locate('note', note.id);
+    expect(readFileSync(entry.absolutePath, 'utf8')).toContain('Current reading content');
+  });
+  it('does not reject a locate when non-reading state changes during dirty inspection', async () => {
+    const { store, service } = fixture(); await service.checkpoint();
+    const note = store.snapshot().notes[0]!;
+    const internals = service as unknown as { dirty: () => Promise<string[]> };
+    const inspectDirty = internals.dirty.bind(service);
+    let entered!: () => void, release!: () => void;
+    const scanning = new Promise<void>(resolve => { entered = resolve; });
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    let inspections = 0;
+    internals.dirty = async () => {
+      inspections++;
+      if (inspections === 1) { entered(); await barrier; }
+      else if (inspections === 2) {
+        store.saveDraft('locate-race', { clientId: 'client', noteId: note.id, title: note.title, markdown: 'draft revision two', syntaxVersion: 'grasp-v1', baseNoteRevision: note.revision, revision: 1 });
+        service.schedule(store.snapshot(), sha => store.readBlob(sha));
+      }
+      return inspectDirty();
+    };
+
+    const locating = service.locate('note', note.id);
+    await scanning;
+    store.updateSettings({ editorMode: 'reading', activeNote: note.id });
+    store.saveDraft('locate-race', { clientId: 'client', noteId: note.id, title: note.title, markdown: 'draft revision one', syntaxVersion: 'grasp-v1', baseNoteRevision: note.revision, revision: 0 });
+    service.schedule(store.snapshot(), sha => store.readBlob(sha));
+    release();
+
+    const entry = await locating;
+    expect(readFileSync(entry.absolutePath, 'utf8')).toContain('# Original');
+    expect(inspections).toBe(1);
+    expect(service.projectionStatus().state).toBe('pending');
+  });
+  it('never returns a stale reading path when content changes during dirty inspection', async () => {
+    const { store, service } = fixture(); await service.checkpoint();
+    const note = store.snapshot().notes[0]!;
+    const internals = service as unknown as { dirty: () => Promise<string[]> };
+    const inspectDirty = internals.dirty.bind(service);
+    let entered!: () => void, release!: () => void;
+    const scanning = new Promise<void>(resolve => { entered = resolve; });
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    let inspections = 0;
+    internals.dirty = async () => {
+      if (++inspections === 1) { entered(); await barrier; }
+      return inspectDirty();
+    };
+
+    const locating = service.locate('note', note.id);
+    await scanning;
+    store.updateNote(note.id, note.title, note.markdown + '\nChanged during dirty scan', note.revision);
+    release();
+
+    await expect(locating).rejects.toMatchObject({ status: 409 });
+    const current = await service.locate('note', note.id);
+    expect(readFileSync(current.absolutePath, 'utf8')).toContain('Changed during dirty scan');
+  });
   it('groups same-owner bindings independently and rebuilds exact IDs, raw placement, assets and recoverable drafts in a new instance', async () => {
     const { root, store, service } = fixture(); await grouped(store, service);
     store.createAttachment('image.png', 'image/png', Buffer.from([1, 2, 3]), 'Images/image.png');

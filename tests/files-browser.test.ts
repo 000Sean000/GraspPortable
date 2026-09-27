@@ -87,6 +87,25 @@ describe.skipIf(!hasChromium && !hasEdge)('files and assets browser controls', (
     await page.evaluate(async () => { const panel = (window as any).panel; (window as any).data = { ...(window as any).data, id: 'w1' }; await panel.show(document.querySelector('#files'), panel.callbacks); });
     await page.locator('.gp-files-ai summary').click(); await pwExpect(page.getByLabel('AI 回傳 Markdown')).toHaveValue('Draft for workspace one'); expect(errors).toEqual([]);
   });
+  it('aborts view-owned reads when the file panel closes or is reopened', async () => {
+    await page.evaluate(async () => {
+      const panel = (window as any).panel, callbacks = panel.callbacks, container = document.querySelector<HTMLElement>('#files')!;
+      const signals: AbortSignal[] = [];
+      const slow = {
+        ...callbacks,
+        getStatus: (signal?: AbortSignal) => {
+          signals.push(signal!);
+          return new Promise((_resolve, reject) => signal!.addEventListener('abort', () => reject(signal!.reason), { once: true }));
+        },
+      };
+      const pending = panel.show(container, slow); panel.destroy(); await pending;
+      const reopened = { ...callbacks, getStatus: (signal?: AbortSignal) => { signals.push(signal!); return callbacks.getStatus(); } };
+      await panel.show(container, reopened); panel.destroy();
+      (window as any).readSignalsAborted = signals.map(signal => signal.aborted);
+    });
+    expect(await page.evaluate(() => (window as any).readSignalsAborted)).toEqual([true, true]);
+    expect(errors).toEqual([]);
+  });
   it('announces a running projection update outside inert controls and safely ignores failure after close', async () => {
     await page.evaluate(() => { (window as any).panel.callbacks.retryMirror = () => new Promise((_resolve, reject) => { (window as any).rejectUpdate = reject; }); });
     await page.getByRole('button', { name: '更新 Markdown 投影', exact: true }).click();

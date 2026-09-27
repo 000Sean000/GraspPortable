@@ -20,6 +20,8 @@
 .inspector-heading{padding:20px 18px 14px}.inspector-heading p,.value-state,.field>span{font-size:12px}.value-state.ok{font-size:11px}
 .workflow-status{margin:0 26px 10px;padding:10px 14px;border:1px solid #d5dfcb;border-radius:8px;background:#f2f6ed;font-size:12px;line-height:1.65;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .workflow-status[hidden]{display:none}.workflow-status.warning{background:#fff5df;border-color:#ebd3a0}.workflow-status span{flex:1;min-width:160px}
+#operation-status{position:fixed;bottom:43px;left:240px;max-width:calc(100vw - 265px);margin:0;z-index:4;box-shadow:0 3px 12px #193a341a;pointer-events:none}
+@media(max-width:850px){#operation-status{left:190px;max-width:calc(100vw - 205px)}}
 .shared-part{padding:14px 0;border-top:1px solid var(--line)}.shared-part textarea{width:100%;min-height:100px;resize:vertical;white-space:pre-wrap;font:14px/1.7 Consolas,"Microsoft JhengHei",monospace}
 .shared-part select{max-width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:white}.shared-result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;padding:12px;background:#f1f5ea;border-radius:7px}
 .shared-identity{font:11px/1.6 Consolas,monospace;overflow-wrap:anywhere;color:#6e806f}.shared-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
