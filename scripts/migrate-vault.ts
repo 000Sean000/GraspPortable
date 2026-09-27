@@ -2,7 +2,7 @@ import { applyVault, MigrationError, planVault, writeVaultReport } from '../serv
 
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('node --import tsx scripts/migrate-vault.ts --source=<copied-scratch-vault> --output=<private-report-directory> [--apply=<new-database-path>]');
+  console.log('node --import tsx scripts/migrate-vault.ts --source=<copied-scratch-vault> --output=<private-report-directory> [--apply=<new-database-path>]\nAssets stream through a private <database>.migration checkpoint. Rerun the identical command to resume a verified unchanged source; an existing unrelated database is never overwritten.');
 } else {
   try {
     const options = new Map<string, string>();
@@ -16,7 +16,8 @@ if (args.includes('--help')) {
     const plan = await planVault(options.get('--source')!);
     await writeVaultReport(plan, options.get('--output')!);
     const applied = options.has('--apply') ? await applyVault(plan, options.get('--apply')!) : undefined;
-    console.log(JSON.stringify({ mode: applied ? 'applied-to-new-database' : 'preview-only', counts: plan.report.counts, links: plan.report.links, unsupportedPatterns: plan.report.unsupported.length, sourceFingerprint: plan.report.sourceFingerprint, privateReportWritten: true }, null, 2));
+    console.log(JSON.stringify({ mode: applied ? 'applied-to-new-database' : 'preview-only', counts: plan.report.counts, links: plan.report.links, unsupportedPatterns: plan.report.unsupported.length, sourceFingerprint: plan.report.sourceFingerprint,
+      memory: plan.report.memory, privateReportWritten: true, ...(applied ? { checkpointSaved: true, copiedAssets: applied.copiedAssets, resumedAssets: applied.resumedAssets } : {}) }, null, 2));
   } catch (error) {
     console.error(JSON.stringify({ error: error instanceof MigrationError ? error.code : 'migration-failed', message: error instanceof MigrationError ? error.message : 'Migration failed; inspect the private output directory. Source names/content are not printed.' }));
     process.exitCode = 1;

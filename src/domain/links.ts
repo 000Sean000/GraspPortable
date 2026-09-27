@@ -295,6 +295,11 @@ function resolveLink(link: ParsedNoteLink, catalog: NoteCatalog, cache: Map<stri
   return { ...result, resolvedTarget: target, targetNoteId: target.kind === 'note' ? target.id : undefined, ...resolveAnchor(target, fragment, cache) };
 }
 
+/** Resolve a scoped readable fragment against an already indexed workspace. */
+export function resolveIndexedLink(link: ParsedNoteLink, index: NoteLinkIndex): ResolvedNoteLink {
+  return resolveLink(link, index.catalog, index.parseCache);
+}
+
 /** Reuse the previous index to parse only changed Markdown. Resolution always uses current paths. */
 export function buildLinkIndex(notes: readonly LinkNote[], folders: readonly LinkFolder[] = [], assets: readonly LinkAsset[] = [], previous?: NoteLinkIndex): NoteLinkIndex {
   const catalog = buildNoteCatalog(notes, folders, assets);

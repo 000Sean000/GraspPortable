@@ -1,6 +1,6 @@
 # Projection Strategy、Export 與 Reconstruction Contract
 
-更新：2026-09-27。狀態：已接受方向的 supplemental planning contract；schema、checkpoint 與 filesystem 方案為工程推薦，**尚未實作／驗證**。Current Working State 唯一入口為 [EXECUTION-STATE.md](EXECUTION-STATE.md)，亦記錄目前有效授權；authority 由 [Seed](Project_Seed/README.md) 路由，完整範圍見 [Goal Plan](GOAL-PLAN.md)。
+更新：2026-09-28。狀態：已接受方向與正式實作契約；schema、checkpoint 與 filesystem 是工程實作選擇，實際完成與驗證仍以 [EXECUTION-STATE.md](EXECUTION-STATE.md) 為唯一入口，不以本文件的規範文字當成測試證據。Authority 由 [Seed](Project_Seed/README.md) 路由，完整範圍見 [Goal Plan](GOAL-PLAN.md)。
 
 ## 1. 已接受的產品責任
 
@@ -73,6 +73,8 @@ Daily 中 slot 可顯示非定義性的定位提示／link；canonical binding �
 
 Members 的順序是群組內輸出順序；群組有穩定 ID，path 是 workspace projection root 下相對 `.md` 路徑。Render 是有限 profiles，不執行任意 code/template。自然語言 rationale 可附加但不影響執行。
 
+實作加入 optional `unassign: [selector, ...]`，表示 Human 明確要求改成未分配；必須在 coverage／planning package 範圍內，且不能同時列於 assignment。Partial proposal 單純漏列 member 仍保留原配置，不能以空 groups 偷偷清空策略。
+
 Planning package 保存：package ID、workspace/base、提供範圍、unit revisions/hashes、必要 lineage/relationship metadata，以及每項實際提供的是全文、片段或 metadata。它記錄提供內容，不宣稱外部 AI 確實讀完。外部無需 DB handle／憑證，不能靠提案取得未提供的私人內容。
 
 路徑必須檢查 unknown members、alias overlap、duplicate assignments、case-insensitive／Unicode 比較碰撞、reserved names、traversal、separator／root escape、symlink/reparse-point escape、同一路徑檔案與目錄衝突。不能藉由自動改 identity 修復 path collision；預覽明示可逆 path adjustment。
@@ -134,6 +136,8 @@ Retention 只清理已確定沒有引用、未 pin、沒有 external dirty 的�
 發布前以 baseline file hashes 檢查 external dirty；未知新檔、修改、刪除、attachment bytes 變動分別呈現。Dirty main tree 不覆寫、不因 rerun export 視為已接受，不默默更新相應 baseline。若仍可建立新的內部完整 checkpoint，UI 必須分開顯示 main tree dirty 與 recovery generation revision；不可把內部成功冒充主要可讀樹已更新。
 
 Review 綁來源、已發布 base、當前 DB revision、file hashes 與實際 reviewed payload；apply 再核對。Binding、cache-only、identity/name、正文、附件差異按 [Shared Value Contract](SHARED-VALUE-CONTRACT.md) 分類，source mapping 不等於授予該檔 global write authority。未知內容保留。要捨棄外部修改需 Human 明確操作並先保存可恢復副本，不自動 cleanup。
+
+同一成功 generation 的多個可審查 Markdown 檔案有修改時，Review 一次列出全部實際檔案與 owner 差異，Human 確認後原子套用；不靠先後匯入順序決定共享值。已接受的 exact file hashes 與 DB 修改在同一交易保存，避免重啟後失去已核准狀態。Public manifest 自行重算 checksum 不授予寫入權限，runtime Review 的來源基底另存於 DB。
 
 Rebuild 流程：驗證 format/version、complete coverage、path confinement、所有 payload hashes、identity唯一性、layout完整性及 dependency/occurrence mapping → 產生可審閱 diagnostics → 建立不存在的新 DB → 以一致 transaction 保存 → reopen 再比對。不能覆寫原 DB。保留 entity IDs／lineage，新的 workspace instance ID 避免舊 clients 誤寫；source identity 與新 instance 分開。
 

@@ -82,7 +82,9 @@ test.describe.serial('production legacy v0.2 compatibility workflow', () => {
     await page.getByRole('button', { name: '建立 table 筆記', exact: true }).click(); await saved(page);
     if ((await page.locator('#mode').innerText()) === 'Source') await page.locator('#mode').click();
     await expect(page.locator('.gp-query')).toContainText('Sean 的 Aura');
-    const downloadPromise = page.waitForEvent('download'); await page.locator('#export').click(); const download = await downloadPromise; const downloaded = await download.path(); const exported = readFileSync(downloaded!, 'utf8');
+    // Legacy envelope remains an explicit compatibility input. The main export
+    // button uses the scoped M3 exporter, exercised by projection-workflow.
+    const exported = await (await fetch(url + '/api/export')).text();
     expect(exported).toContain('grasp-workspace'); expect(exported).toContain('{{greeting}}'); expect(exported).toContain('aura');
     const external = exported.replace('@first = "Sean"', '@first = "AI 修改"');
     expect((await snapshot()).notes[0].markdown).toContain('"Sean"');

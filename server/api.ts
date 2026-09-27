@@ -3,10 +3,14 @@ import { basename, dirname, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { WorkspaceStore, StoreError, requireRevision, requireString, MAX_ATTACHMENT_BYTES } from './store.js';
+import { WorkspaceStore, StoreError, requireRevision, requireString, MAX_ATTACHMENT_BYTES, type ExternalProjectionApproval } from './store.js';
 import { ExchangeService, exportMarkdown } from './exchange.js';
 import { RenameService } from './rename.js';
-import { WorkspaceFiles, readMirrorManifest } from './files.js';
+import { readMirrorManifest } from './files.js';
+import { ProjectionWorkspaceFiles } from './projection.js';
+import { readFullGenerationStreaming } from './projection-generation.js';
+import type { ProjectionProposal, ProjectionScope, ProjectionSelector } from '../src/domain/projection.js';
+import type { SemanticIdentityHints } from '../src/domain/shared.js';
 import type { WorkspaceSnapshot } from '../src/domain/model.js';
 
 async function rawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
@@ -59,6 +63,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
   let store: WorkspaceStore | undefined;
   let unavailablePath: string | undefined;
   let startupError: string | undefined;
+  let recoveredDraftsManual = false;
   const unavailable = (path: string, error: unknown) => { unavailablePath = path; startupError = `無法開啟 Workspace：${error instanceof Error ? error.message : '資料庫無法讀取。'} 請開啟另一個 .db，或使用驗證過的 mirror 重建新資料庫。`; };
   if (hostStatePath && existsSync(hostStatePath)) {
     try {
@@ -70,7 +75,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
   }
   if (!store && !unavailablePath) { try { store = new WorkspaceStore(defaultPath, { create: true, name: 'GraspPortable', seed: !existsSync(defaultPath) }); } catch (error) { unavailable(defaultPath, error); } }
   let currentStore = store;
-  let files = store ? new WorkspaceFiles(store.path) : undefined;
+  let files = store ? new ProjectionWorkspaceFiles(store) : undefined;
   let changing = false;
   let closed = false;
   const fileOperations = new Set<Promise<unknown>>();
@@ -91,7 +96,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
   // Preserve a failed pointer until an explicit successful switch, to avoid losing its recovery hint.
   if (!warning) remember();
   const exchange = new ExchangeService();
-  const externalReviews = new Map<string, { path: string; sha256: string; workspaceId: string }>();
+  const externalReviews = new Map<string, { approvals: ExternalProjectionApproval[]; workspaceId: string; identityHints?: SemanticIdentityHints }>();
   const rename = new RenameService();
   const checkTarget = (target: WorkspaceStore | undefined) => { if (changing || closed || target !== currentStore) throw new StoreError('請求期間 workspace 已切換或正在切換；請重新載入後操作。', 409); };
   async function read(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -106,7 +111,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
     await Promise.allSettled([...fileOperations]);
     await files?.close();
     currentStore?.close(); currentStore = next; store = next;
-    files = new WorkspaceFiles(next.path); files.schedule(next.snapshot(), sha => next.readBlob(sha));
+    files = new ProjectionWorkspaceFiles(next); files.schedule(next.snapshot(), sha => next.readBlob(sha));
     exchange.clear(); externalReviews.clear(); rename.clear(); warning = undefined; unavailablePath = undefined; startupError = undefined; remember();
   }
   return {
@@ -124,7 +129,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           if (req.headers['sec-fetch-site'] === 'cross-site') throw new StoreError('拒絕跨網站的 workspace 修改。', 403);
         }
         const path = url.pathname;
-        if (method === 'GET' && path === '/api/host') { json(res, { path: currentStore?.path ?? unavailablePath ?? defaultPath, warning, migrationBackupPath: currentStore?.migrationBackupPath, unavailablePath, error: startupError }); return true; }
+        if (method === 'GET' && path === '/api/host') { json(res, { path: currentStore?.path ?? unavailablePath ?? defaultPath, warning, migrationBackupPath: currentStore?.migrationBackupPath, unavailablePath, error: startupError, recoveredDraftsManual: recoveredDraftsManual || currentStore?.recoveredDraftsManual(), recoveredDraftIds: currentStore?.recoveredDraftIds() ?? [] }); return true; }
         checkTarget(currentStore);
         if (method === 'POST' && path === '/api/workspace/open') {
           const b = await read(req);
@@ -142,8 +147,11 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           if (!manifestPath.trim() || !newPath.trim()) throw new StoreError('請指定 manifest 與全新的 .db 路徑。');
           changing = true;
           try {
-            const data = await fileTask(() => readMirrorManifest(manifestPath));
-            const next = WorkspaceStore.rebuild(newPath, data.snapshot, data.blobs, b.name === undefined ? undefined : requireString(b.name, 'Workspace 名稱'));
+            const full = basename(manifestPath) === 'manifest.json' && basename(dirname(manifestPath)) === '.grasp-export';
+            const name = b.name === undefined ? undefined : requireString(b.name, 'Workspace 名稱');
+            let next: WorkspaceStore;
+            if (full) { const data = await fileTask(() => readFullGenerationStreaming(manifestPath)); next = await WorkspaceStore.rebuildStreaming(newPath, data.snapshot, data.readBlob, name, data.recovery); recoveredDraftsManual = !!data.recovery.drafts.length; }
+            else { const data = await fileTask(() => readMirrorManifest(manifestPath)); next = WorkspaceStore.rebuild(newPath, data.snapshot, data.blobs, name); recoveredDraftsManual = false; }
             await replaceStore(next); json(res, next.snapshot());
           } finally { changing = false; }
           return true;
@@ -155,8 +163,8 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
         if (method === 'GET' && path === '/api/shared/state') { json(res, activeStore.sharedState()); return true; }
         if (method === 'GET' && path === '/api/drafts') { json(res, activeStore.drafts(url.searchParams.get('clientId') ?? undefined)); return true; }
         const draft = /^\/api\/drafts\/([^/]+)$/.exec(path);
-        if (draft && method === 'PUT') { const b = await read(req); json(res, activeStore.saveDraft(decodeURIComponent(draft[1]!), b)); return true; }
-        if (draft && method === 'DELETE') { const b = await read(req); activeStore.deleteDraft(decodeURIComponent(draft[1]!), requireRevision(b.revision)); json(res, { deleted: true }); return true; }
+        if (draft && method === 'PUT') { const b = await read(req); const saved = activeStore.saveDraft(decodeURIComponent(draft[1]!), b); activeFiles.schedule(activeStore.snapshot(), sha => activeStore.readBlob(sha)); json(res, saved); return true; }
+        if (draft && method === 'DELETE') { const b = await read(req); activeStore.deleteDraft(decodeURIComponent(draft[1]!), requireRevision(b.revision)); activeFiles.schedule(activeStore.snapshot(), sha => activeStore.readBlob(sha)); json(res, { deleted: true }); return true; }
         const operation = /^\/api\/shared\/operations\/([^/]+)$/.exec(path);
         if (operation && method === 'GET') { json(res, activeStore.operation(decodeURIComponent(operation[1]!))); return true; }
         if (method === 'POST' && path === '/api/shared/commands') {
@@ -197,6 +205,23 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           download(res, metadata.name, metadata.mimeType, bytes, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(metadata.mimeType)); return true;
         }
         if (attachment && method === 'DELETE') { const b = await read(req); reply(activeStore.deleteAttachment(decodeURIComponent(attachment[1]!), requireRevision(b.revision))); return true; }
+        if (method === 'GET' && path === '/api/projection/state') { const state = await withFiles(() => activeFiles.apiState()); checkTarget(activeStore); json(res, state); return true; }
+        if (method === 'POST' && path === '/api/projection/package') {
+          const b = await read(req); const selectors = b.selectors ?? b.units;
+          if (selectors !== undefined && !Array.isArray(selectors)) throw new StoreError('selectors 必須是 semantic unit 清單。');
+          if (b.provided !== undefined && b.provided !== 'full' && b.provided !== 'metadata') throw new StoreError('provided 必須是 full 或 metadata。');
+          if (b.dependencyClosure !== undefined && typeof b.dependencyClosure !== 'boolean') throw new StoreError('dependencyClosure 必須是 boolean。');
+          json(res, activeFiles.planningPackage(selectors as ProjectionSelector[] | undefined, b.provided === 'metadata' ? 'metadata' : 'full', b.dependencyClosure === true)); return true;
+        }
+        if (method === 'POST' && path === '/api/projection/strategy/plan') { const b = await read(req); if (!b.proposal || typeof b.proposal !== 'object') throw new StoreError('缺少 proposal。'); json(res, activeFiles.planStrategy(b.proposal as ProjectionProposal)); return true; }
+        if (method === 'POST' && path === '/api/projection/strategy/apply') { const b = await read(req); json(res, activeFiles.applyStrategy(requireString(b.token, 'Strategy token', 128))); return true; }
+        if (method === 'POST' && path === '/api/projection/checkpoint') { await read(req); const status = await withFiles(() => activeFiles.checkpoint()); checkTarget(activeStore); json(res, status); return true; }
+        if (method === 'POST' && path === '/api/projection/export') {
+          const b = await read(req); const scope = typeof b.scope === 'string' ? { mode: b.scope, units: b.selectors, includeDependencies: b.dependencyClosure } : b.scope;
+          if (!scope || typeof scope !== 'object' || !['full', 'partial'].includes(String((scope as Record<string, unknown>).mode))) throw new StoreError('需要 full 或 partial export scope。');
+          const result = await withFiles(() => activeFiles.exportScope(scope as ProjectionScope)); checkTarget(activeStore); json(res, result); return true;
+        }
+        if (method === 'POST' && path === '/api/projection/locate') { const b = await read(req); const result = await withFiles(() => activeFiles.locateUnit(requireString(b.unitId, 'Unit ID', 256))); checkTarget(activeStore); json(res, result); return true; }
         if (method === 'GET' && path === '/api/files/status') { const status = await withFiles(() => activeFiles.inspect()); checkTarget(activeStore); json(res, status); return true; }
         if (method === 'GET' && path === '/api/files') { const entries = await withFiles(() => activeFiles.list(url.searchParams.get('path') ?? '')); checkTarget(activeStore); json(res, entries); return true; }
         if (method === 'GET' && path === '/api/files/download') {
@@ -214,13 +239,14 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           await withFiles(() => entry.kind === 'directory' ? (options.openDirectory ?? openDirectory)(entry.absolutePath) : (options.revealFile ?? revealFile)(entry.absolutePath)); json(res, { path: entry.absolutePath }); return true;
         }
         if (method === 'POST' && path === '/api/files/external/plan') {
-          const b = await read(req); const source = await withFiles(() => activeFiles.reviewExternalNote(requireString(b.path, 'Projection note path', 4096), activeStore.snapshot())); checkTarget(activeStore);
+          const b = await read(req); const path = requireString(b.path, 'Projection file path', 4096);
+          const source = await withFiles(() => activeFiles.externalReview(path)); checkTarget(activeStore);
           const snapshot = activeStore.snapshot();
-          if (source.workspaceId !== snapshot.id || source.workspaceRevision !== snapshot.revision) throw new StoreError('Workspace changed; review the file again.', 409);
-          const proposed = { ...snapshot, notes: snapshot.notes.map(n => n.id === source.noteId ? { ...n, markdown: source.markdown } : n) };
-          const plan = exchange.plan(exportMarkdown(proposed), snapshot);
-          if (plan.canApply) { while (externalReviews.size >= 10) externalReviews.delete(externalReviews.keys().next().value!); externalReviews.set(plan.token, { path: source.path, sha256: source.sha256, workspaceId: snapshot.id }); }
-          json(res, plan); return true;
+          if (source.snapshot.id !== snapshot.id || source.snapshot.revision !== snapshot.revision) throw new StoreError('Workspace changed; review the file again.', 409);
+          const plan = exchange.plan(exportMarkdown(source.snapshot), snapshot);
+          if (!source.canApply) { plan.canApply = false; plan.diagnostics.push(...source.diagnostics.map(item => ({ kind: 'syntax' as const, severity: 'error' as const, message: String((item as { message?: unknown }).message ?? item) }))); }
+          if (plan.canApply) { while (externalReviews.size >= 10) externalReviews.delete(externalReviews.keys().next().value!); externalReviews.set(plan.token, { approvals: source.approvals, workspaceId: snapshot.id, identityHints: source.identityHints }); }
+          json(res, { ...plan, projectionDiagnostics: source.diagnostics, projectionFiles: source.approvals.map(item => item.path) }); return true;
         }
         if (method === 'POST' && path === '/api/files/inbox') {
           const bytes = await rawBody(req, 32 * 1024 * 1024); checkTarget(activeStore);
@@ -254,11 +280,12 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           const b = await read(req); const revision = requireRevision(b.workspaceRevision); const token = requireString(b.token, 'Import token', 100);
           const external = externalReviews.get(token);
           if (external) {
-            const source = await withFiles(() => activeFiles.read(external.path, 32 * 1024 * 1024)); checkTarget(activeStore);
-            if (external.workspaceId !== activeStore.id || createHash('sha256').update(source.bytes).digest('hex') !== external.sha256) throw new StoreError('外部檔案在審查後又被修改，請重新預覽；資料庫尚未變更。', 409);
+            for (const approval of external.approvals) { const source = await withFiles(() => activeFiles.read(approval.path, 32 * 1024 * 1024)); checkTarget(activeStore);
+              if (external.workspaceId !== activeStore.id || createHash('sha256').update(source.bytes).digest('hex') !== approval.sha256) throw new StoreError('外部檔案在審查後又被修改，請重新預覽；資料庫尚未變更。', 409); }
           }
           const payload = exchange.take(token, revision, currentStore.snapshot()); externalReviews.delete(token);
-          reply(activeStore.applyImport(payload, revision)); return true;
+          const snapshot = activeStore.applyImport(payload, revision, external ? '受控 projection 外部修改' : undefined, external?.identityHints, external?.approvals);
+          reply(snapshot); return true;
         }
         if (method === 'POST' && path === '/api/rename/plan') { const b = await read(req); json(res, rename.plan(b, currentStore.snapshot(), currentStore.semanticState())); return true; }
         if (method === 'POST' && path === '/api/rename/apply') {

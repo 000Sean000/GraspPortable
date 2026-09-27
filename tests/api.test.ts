@@ -148,7 +148,7 @@ describe('HTTP authoritative workflow', () => {
     expect((await fetch(base + '/api/export', { headers: staleHeaders })).status).toBe(409);
     expect((await fetch(base + '/api/workspace', { headers: staleHeaders })).status).toBe(409);
     expect(await (await fetch(base + '/api/workspace')).json()).toEqual(second);
-    expect(await (await fetch(base + '/api/host', { headers: { 'x-grasp-workspace': second.id } })).json()).toEqual({ path: secondPath });
+    expect(await (await fetch(base + '/api/host', { headers: { 'x-grasp-workspace': second.id } })).json()).toEqual({ path: secondPath, recoveredDraftsManual: false, recoveredDraftIds: [] });
     expect(existsSync(join(dir, 'workspaces', 'host-state.json'))).toBe(false);
   });
 
@@ -163,7 +163,7 @@ describe('HTTP authoritative workflow', () => {
     await firstHost.stop();
     const reopened = await host({ dir: firstHost.dir, remember: true });
     expect(await (await fetch(reopened.base + '/api/workspace')).json()).toEqual(saved);
-    expect(await (await fetch(reopened.base + '/api/host')).json()).toEqual({ path: nextPath });
+    expect(await (await fetch(reopened.base + '/api/host')).json()).toEqual({ path: nextPath, recoveredDraftsManual: false, recoveredDraftIds: [] });
   });
 
   it('surfaces an unavailable remembered path and preserves the pointer for recovery', async () => {

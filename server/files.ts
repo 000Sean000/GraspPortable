@@ -53,7 +53,7 @@ function validateRelative(path: string, allowRoot = false): void {
 }
 
 /** All filesystem access passes this boundary; no caller supplies an absolute child path. */
-class SafeTree {
+export class SafeTree {
   constructor(readonly root: string, private readonly areas = ['exchange', 'attachments', 'mirror', 'README.md'], private readonly createRoot = true) {}
   absolute(path: string, allowRoot = false): string {
     validateRelative(path, allowRoot);
@@ -201,7 +201,7 @@ export class WorkspaceFiles {
   private timer?: ReturnType<typeof setTimeout>;
   private verified = new Map<string, { signature: string; sha256: string }>();
   private state: FilesStatus;
-  constructor(dbPath: string) {
+  constructor(dbPath: string, private readonly passive = false) {
     const database = resolve(dbPath);
     this.root = basename(dirname(database)).toLowerCase() === '.grasp' ? dirname(dirname(database)) : resolve(database + '.files');
     this.tree = new SafeTree(this.root, ['Markdown', '.grasp/exchange', '.grasp/internal', '.grasp/manifests', 'README.md']);
@@ -220,6 +220,7 @@ export class WorkspaceFiles {
     if (this.initialized) return;
     await this.tree.ensureRoot();
     for (const directory of ['Markdown', '.grasp/exchange/inbox', '.grasp/exchange/outbox', '.grasp/internal/objects', '.grasp/internal/manifests', '.grasp/internal/transactions', '.grasp/manifests']) await this.tree.checked(directory, true, true);
+    if (this.passive) { this.initialized = true; return; }
     await this.recoverInterrupted();
     try { await this.tree.writeNew('README.md', utf8('# GraspPortable Workspace\n\n- Markdown/：唯一目前可讀取的 Markdown vault，可用 Obsidian、檔案總管或 AI 開啟；筆記及附件保留一般檔名與資料夾。\n- .grasp/：SQLite authority、重建 metadata、內部回復資料與 exchange/inbox、exchange/outbox。\n\nSQLite 是唯一即時來源。外部修改、刪除及新增檔案會標示 dirty 並暫停發佈；請在 App 審查匯入，不會靜默覆寫。Obsidian 的 .obsidian 設定目錄保留但不作為筆記資料匯入。grasp-asset: links 由 App 處理；一般相對附件路徑可由外部 viewer 使用。\n')); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve, sep } from 'node:path';
-import { applyVault, planVault, writeVaultReport } from '../server/migration.js';
+import { applyVault, MIGRATION_LIMITS, planVault, writeVaultReport } from '../server/migration.js';
 import { WorkspaceStore } from '../server/store.js';
 
 const root = resolve('.cache/migration-tests'); mkdirSync(root, { recursive: true });
@@ -112,5 +112,86 @@ describe('read-only copied-vault migration', () => {
     const applied = spawnSync(process.execPath, [...args, `--apply=${database}`], { encoding: 'utf8', windowsHide: true });
     expect(applied.status, applied.stderr).toBe(0); expect(JSON.parse(applied.stdout).mode).toBe('applied-to-new-database');
     expect(existsSync(database)).toBe(true);
+  });
+
+  it('streams asset bodies independently of the explicit aggregate Markdown memory budget', async () => {
+    const f = fixture(); f.write('Note.md', '1234'); f.write('asset.png', Buffer.alloc(MIGRATION_LIMITS.chunkBytes + 7, 0x62));
+    const plan = await planVault(f.source, { maxMarkdownBytes: 4 });
+    expect(plan.report.memory).toEqual({ chunkBytes: MIGRATION_LIMITS.chunkBytes, markdownBytes: 4, maxMarkdownBytes: 4, retainedAssetBytes: 0 });
+    expect('blobs' in plan).toBe(false);
+    expect(plan.report.files.find(file => file.kind === 'asset')?.size).toBe(MIGRATION_LIMITS.chunkBytes + 7);
+    await expect(planVault(f.source, { maxMarkdownBytes: 3 })).rejects.toMatchObject({ code: 'markdown-memory-limit' });
+    expect(plan.report.counts.bytes).toBe(MIGRATION_LIMITS.chunkBytes + 11);
+  });
+
+  it('preserves a UTF-8 character that straddles the streaming chunk boundary', async () => {
+    const f = fixture(), text = 'a'.repeat(MIGRATION_LIMITS.chunkBytes - 1) + '中\r\n'; f.write('Boundary.md', text);
+    const plan = await planVault(f.source);
+    expect(plan.snapshot.notes[0].markdown).toBe(text);
+    expect(plan.report.files[0].sha256).toBe(sha(Buffer.from(text)));
+  });
+
+  it('resumes verified asset checkpoints after interruption and reopens the same completed database idempotently', async () => {
+    const f = fixture(); f.write('Note.md', 'source'); f.write('a.png', 'first'); f.write('b.png', 'second');
+    const plan = await planVault(f.source), database = join(f.dir, 'result.db');
+    await expect(applyVault(plan, database, { onProgress: progress => { if (progress.phase === 'asset-copied') throw new Error('simulated interruption'); } })).rejects.toMatchObject({ code: 'apply-failed' });
+    expect(existsSync(database)).toBe(false);
+    const checkpoint = database + '.migration';
+    expect(readdirSync(join(checkpoint, 'objects')).filter(file => /^[a-f0-9]{64}\.blob$/.test(file))).toHaveLength(1);
+    const freshPlan = await planVault(f.source);
+    const resumed = await applyVault(freshPlan, database);
+    expect(resumed.copiedAssets).toBe(1); expect(resumed.resumedAssets).toBe(1);
+    const retried = await applyVault(await planVault(f.source), database);
+    expect(retried.snapshot).toEqual(resumed.snapshot);
+    expect(retried.copiedAssets).toBe(0); expect(retried.resumedAssets).toBe(2);
+    const store = new WorkspaceStore(database);
+    try {
+      const capture = store.projectionCapture();
+      expect(capture.provenance).toMatchObject({ format: 'grasp-vault-provenance', sourceFingerprint: plan.report.sourceFingerprint, files: plan.report.files });
+      expect(store.snapshot().notes).toEqual(plan.snapshot.notes);
+    } finally { store.close(); }
+  });
+
+  it('resumes a completed private candidate after interruption before publication', async () => {
+    const f = fixture(); f.write('Note.md', 'source'); f.write('image.png', 'bytes'); const plan = await planVault(f.source), database = join(f.dir, 'result.db');
+    await expect(applyVault(plan, database, { onProgress: progress => { if (progress.phase === 'candidate-ready') throw new Error('simulated crash'); } })).rejects.toMatchObject({ code: 'apply-failed' });
+    expect(existsSync(database)).toBe(false);
+    const candidate = readdirSync(database + '.migration').find(file => /^candidate-.*\.db$/.test(file))!;
+    const candidateHash = sha(readFileSync(join(database + '.migration', candidate)));
+    const result = await applyVault(plan, database);
+    expect(sha(readFileSync(database))).toBe(candidateHash);
+    expect(result.resumedAssets).toBe(1); expect(result.copiedAssets).toBe(0);
+  });
+
+  it('rechecks source after copying and again before publication without mutating the source itself', async () => {
+    for (const phase of ['asset-copied', 'candidate-ready']) {
+      const f = fixture(); f.write('Note.md', 'before'); f.write('image.png', 'bytes');
+      const plan = await planVault(f.source), database = join(f.dir, 'result.db');
+      await expect(applyVault(plan, database, { onProgress: progress => { if (progress.phase === phase) f.write('Note.md', 'external change'); } }))
+        .rejects.toMatchObject({ code: 'source-changed' });
+      expect(existsSync(database)).toBe(false);
+      expect(readFileSync(join(f.source, 'Note.md'), 'utf8')).toBe('external change');
+    }
+  });
+
+  it('refuses insufficient disk space, a mismatched checkpoint and externally edited staged objects', async () => {
+    const f = fixture(); f.write('Note.md', 'source'); f.write('image.png', 'bytes'); const plan = await planVault(f.source);
+    await expect(applyVault(plan, join(f.dir, 'no-space.db'), { availableBytes: async () => 0n })).rejects.toMatchObject({ code: 'disk-space' });
+    expect(existsSync(join(f.dir, 'no-space.db'))).toBe(false);
+    const database = join(f.dir, 'result.db');
+    await expect(applyVault(plan, database, { onProgress: progress => { if (progress.phase === 'asset-copied') throw new Error('stop'); } })).rejects.toThrow();
+    const object = join(database + '.migration', 'objects', plan.snapshot.attachments[0].sha256 + '.blob');
+    writeFileSync(object, 'external staged edit');
+    await expect(applyVault(plan, database)).rejects.toMatchObject({ code: 'checkpoint-invalid' });
+    expect(readFileSync(object, 'utf8')).toBe('external staged edit');
+    f.write('Note.md', 'changed source for a new plan');
+    await expect(applyVault(await planVault(f.source), database)).rejects.toMatchObject({ code: 'checkpoint-mismatch' });
+  });
+
+  it('does not follow a checkpoint symlink into the original source or another directory', async () => {
+    const f = fixture(); f.write('Note.md', 'source'); const plan = await planVault(f.source), database = join(f.dir, 'result.db');
+    symlinkSync(f.source, database + '.migration', process.platform === 'win32' ? 'junction' : 'dir');
+    await expect(applyVault(plan, database)).rejects.toThrow(/outside the source/);
+    expect(readdirSync(f.source)).toEqual(['Note.md']);
   });
 });

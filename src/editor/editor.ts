@@ -319,7 +319,11 @@ const semanticField = StateField.define<SemanticState>({
     const parsed = version.syntaxVersion !== 'grasp-v1' ? null
       : tr.docChanged || !value.parsed ? parseNoteLanguage(rawDocument(tr.state), version.revision)
         : versionChanged ? { ...value.parsed, revision: version.revision } : value.parsed;
-    return { parsed, decorations: decorateSemantics(tr.state, parsed) };
+    // A committed revision receipt changes the edit guard, not any displayed
+    // value. Keep the existing range tree instead of recreating every widget.
+    const displayChanged = tr.docChanged || !!tr.selection || parsed === null !== (value.parsed === null)
+      || tr.effects.some(effect => effect.is(updateRuntime) || effect.is(updateMode) || effect.is(updatePendingValues) || effect.is(updateAssets));
+    return { parsed, decorations: displayChanged ? decorateSemantics(tr.state, parsed) : value.decorations };
   },
   provide: field => EditorView.decorations.from(field, value => value.decorations),
 });
@@ -535,7 +539,11 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
   return {
     setDocument(markdown, nextKey, revision = 0, syntaxVersion = 'legacy-v0.2') {
       version = { revision, syntaxVersion };
-      if (documentKey === nextKey && rawDocument(view.state) === markdown) { view.dispatch({ effects: updateDocumentVersion.of(version) }); return; }
+      if (documentKey === nextKey && rawDocument(view.state) === markdown) {
+        const priorVersion = view.state.field(documentVersionField);
+        if (priorVersion.revision !== revision || priorVersion.syntaxVersion !== syntaxVersion) view.dispatch({ effects: updateDocumentVersion.of(version) });
+        return;
+      }
       if (documentKey && documentKey !== nextKey) {
         recentStates.delete(documentKey); recentStates.set(documentKey, view.state);
         while (recentStates.size > 20) recentStates.delete(recentStates.keys().next().value!);
@@ -563,8 +571,20 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
       view.dispatch(view.state.update(tr, { effects: insertedSourceEffects(tr, text), sequential: true })); view.focus();
     },
     setRuntime(result, records = []) { runtime = { result, records }; view.dispatch({ effects: updateRuntime.of(runtime) }); },
-    setPendingValues(names) { pendingValues = new Set(names); view.dispatch({ effects: updatePendingValues.of(pendingValues) }); },
-    setAssets(workspaceId, attachments, links = []) { assets = { workspaceId, attachments: new Map(attachments.map(asset => [asset.id, asset])), links }; view.dispatch({ effects: updateAssets.of(assets) }); },
+    setPendingValues(names) {
+      const next = new Set(names);
+      if (pendingValues.size === next.size && [...next].every(name => pendingValues.has(name))) return;
+      pendingValues = next; view.dispatch({ effects: updatePendingValues.of(pendingValues) });
+    },
+    setAssets(workspaceId, attachments, links = []) {
+      const current = view.state.field(assetsField);
+      const same = workspaceId === current.workspaceId && attachments.length === current.attachments.size && links.length === current.links.length
+        && attachments.every(asset => { const old = current.attachments.get(asset.id); return old?.name === asset.name && old.mimeType === asset.mimeType; })
+        && links.every((link, index) => { const old = current.links[index]; return old.id === link.id && old.embed === link.embed && old.label === link.label
+          && old.from === rawToEditor(view.state, link.from) && old.to === rawToEditor(view.state, link.to) && old.raw === normalizeSource(link.raw); });
+      assets = { workspaceId, attachments: new Map(attachments.map(asset => [asset.id, asset])), links };
+      if (!same) view.dispatch({ effects: updateAssets.of(assets) });
+    },
     focusRange(from, to) { if (mode === 'reading') changeMode('live'); const start = rawToEditor(view.state, from); const end = Math.max(start, rawToEditor(view.state, to)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
     setMode: changeMode,
     destroy() { recentStates.clear(); reading.remove(); view.destroy(); surface.remove(); },

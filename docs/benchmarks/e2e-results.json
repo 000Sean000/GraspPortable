@@ -102,12 +102,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1199,
+                      "duration": 1226,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:19.989Z",
+                      "startTime": "2026-09-27T17:37:55.241Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -154,12 +154,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1005,
+                      "duration": 1035,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:21.506Z",
+                      "startTime": "2026-09-27T17:37:56.771Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -206,12 +206,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 854,
+                      "duration": 894,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:22.519Z",
+                      "startTime": "2026-09-27T17:37:57.814Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -258,12 +258,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6737,
+                      "duration": 6662,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:23.382Z",
+                      "startTime": "2026-09-27T17:37:58.717Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -310,12 +310,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1336,
+                      "duration": 1412,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:30.133Z",
+                      "startTime": "2026-09-27T17:38:05.390Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -362,12 +362,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1249,
+                      "duration": 1046,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:31.482Z",
+                      "startTime": "2026-09-27T17:38:06.814Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -414,12 +414,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1114,
+                      "duration": 1081,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:32.742Z",
+                      "startTime": "2026-09-27T17:38:07.874Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -466,12 +466,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 628,
+                      "duration": 624,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:33.869Z",
+                      "startTime": "2026-09-27T17:38:08.966Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -535,12 +535,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2213,
+                      "duration": 2243,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:34.543Z",
+                      "startTime": "2026-09-27T17:38:09.627Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -587,12 +587,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1016,
+                      "duration": 1039,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:36.908Z",
+                      "startTime": "2026-09-27T17:38:12.019Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -639,12 +639,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 772,
+                      "duration": 774,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:37.935Z",
+                      "startTime": "2026-09-27T17:38:13.068Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -691,12 +691,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1078,
+                      "duration": 1087,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:38.719Z",
+                      "startTime": "2026-09-27T17:38:13.855Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -744,12 +744,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 665,
+                  "duration": 668,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-27T16:50:39.834Z",
+                  "startTime": "2026-09-27T17:38:14.970Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -802,12 +802,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1679,
+                      "duration": 1813,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:40.663Z",
+                      "startTime": "2026-09-27T17:38:15.810Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -854,12 +854,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1399,
+                      "duration": 2373,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:42.485Z",
+                      "startTime": "2026-09-27T17:38:17.760Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -878,7 +878,7 @@
               ],
               "id": "1de639fdc719e2321283-7b19b6eb5468d1672a44",
               "file": "files.spec.ts",
-              "line": 72,
+              "line": 75,
               "column": 3
             },
             {
@@ -906,12 +906,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 896,
+                      "duration": 1506,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:43.894Z",
+                      "startTime": "2026-09-27T17:38:20.144Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -930,7 +930,7 @@
               ],
               "id": "1de639fdc719e2321283-68493b72b546a56e7d91",
               "file": "files.spec.ts",
-              "line": 117,
+              "line": 125,
               "column": 3
             }
           ]
@@ -975,12 +975,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1610,
+                      "duration": 1732,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:44.852Z",
+                      "startTime": "2026-09-27T17:38:21.719Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1027,12 +1027,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1866,
+                      "duration": 1919,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:46.720Z",
+                      "startTime": "2026-09-27T17:38:23.817Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1080,12 +1080,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1115,
+                  "duration": 1116,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-09-27T16:50:48.630Z",
+                  "startTime": "2026-09-27T17:38:25.785Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -1138,12 +1138,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 10043,
+                      "duration": 8833,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:50:49.955Z",
+                      "startTime": "2026-09-27T17:38:27.161Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1190,12 +1190,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1395,
+                      "duration": 1998,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:00.582Z",
+                      "startTime": "2026-09-27T17:38:36.754Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1222,31 +1222,31 @@
       ]
     },
     {
-      "title": "shared-performance.spec.ts",
-      "file": "shared-performance.spec.ts",
+      "title": "projection-workflow.spec.ts",
+      "file": "projection-workflow.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "M2 production v1 high-interaction reference workload",
-          "file": "shared-performance.spec.ts",
-          "line": 50,
+          "title": "M3 semantic grouping and portable fallback workflow",
+          "file": "projection-workflow.spec.ts",
+          "line": 47,
           "column": 15,
           "specs": [
             {
-              "title": "source and Live Preview stay editable without changing existing identities",
+              "title": "groups two definitions independently, preserves source ownership and exports only the selected unit",
               "ok": true,
               "tags": [],
               "tests": [
                 {
-                  "timeout": 120000,
+                  "timeout": 60000,
                   "annotations": [
                     {
                       "type": "serial",
                       "location": {
-                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
-                        "line": 50,
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                        "line": 47,
                         "column": 15
                       }
                     }
@@ -1259,18 +1259,18 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6646,
+                      "duration": 1415,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:02.017Z",
+                      "startTime": "2026-09-27T17:38:38.787Z",
                       "annotations": [
                         {
                           "type": "serial",
                           "location": {
-                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
-                            "line": 50,
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                            "line": 47,
                             "column": 15
                           }
                         }
@@ -1281,24 +1281,24 @@
                   "status": "expected"
                 }
               ],
-              "id": "798c0fb0c7e852209d77-fc70a71d004fac0e9489",
-              "file": "shared-performance.spec.ts",
-              "line": 70,
+              "id": "30d51986d32d3908f9a7-47b5e1a495e783772f6f",
+              "file": "projection-workflow.spec.ts",
+              "line": 55,
               "column": 3
             },
             {
-              "title": "reference editing updates 1000 values and 5000 persistent caches, then survives a real restart",
+              "title": "reviews a grouped canonical binding, blocks cache-only edits and preserves owner identity",
               "ok": true,
               "tags": [],
               "tests": [
                 {
-                  "timeout": 120000,
+                  "timeout": 60000,
                   "annotations": [
                     {
                       "type": "serial",
                       "location": {
-                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
-                        "line": 50,
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                        "line": 47,
                         "column": 15
                       }
                     }
@@ -1311,18 +1311,191 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 15441,
+                      "duration": 1366,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:09.047Z",
+                      "startTime": "2026-09-27T17:38:40.451Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                            "line": 47,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "30d51986d32d3908f9a7-bbeabee65a737eacf0e0",
+              "file": "projection-workflow.spec.ts",
+              "line": 80,
+              "column": 3
+            },
+            {
+              "title": "rejects a stale reviewed strategy and reconstructs a fresh DB with identities and exact current source",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                        "line": 47,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1227,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T17:38:41.823Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                            "line": 47,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "30d51986d32d3908f9a7-090a7ad229f819458bba",
+              "file": "projection-workflow.spec.ts",
+              "line": 109,
+              "column": 3
+            },
+            {
+              "title": "a delayed strategy response cannot replace a different workspace after the panel is closed",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                        "line": 47,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 730,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T17:38:43.056Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\projection-workflow.spec.ts",
+                            "line": 47,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "30d51986d32d3908f9a7-908cb60b552f40a019bc",
+              "file": "projection-workflow.spec.ts",
+              "line": 134,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "shared-performance.spec.ts",
+      "file": "shared-performance.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Production v1 workload (1000 identifiers / 5000 references)",
+          "file": "shared-performance.spec.ts",
+          "line": 86,
+          "column": 15,
+          "specs": [
+            {
+              "title": "source and Live Preview stay editable without changing existing identities",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 117000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
+                        "line": 86,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3701,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T17:38:43.811Z",
                       "annotations": [
                         {
                           "type": "serial",
                           "location": {
                             "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
-                            "line": 50,
+                            "line": 86,
                             "column": 15
                           }
                         }
@@ -1331,7 +1504,7 @@
                         {
                           "name": "v1-performance",
                           "contentType": "application/json",
-                          "path": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\test-results\\shared-performance-M2-prod-2301c-hen-survives-a-real-restart\\attachments\\v1-performance-320a5a6bb5c04cece8ebe5035aed5592a33d7862.json"
+                          "path": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\test-results\\shared-performance-Product-79cc2-hanging-existing-identities\\attachments\\v1-performance-871eeb26fd6ca0d7b3935be1aa239c593fc896e1.json"
                         }
                       ]
                     }
@@ -1339,9 +1512,67 @@
                   "status": "expected"
                 }
               ],
-              "id": "798c0fb0c7e852209d77-4a6dd30ce087063e133c",
+              "id": "798c0fb0c7e852209d77-51757cf870c14afc3acc",
               "file": "shared-performance.spec.ts",
-              "line": 93,
+              "line": 118,
+              "column": 3
+            },
+            {
+              "title": "reference editing updates 1000 values and 5000 persistent caches, then survives a real restart",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 117000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
+                        "line": 86,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9156,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T17:38:47.842Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\tests\\e2e\\shared-performance.spec.ts",
+                            "line": 86,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "v1-performance",
+                          "contentType": "application/json",
+                          "path": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortableWorkspace\\GraspPortable\\test-results\\shared-performance-Product-7aed3-hen-survives-a-real-restart\\attachments\\v1-performance-871eeb26fd6ca0d7b3935be1aa239c593fc896e1.json"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "798c0fb0c7e852209d77-f16f27dffd533c8f73d6",
+              "file": "shared-performance.spec.ts",
+              "line": 143,
               "column": 3
             }
           ]
@@ -1386,12 +1617,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1050,
+                      "duration": 864,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:24.526Z",
+                      "startTime": "2026-09-27T17:38:57.039Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1438,12 +1669,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1105,
+                      "duration": 932,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:25.733Z",
+                      "startTime": "2026-09-27T17:38:58.037Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1490,12 +1721,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 587,
+                      "duration": 477,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:26.849Z",
+                      "startTime": "2026-09-27T17:38:58.974Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1542,12 +1773,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 684,
+                      "duration": 568,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:27.444Z",
+                      "startTime": "2026-09-27T17:38:59.457Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1594,12 +1825,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 650,
+                      "duration": 535,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:28.139Z",
+                      "startTime": "2026-09-27T17:39:00.030Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1663,12 +1894,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1646,
+                      "duration": 1319,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:28.826Z",
+                      "startTime": "2026-09-27T17:39:00.601Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1715,12 +1946,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1202,
+                      "duration": 833,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:30.622Z",
+                      "startTime": "2026-09-27T17:39:02.058Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1767,12 +1998,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 683,
+                      "duration": 545,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:31.833Z",
+                      "startTime": "2026-09-27T17:39:02.896Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1791,7 +2022,7 @@
               ],
               "id": "c601ceb5ecfc8efa4a14-9cf9b421766e1b90ac47",
               "file": "workflow.spec.ts",
-              "line": 99,
+              "line": 101,
               "column": 3
             },
             {
@@ -1819,12 +2050,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 15651,
+                      "duration": 9799,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T16:51:32.526Z",
+                      "startTime": "2026-09-27T17:39:03.446Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -1843,7 +2074,7 @@
               ],
               "id": "c601ceb5ecfc8efa4a14-0f45d5e3eef9cb88d40f",
               "file": "workflow.spec.ts",
-              "line": 108,
+              "line": 110,
               "column": 3
             }
           ]
@@ -1853,9 +2084,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-09-27T16:50:19.453Z",
-    "duration": 89337.15000000001,
-    "expected": 32,
+    "startTime": "2026-09-27T17:37:54.790Z",
+    "duration": 78906.192,
+    "expected": 36,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

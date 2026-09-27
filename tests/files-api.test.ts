@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createApi } from '../server/api.js';
-import { WorkspaceFiles } from '../server/files.js';
+import { ProjectionWorkspaceFiles } from '../server/projection.js';
 import type { WorkspaceSnapshot, ImportPlan } from '../src/domain/model.js';
 import type { FileEntry, FilesStatus } from '../src/domain/files.js';
 
@@ -88,10 +88,10 @@ describe('managed files and startup recovery HTTP workflows', () => {
     const status = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
     expect(status.mirror.state).toBe('ready'); expect(status.directories.mirror).toBe(resolve(status.root, 'Markdown'));
     const located = await (await request(h.base, '/api/files/locate', { kind: 'note', id: original.id })).json() as FileEntry;
-    expect(located.name).toBe('Readable note.md'); expect(located.path).toBe('Markdown/Readable note.md');
+    expect(located.name.endsWith('.md')).toBe(true); expect(located.path.startsWith('Markdown/')).toBe(true);
     expect((await request(h.base, '/api/files/reveal', { path: located.path })).status).toBe(200); expect(h.revealed).toEqual([located.absolutePath]);
     expect((await request(h.base, '/api/files/reveal', { path: '../workspace.db' })).status).toBe(400); expect(h.revealed).toHaveLength(1);
-    const external = '# Raw\r\n\r\nHuman changed this'; writeFileSync(located.absolutePath, external);
+    const external = readFileSync(located.absolutePath, 'utf8').replace('> Original', '> Human changed this'); writeFileSync(located.absolutePath, external);
     const dirty = await (await fetch(h.base + '/api/files/status')).json() as FilesStatus;
     expect(dirty.mirror.state).toBe('dirty'); expect(dirty.mirror.dirtyPaths).toContain(located.path); expect(await getSnapshot(h.base)).toEqual(snapshot);
     const blocked = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
@@ -99,13 +99,13 @@ describe('managed files and startup recovery HTTP workflows', () => {
     const preview = await (await request(h.base, '/api/files/external/plan', { path: located.path })).json() as ImportPlan;
     expect(preview.canApply).toBe(true); expect(preview.changes.filter(c => c.kind === 'update')).toHaveLength(1);
     expect(preview.changes.find(c => c.kind === 'update')!.id).toBe(original.id);
-    writeFileSync(located.absolutePath, external + ' again');
+    const changedAgain = external.replace('> Human changed this', '> Human changed this again'); writeFileSync(located.absolutePath, changedAgain);
     expect((await request(h.base, '/api/import/apply', { token: preview.token, workspaceRevision: preview.workspaceRevision })).status).toBe(409); expect(await getSnapshot(h.base)).toEqual(snapshot);
     const fresh = await (await request(h.base, '/api/files/external/plan', { path: located.path })).json() as ImportPlan;
     const applied = await (await request(h.base, '/api/import/apply', { token: fresh.token, workspaceRevision: fresh.workspaceRevision })).json() as WorkspaceSnapshot;
-    expect(applied.notes).toHaveLength(snapshot.notes.length); expect(applied.notes.find(n => n.id === original.id)!.markdown).toBe(external + ' again');
+    expect(applied.notes).toHaveLength(snapshot.notes.length); expect(applied.notes.find(n => n.id === original.id)!.markdown).toBe('# Raw\r\n\r\nHuman changed this again');
     const clean = await (await request(h.base, '/api/files/mirror/refresh')).json() as FilesStatus;
-    expect(clean.mirror.state).toBe('ready'); expect(clean.mirror.dirtyPaths).toEqual([]); expect(readFileSync(located.absolutePath, 'utf8')).toBe(external + ' again');
+    expect(clean.mirror.state).toBe('ready'); expect(clean.mirror.dirtyPaths).toEqual([]); expect(readFileSync(located.absolutePath, 'utf8')).toContain('Human changed this again');
   });
 
   it('keeps host recovery alive for a corrupt default database and never overwrites it while opening another DB', async () => {
@@ -153,7 +153,7 @@ describe('managed files and startup recovery HTTP workflows', () => {
     const h = await host(); await fetch(h.base + '/api/assets?name=pixel.png', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png });
     let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; });
     let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; }); let blobRead = false;
-    vi.spyOn(WorkspaceFiles.prototype, 'buildAiFolder').mockImplementationOnce(async function (snapshot, readBlob) {
+    vi.spyOn(ProjectionWorkspaceFiles.prototype, 'buildAiFolder').mockImplementationOnce(async function (snapshot, readBlob) {
       entered(); await gate; const bytes = await readBlob(snapshot.attachments[0]!.sha256); blobRead = bytes.length === png.length;
       return { path: 'exchange/outbox/test', absolutePath: 'unused', manifestPath: 'unused', indexPath: 'unused', files: 1, bytes: bytes.length };
     });

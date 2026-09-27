@@ -5,6 +5,7 @@ import { createNavigator } from './navigation';
 import { KnowledgePanel } from './knowledge-panel';
 import { RecordsPanel } from './records-panel';
 import { FilesPanel } from './files-panel';
+import { ProjectionPanel, locateProjectionUnit } from './projection-panel';
 import { attachmentMarkdown } from '../editor/query';
 import type { FileEntry, FilesStatus } from '../domain/files';
 import type { RecordQuery } from '../editor/query';
@@ -22,7 +23,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 02</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
   <section id="navigation" aria-label="筆記與資料夾"></section>
-  <div class="sidebar-bottom"><button id="files">▧ 檔案與 Markdown</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
+  <div class="sidebar-bottom"><button id="files">▧ 檔案與 Markdown</button><button id="projection">分組策略與 Fallback</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
 </aside>
 <main class="main-pane">
   <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="reading" aria-pressed="false">閱讀</button><button id="reveal-note" title="在檔案總管顯示目前筆記">顯示筆記檔</button><button id="open-note-folder" title="在檔案總管開啟目前筆記的資料夾">開啟資料夾</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
@@ -49,6 +50,7 @@ const linksPanel = new LinksPanel();
 const knowledgePanel = new KnowledgePanel();
 const recordsPanel = new RecordsPanel();
 const filesPanel = new FilesPanel();
+const projectionPanel = new ProjectionPanel();
 let valueFilter = '';
 let selectedIdentifier: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -205,9 +207,10 @@ async function refreshRecoverableDrafts() {
 }
 async function loadDurableDrafts() {
   const workspaceId = snapshot.id;
-  await refreshRecoverableDrafts();
+  const [, host] = await Promise.all([refreshRecoverableDrafts(), request<{ recoveredDraftIds?: string[] }>('/host')]);
   if (snapshot.id !== workspaceId) return;
-  for (const draft of recoverableDrafts.filter(draft => draft.clientId === draftClientId && !retiredDrafts().has(draft.id) && snapshot.notes.some(note => note.id === draft.noteId))) {
+  const recovered = new Set(host.recoveredDraftIds ?? []);
+  for (const draft of recoverableDrafts.filter(draft => draft.clientId === draftClientId && !recovered.has(draft.id) && !retiredDrafts().has(draft.id) && snapshot.notes.some(note => note.id === draft.noteId))) {
     if (!drafts.has(draft.noteId)) restoreLocalDraft(draft);
   }
   showActiveNote(); updateWorkflowStatus();
@@ -430,7 +433,8 @@ async function sharedValueDialog(name: string) {
     });
     edit.disabled = !!ownerNoteId && drafts.has(ownerNoteId); row.append(edit); body.append(row);
   });
-  body.append(button('前往定義', async () => { closeModal(); await navigateIdentifier(name); }), button('重新命名', () => renameDialog(name)));
+  body.append(button('前往定義', async () => { closeModal(); await navigateIdentifier(name); }), button('重新命名', () => renameDialog(name)),
+    button('在檔案總管顯示定義', async () => { const entry = await locateProjectionUnit(`binding:${binding.id}`); toast(entry.absolutePath); }));
 }
 function markDraft(markdown = editor.getDocument(), changes: readonly { from: number; to: number; insert: string }[] = []) {
   const previous = drafts.get(activeId);
@@ -634,8 +638,8 @@ function renderInspector() {
     retry: () => worker.retry(),
   });
 }
-function openModal(title: string) { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
-function closeModal() { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
+function openModal(title: string) { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
+function closeModal() { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
 function labeled(label: string, input: HTMLElement) { const group = element('label', 'field'); group.append(element('span', '', label), input); return group; }
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
@@ -645,6 +649,10 @@ async function upload<T>(path: string, bytes: Blob | string, type = 'text/markdo
 }
 function downloadFile(entry: FileEntry) {
   const link = element('a'); link.href = `/api/files/download?path=${encodeURIComponent(entry.path)}&workspace=${encodeURIComponent(snapshot.id)}`; link.download = entry.name; link.click();
+}
+async function projectionDialog(noteId?: string) {
+  await flush(); const body = openModal('分組策略與可攜資料');
+  await projectionPanel.show(body, { flush, accept: value => acceptSnapshot(value), download }, noteId);
 }
 async function revealNote(noteId = activeId) {
   await flush(); if (!noteId) throw new Error('請先選擇筆記。');
@@ -741,8 +749,8 @@ function workspaceDialog() {
   const action = async (create: boolean) => transition(async () => { await flush(); if (pendingSharedCommand) throw new Error('請先確認前一項共享操作，再切換 workspace。'); if (!path.value.trim()) throw new Error('請輸入資料庫路徑。'); const next = await request<WorkspaceSnapshot>('/workspace/open', 'POST', { path: path.value.trim(), create, name: name.value.trim() || '我的知識庫' }); activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); });
   const actions = element('div', 'form-actions'); actions.append(button('開啟既有資料庫', () => action(false)), button('建立新 workspace', () => action(true), 'primary')); body.append(actions);
   const fallback = element('details', 'diff-card'); fallback.append(element('summary', '', '從 Markdown 投影重建到新的資料庫'));
-  fallback.append(element('p', 'muted', '選擇 .grasp/manifests 內的完整 manifest 路徑與尚不存在的 .db 路徑。會驗證所有內容與附件；原始資料庫和 Markdown 都會保留。重建後是新的 workspace，筆記與資料的 ID 仍保留。'));
-  const manifest = input('', 'C:\\…\\MainVault-Grasp\\.grasp\\manifests\\…json'); manifest.setAttribute('aria-label', '重建 manifest 路徑');
+  fallback.append(element('p', 'muted', '選擇完整 Markdown 資料夾內 .grasp-export/manifest.json 的路徑與尚不存在的 .db 路徑。必須保留隱藏的 .grasp-export 與附件。會驗證所有內容；原 DB 和檔案都會保留。重建產生新的 workspace，資料 ID 仍保留，恢復的草稿可再手動開啟。'));
+  const manifest = input('', 'C:\\…\\MainVault-Grasp\\Markdown\\.grasp-export\\manifest.json'); manifest.setAttribute('aria-label', '重建 manifest 路徑');
   const target = input('', 'C:\\…\\Recovered.grasp.db'); target.setAttribute('aria-label', '重建的新資料庫路徑');
   fallback.append(labeled('重建 manifest', manifest), labeled('新的 .db 路徑', target), button('驗證並重建新 workspace', async () => transition(async () => {
     if (pendingSharedCommand) throw new Error('請先確認前一項共享操作，再重建並切換 workspace。');
@@ -753,6 +761,7 @@ function workspaceDialog() {
 }
 function recordDialog(record?: StructuredRecord) {
   const body = openModal(record ? '編輯結構化資料' : '新增結構化資料');
+  if (record) body.append(button('在檔案總管顯示 Record', async () => { const entry = await locateProjectionUnit(`recordInfo:${record.id}`); toast(entry.absolutePath); }));
   body.append(element('p', 'muted', '以 collection.name.field 引用欄位；值中可用 {identifier} 組合文字。名稱使用英數字、底線、點或連字號。'));
   const collection = input(record?.collection || 'aura'); collection.setAttribute('aria-label', 'Collection');
   const name = input(record?.name || ''); name.setAttribute('aria-label', 'Record 名稱');
@@ -790,6 +799,11 @@ function importDialog() {
 }
 function showImportPlan(plan: ImportPlan) {
   const body = openModal('審查匯入計畫');
+  const projectionFiles = (plan as ImportPlan & { projectionFiles?: string[] }).projectionFiles;
+  if (projectionFiles?.length) {
+    body.append(element('p', 'muted', `此次審查包含同一份 projection 的 ${projectionFiles.length} 個已修改檔案；確認後會一起套用，避免分次匯入造成來源版本衝突。`));
+    for (const path of projectionFiles) body.append(element('code', 'projection-import-path', path));
+  }
   const changed = plan.changes.filter(c => c.kind !== 'unchanged');
   const oldRecords = new Map(snapshot.records.map(record => [record.id, JSON.stringify(record)]));
   const incomingIds = new Set(plan.records.map(record => record.id));
@@ -861,15 +875,16 @@ $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
 $('files').onclick = () => void run(filesDialog);
+$('projection').onclick = () => void run(() => projectionDialog());
 $('reveal-note').onclick = () => void run(() => revealNote());
 $('open-note-folder').onclick = () => void run(() => openLogicalFolder(snapshot.notes.find(n => n.id === activeId)?.folderId ?? null));
-$('export').onclick = () => void run(async () => { await flush(); const entry = await request<FileEntry>('/files/exchange', 'POST', {}); downloadFile(entry); toast(`已保存至 outbox 並下載：${entry.absolutePath}`); });
+$('export').onclick = () => void run(() => projectionDialog(activeId));
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
 $('help').onclick = helpDialog;
 $('modal-close').onclick = closeModal;
 document.addEventListener('close', event => {
-  if (event.target === $('modal')) { modalEditor?.destroy(); modalEditor = undefined; }
+  if (event.target === $('modal')) { modalEditor?.destroy(); modalEditor = undefined; projectionPanel.destroy(); }
   filesPanel.destroy();
   if (!pendingNavigation || document.querySelector('dialog[open]')) return;
   const pending = pendingNavigation; pendingNavigation = undefined;
@@ -884,7 +899,7 @@ void run(async () => {
     $('workspace-name').textContent = '選擇可用的 Workspace'; $('runtime-status').textContent = '尚未開啟資料庫';
     ($('note-title') as HTMLInputElement).disabled = true;
     setSaveStatus('資料庫未開啟 · 原檔保留', true); $('navigation').inert = true; $('editor').classList.add('no-note');
-    for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = true;
+    for (const id of ['save', 'mode', 'reading', 'delete-note', 'export', 'projection', 'import', 'history', 'files', 'reveal-note', 'open-note-folder']) ($<HTMLButtonElement>(id)).disabled = true;
     workspaceDialog(); toast(error instanceof Error ? error.message : String(error), true); return;
   }
   setMode(initial.settings.mode === 'source' ? 'source' : initial.settings.mode === 'reading' ? 'reading' : 'live');

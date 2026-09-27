@@ -113,7 +113,8 @@ export class FilesPanel {
       const details = el('details', '', 'gp-files-dirty'); details.open = true;
       details.append(el('summary', `${mirror.dirtyPaths.length} 個檔案有外部變更或衝突`), el('p', '先審查差異，再決定是否更新資料庫。更新投影不會覆蓋未處理的外部內容。', 'muted'));
       const search = el('input'); search.type = 'search'; search.placeholder = '搜尋外部變更路徑'; search.setAttribute('aria-label', '搜尋外部變更路徑');
-      const rows = el('div', '', 'gp-files-dirty-list'); const notePaths = new Set(this.status.projection.notes.map(note => note.path));
+      const rows = el('div', '', 'gp-files-dirty-list');
+      const notePaths = new Set([...this.status.projection.notes.map(note => note.path), ...(this.status.projection.units ?? []).map(unit => unit.path)]);
       const draw = () => {
         rows.replaceChildren(); const paths = mirror.dirtyPaths.filter(path => normalize(path).includes(normalize(search.value)));
         rows.append(el('p', `${paths.length} 個符合的變更${paths.length > PAGE_SIZE ? ' · 顯示前 50 個，請搜尋縮小範圍' : ''}`, 'muted'));
@@ -121,7 +122,7 @@ export class FilesPanel {
           const row = el('section', '', 'gp-files-dirty-row'); row.append(el('code', pathJoin(this.status!.root, path)));
           const actions = el('div', '', 'gp-files-actions');
           if (notePaths.has(path)) actions.append(this.button('審查外部修改', () => callbacks.reviewExternal(path), 'primary'));
-          else row.append(el('p', '此檔案不屬於可直接更新的既有筆記；附件或新增檔案請使用下方加入檔案。', 'muted'));
+          else row.append(el('p', '此檔案不屬於可審查的正文或共享定義；附件或新增檔案請使用下方加入檔案。', 'muted'));
           actions.append(this.button('在檔案總管顯示', () => callbacks.revealFile(path)), this.button('複製完整路徑', () => this.copy(pathJoin(this.status!.root, path)))); row.append(actions); rows.append(row);
         }
       };

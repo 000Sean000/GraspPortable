@@ -229,7 +229,7 @@ describe('durable shared semantic transaction', () => {
     const path = file(), store = setup(path), note = store.snapshot().notes[0];
     const draft = store.saveDraft('old-draft', { clientId: 'old-tab', noteId: note.id, title: note.title, markdown: '@Fruit = <|unfinished', syntaxVersion: 'grasp-v1', baseNoteRevision: note.revision, revision: 0 }).draft;
     const before = store.sharedState(); store.close();
-    const old = new DatabaseSync(path); old.exec('ALTER TABLE drafts DROP COLUMN source_edits_json'); old.close();
+    const old = new DatabaseSync(path); old.exec('ALTER TABLE drafts DROP COLUMN source_edits_json; DROP TABLE projection_strategy; DROP TABLE projection_packages; DROP TABLE recovery_metadata; PRAGMA user_version=4'); old.close();
     const upgraded = open(path); expect(upgraded.migrationBackupPath).toContain('schema4-backup');
     expect(upgraded.sharedState()).toEqual(before); expect(upgraded.drafts()).toEqual([draft]);
     const backup = new DatabaseSync(upgraded.migrationBackupPath!, { readOnly: true });

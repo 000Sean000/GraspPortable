@@ -89,3 +89,9 @@ Output: removed context pass ceiling with scaling evidence, exact single-note so
 Codex usage-limits tool: **31% used**, ordinaryUsageAllowed=true, normal 10,080-minute bucket/reset `1791128122`. Since M1 at 15:56:25 UTC / 8%: **23 percentage points / 54m 10s**, account-wide observation rather than task-exclusive billing. Intermediate check at 16:35:19 UTC was 24%. No Luna/Reserve or reset credit invoked.
 
 Output: versioned shared semantics and persisted caches; durable draft/source journals; part-specific reference editing; operation receipts/replay/guarded shared undo; source patch and in-flight typing rebase; Reading mode; draft recovery/discard safeguards. Tests and benchmark scope/results are in [M2 verification](M2-VERIFICATION.md). Full A+B product Goal remains active; M3 semantic-unit strategy/full fallback and M4 MainVault roundtrip are next. Checkpoint locator subject: `feat: deliver consistent shared editing and durable drafts`.
+
+## M3 semantic projection and recovery — 2026-09-27 17:39 UTC
+
+Normal Codex usage bucket: **55% used**, ordinaryUsageAllowed=true, 10080-minute window/reset `1791128122`. M2 snapshot at 16:50:35 UTC was31%; approximately49minutes/+24percentagepoints account-wide, not exclusive task billing. Intermediate observations:17:25:02UTC47%,17:34–17:36UTC54%. No Luna/Reserve/reset invoked.
+
+Output: semantic-unit strategy/package/review, deterministic partial/full renderer, trusted multi-file external import, schema5 persistence, single checkpoint publisher, two independent recovery generations, streamed rebuild and migration foundation, App projection UI. Full512tests/build and36productionE2E pass. M4 full private-corpus and scale10 workload remain; do not mark full Goal complete. Checkpoint subject: `feat: add semantic projection strategy and portable recovery`.

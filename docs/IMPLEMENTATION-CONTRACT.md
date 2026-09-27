@@ -1,77 +1,109 @@
 # Implementation contract
 
-The two Project_Seed core documents are authoritative. This is a short map of the acceptance-preparation source contracts; exported types and tests remain the exact implementation reference. It does not freeze technology choices. Current build, test, packaged smoke and private manual-workspace evidence are tracked in VERIFICATION.md; earlier M4/M5 filesystem reports describe their historical layouts.
+This is a source map for implemented M1–M3 behavior and the current streaming migration interface. Authority is identified by `Project_Seed/README.md`, with accepted shared-value/projection behavior in `SHARED-VALUE-CONTRACT.md` and `PROJECTION-CONTRACT.md`. Exported TypeScript types are the exact reference; execution evidence belongs in `VERIFICATION.md` and `MIGRATION.md`. This map does not freeze implementation choices.
 
-## Plain domain data and language
+## Domain and versioned source
 
-- src/domain/model.ts owns WorkspaceSnapshot {id,name,revision,notes,folders,records,attachments,settings}. Note has a stable id, title, Markdown, revision, updatedAt and nullable folderId. Folder has id, nullable parentId, name and revision. Attachment metadata has id,name,path,mimeType,sha256,size,revision,createdAt; bytes never travel in snapshots.
-- src/domain/knowledge.ts exports parseNote(note): ParseResult and buildKnowledge(notes,records?): ParseResult. Definitions/references include exact UTF-16 source locations, optional nameLocation and explicit note/record owner metadata for safe editing.
-- Current provisional grammar: standalone @name = "JSON string with {other.name} interpolation"; body {{name}} renders a value. Templates escape literal braces with {{ and }}. Fenced/inline code does not participate. Identifiers match [A-Za-z_][A-Za-z0-9_.-]*.
-- Structured field identity is collection.name.field. src/editor/query.ts exports parseQuery and executeQuery for a grasp-query JSON fence with collection and optional where:{field,equals}; no SQL/JavaScript execution.
-- src/domain/graph.ts exports ValueGraph.update(parsed,revision,options?): RuntimeResult, getDefinition, findReferences and getValue. It has no DOM, Node, editor or SQLite dependency.
-- src/domain/links.ts exports parseNoteLinks, buildNoteCatalog and buildLinkIndex(notes,folders?,assets?,previous?). Wiki/Markdown links and grasp-asset:ID are independent from value identifiers.
-- src/domain/rename.ts exports planRename(snapshot,{from,to,mode:'identifier'|'namespace'}): RenamePlan. It returns proposed notes/records, precise edits, ownership, diagnostics and direct/transitive impact; it never writes storage.
+- `src/domain/model.ts`: `WorkspaceSnapshot {id,name,revision,notes,folders,records,attachments,settings}`. Entities retain stable IDs. Attachment snapshots contain metadata, never bytes. `Note.syntaxVersion` is `legacy-v0.2 | grasp-v1`; absence means legacy, not permission to reinterpret old raw source.
+- `binding-language.ts`: `parseBindingAt` / `serializeBinding`, raw literals and ordered parts. Example: `@Greeting = <|Hello |> + Person.Name`. Literals have compact/block forms and variable pipe delimiters selected by `serializeRawLiteral`. Multiline values contain actual line separators. Qualified names use dotted ASCII identifier segments, without the legacy hyphen extension.
+- `reference-language.ts`: `parseReferenceAt`, `scanReferences`, `serializeReference`. Body forms are `[value](:ref:Identifier)` and `[[@Identifier|value]]`; values can contain actual newlines. The reversible local escapes are backslash, brackets and pipe. Locations address original UTF-16 source.
+- `note-language.ts`: `parseNoteLanguage` combines codecs with a replaceable Markdown context adapter. Managed occurrences are complete semantic units; code, HTML, frontmatter and destinations have explicit exclusion/ownership rules. Multiline values are not flattened into single-line labels.
+- `knowledge.ts` / `template.ts`: `parseNote` / `buildKnowledge` dispatch by syntax version. Legacy `@name = "JSON template"`, `{dependency}` interpolation and `{{name}}` remain supported without rewriting existing notes. Structured record fields retain their current template representation and `collection.name.field` names.
+- `graph.ts`: `ValueGraph.update`, `fork`, `getDefinition`, `findReferences`, `getValue`; no DOM, Node or SQLite dependency. `links.ts` resolves ordinary note/asset links separately from value identifiers. `rename.ts` exposes pure `planRename(snapshot,request,semantic?)` proposals.
 
-## Editor and runtime
+`source-bundle.ts` (`createSourceBundle`, `restoreSourceBundle`, `serializeSourceBundle`) and `markdown-value-export.ts` (`exportSourceBundleMarkdown`) implement M1 **single-note** exact-source/reading representations. They are not the M3 complete workspace fallback or another publication engine.
 
-src/editor/editor.ts exports createEditor(parent,options): EditorAdapter. Options require onChange(markdown), onNavigate(name), onFindReferences(name); onOpenRecord(id) and onOpenQuery(query) are optional.
+## Shared semantics, editor and runtime
+
+`src/domain/shared.ts` owns JSON state containing identifiers, bindings, occurrences, results and note sources. Bindings retain owner/source revision/hash, ordered parts and dependency IDs; results distinguish current status from last-good observations. Equal text is not authority to merge identities.
+
+`prepareSharedWorkspace(snapshot,{previous?,previousSnapshot?,graph?,hash,newId,identityHints?})` returns `{state,notes,runtime,graph,patches,canCommit,diagnostics}`. It forks the candidate graph; the store adopts it only after commit. `applySharedIntent` materializes explicit commands without storage. `SourceEditProof {noteId,baseRevision,baseHash,steps:RawSourceChange[][]}` contains ordered nonoverlapping `{from,to,insert,expected?}` edits against each step's input. Exact replay is mandatory; ambiguous external identity mapping fails closed.
+
+`server/semantic.ts` owns the HTTP/store DTOs:
 
 ~~~ts
-interface EditorAdapter {
-  setDocument(markdown: string, documentKey?: string): void;
-  getDocument(): string;
-  insertText(text: string): void;
-  setRuntime(result: RuntimeResult, records?: StructuredRecord[]): void;
-  setAssets(workspaceId: string, attachments: readonly EditorAsset[],
-            links?: readonly EditorAssetLink[]): void;
-  focusRange(from: number, to: number): void;
-  setMode(mode: 'live' | 'source'): void;
-  destroy(): void;
+interface SharedCommand {
+  operationId: string;
+  workspaceId: string;
+  baseSemanticRevision: number;
+  intent: SharedIntent;
 }
+// Intent kinds: commit-draft, set-literal, set-dependency,
+// rename, rename-namespace, undo.
 ~~~
 
-setDocument does not emit onChange. Document keys separate per-note history; runtime/assets are effects, not source edits. Public ranges are UTF-16 offsets in raw Markdown. src/editor/raw-source.ts preserves existing LF/CRLF/CR separators, maps normalized editor positions, and records separator changes in undo history. CodeMirror objects stay inside the adapter. src/runtime/client.ts provides RuntimeClient.update(snapshot), retry(), destroy(); only committed snapshots enter the worker, and metadata-only updates reuse matching knowledge.
+`SharedStateResponse` is `{snapshot,semantic,noteSources}`. `SharedCommitResponse` adds `{receipt,sourcePatches,draftAcknowledgement?}`. Source patches address the previous **committed** raw source and carry revision/hash guards. Commit-draft acknowledgement is `{draftId,draftRevision,noteId,submittedSourceHash,edits}`; its edits are **cache-only changes against the submitted draft**, for rebasing typing that continued during commit. Durable receipt query/replay preserves this distinction.
 
-The Navigator, KnowledgePanel, RecordsPanel and FilesPanel modules under src/app own bounded/paged UI and command callbacks. Navigator optionally delegates onRevealNote(id) and onOpenFolder(id|null). FilesPanel delegates revealFile(path), reviewExternal(path), openFolder(path), controlled inbox operations and attachment operations; it browses the existing projection without a separate AI-export command. src/app/main.ts serializes commands and owns drafts, focus and snapshot acceptance; it does not access SQLite or filesystem handles.
+`src/editor/editor.ts` exports `createEditor(parent,options): EditorAdapter`. `onChange(markdown,rawChanges?)` reports raw UTF-16 edits. Navigation, references and explicit shared editing are callbacks. The adapter exposes:
 
-## Persistence, file lifecycle and HTTP
+- `setDocument(markdown,documentKey?,revision?,syntaxVersion?)`, `getDocument`, `getDocumentVersion`;
+- `applySemanticPatch({expectedKey,expectedRevision,nextRevision,expectedSource,changes})` → `applied | stale | composing`;
+- `insertText`, `focusRange`, `setMode('live'|'source'|'reading')`, `setRuntime`, `setAssets`, `setPendingValues`, `destroy`.
 
-server/store.ts exports WorkspaceStore, strict validators, MAX_MARKDOWN_CHARACTERS and MAX_ATTACHMENT_BYTES. Schema 3 keeps notes/folders/records/settings/history plus attachment metadata and immutable blobs. Known v1/v2 upgrades require validated independent backups. Mutations return complete committed snapshots; per-entity/workspace conflicts return HTTP 409.
+`raw-source.ts` preserves LF/CRLF/CR while mapping CodeMirror positions. Semantic patches validate exact text and remain separate from local Ctrl+Z history. CodeMirror objects stay inside the adapter. `src/runtime/client.ts` sends only committed snapshots to its worker and reuses knowledge for metadata-only updates. `src/app/main.ts` owns serialization, durable-draft hydration, in-flight rebase and independent shared undo. Navigator, KnowledgePanel, RecordsPanel, FilesPanel and ProjectionPanel own UI/callbacks, not database/filesystem handles.
 
-server/api.ts exports createApi({defaultPath?,openDirectory?,revealFile?}) with handle(req,res):Promise<boolean> and close():Promise<void>. Always await close: active file operations and projection jobs must drain before DB close. server/main.ts owns loopback Host/Origin validation and static hosting; the API also rejects cross-origin writes. Browser requests send X-Grasp-Workspace; image/download URLs can carry ?workspace=id.
+## SQLite authority and HTTP
 
-| Routes | Request / result |
+`server/store.ts` exports `WorkspaceStore` and strict validators. **Schema 5** stores notes/folders/records/settings/history, immutable attachment blobs, semantic state, durable drafts/operations, projection strategies/packages and recovery/publication metadata. v1–v4 upgrades require an independently verified backup. Invalid Unicode surrogates are rejected instead of silently changed by SQLite encoding.
+
+All content mutations—including compatibility CRUD/import/rename/restore—reconcile semantic state and persisted source caches in the same transaction. Settings-only changes do not create semantic receipts. Incomplete source remains a durable draft; complete missing/cyclic graphs may commit with explicit status. Draft revisions are independent; stale drafts can be saved but cannot silently commit. Draft edit journals survive restart.
+
+Explicit shared commands use durable operation IDs and payload hashes. Unknown results can be queried; an ID cannot be reused for another payload. Shared undo has a semantic-version guard and an inverse for affected owners, not a whole-workspace history restore. `sourceHash` hashes exact UTF-16LE; portable file hashes cover bytes.
+
+`server/api.ts`: `createApi({defaultPath?,openDirectory?,revealFile?})` returns `handle(req,res):Promise<boolean>` and `close():Promise<void>`. Await close so file operations drain before DB close. `server/main.ts` owns loopback hosting/Host/Origin validation; the API also rejects cross-origin writes. Requests carry `X-Grasp-Workspace`; asset/download links can use `?workspace=id` to reject stale tabs.
+
+| Routes | Contract |
 | --- | --- |
-| GET /api/host; GET /api/workspace | Host path/warning/backup/unavailable error; or committed snapshot. Unavailable DB returns 503 while /host and recovery routes stay alive |
-| POST /api/workspace/open | {path,create?,name?} → snapshot |
-| POST /api/workspace/rebuild | {manifestPath,newPath,name?} → fresh-ID workspace from validated manifest/bytes; newPath must not exist |
-| POST /api/notes; PUT/DELETE /api/notes/:id | Create {title,markdown,folderId?}; update {title,markdown,revision,folderId?}; delete {revision}. Omitted folderId on update preserves location |
-| PUT /api/notes/:id/move | {folderId:null|string,revision} |
-| POST /api/folders; PUT/DELETE /api/folders/:id | Create {name,parentId}; update {name,parentId,revision}; delete {revision,workspaceRevision,recursive?}, nonempty requires explicit recursive |
-| PUT/DELETE /api/records/:id; PUT /api/settings | {record,revision}; {revision}; or {settings} replacing the string map |
-| POST /api/assets?name=&path=optional | Raw bytes, Content-Type MIME, at most 64 MiB → snapshot |
-| GET/DELETE /api/assets/:id | Verified bytes; or JSON {revision} → recoverable deletion |
-| GET /api/export; POST /api/import/plan; POST /api/import/apply | Download grasp-markdown v2; {markdown} → ImportPlan; {token,workspaceRevision} → snapshot. Import accepts v1 and plain Markdown |
-| POST /api/rename/plan; POST /api/rename/apply | {from,to,mode} → reviewed RenamePreview; {token,workspaceRevision} → atomic snapshot |
-| GET /api/history; GET /api/history/:id/preview | Recent recovery entries; or whole-workspace change scope/counts and current revision |
-| POST /api/history/:id/restore | {workspaceRevision} → snapshot, with recovery of the pre-restore state |
-| GET /api/files/status; GET /api/files?path= | Inspected FilesStatus including dirty paths and entity-to-projection paths; directory entries shown in bounded UI pages |
-| GET /api/files/download?path= | Managed file download; path is relative to the active Workspace root |
-| POST /api/files/inbox?name= | Raw Markdown/text bytes → saved inbox FileEntry; does not import |
-| POST /api/files/exchange; POST /api/files/export | {} → explicit outbox exchange FileEntry; compatibility export route returns the existing Markdown projection as FileExportResult, without another persistent AI tree |
-| POST /api/files/import/plan | {path} → ImportPlan; use the normal import/apply route after review |
-| POST /api/files/mirror/refresh; POST /api/files/open-folder | {} → FilesStatus after flush; or {path} → validated directory opened by the host |
-| POST /api/files/locate; POST /api/files/reveal | {kind,id}, where kind is note, folder or attachment → actual FileEntry; or {path} → validated file revealed by the host |
-| POST /api/files/external/plan | {path} → ImportPlan for a known projected note, bound to identity, published baseline and current revision; apply also rechecks the reviewed external file hash |
+| `GET /api/host`, `/api/workspace` | Host path/warnings/backup/unavailable error and `recoveredDraftIds`; or committed snapshot. Failed DB keeps open/rebuild available and other workspace operations fail closed. |
+| `POST /api/workspace/open`, `/workspace/rebuild` | `{path,create?,name?}`; or `{manifestPath,newPath,name?}`. Rebuild requires a new destination and creates a fresh workspace instance. |
+| `GET /api/shared/state` | Authoritative `SharedStateResponse`. |
+| `GET /api/drafts?clientId=`, `PUT/DELETE /api/drafts/:id` | Read drafts; save title/raw/syntax/base-note revision/hash/draft revision/optional sourceEdits; delete with revision. Save returns `{draft,diagnostics,canCommit}`. |
+| `POST /api/shared/commands`, `GET /api/shared/operations/:id` | `SharedCommand` → atomic response; or durable receipt lookup. |
+| Notes/folders/records/settings CRUD | Existing optimistic APIs. Note create/update accepts `syntaxVersion`; omitted update folder preserves location. Recursive folder deletion is explicit; settings replace the string map. |
+| `POST /api/assets?name=&path=`, `GET/DELETE /api/assets/:id` | Raw upload up to 64 MiB; verified bytes; or revision-guarded deletion. |
+| `GET /api/export`, `POST /api/import/plan`, `/import/apply` | **Legacy exchange compatibility**: emits grasp-markdown v3; accepts v1–v3/plain Markdown. Apply takes `{token,workspaceRevision}`, never a replacement payload. |
+| `/api/rename/plan`, `/rename/apply`; `/history`, `/history/:id/preview`, `/history/:id/restore` | Compatibility rename/import and whole-workspace recovery. Explicit shared rename/undo uses shared commands. |
 
-ExchangeService and RenameService keep proposed payloads on the host, with 30-minute single-use tokens bound to workspace/revision. Clients cannot replace the reviewed payload in apply requests. Restore/import/rename remain atomic and recoverable.
+Exchange and rename services hold reviewed payloads under 30-minute single-use tokens bound to workspace/revision. Full fallback restores current state and recoverable drafts, **not operation receipts or all DB history**. Recovered draft IDs require manual recovery; unrelated new drafts resume normally.
 
-server/files.ts exports WorkspaceFiles(dbPath) with schedule/inspect/status/flush/close, confined file reads/listing/reveal/locate, external-note review, inbox/exchange writes and the compatibility buildAiFolder operation. The acceptance layout is Workspace/.grasp/workspace.grasp.db plus one live Workspace/Markdown tree containing notes and attachment files. .grasp holds exchange, manifests and immutable recovery objects under .grasp/internal/objects. schedule coalesces asynchronously; dirty/error state does not roll back an already committed DB save. Dirty external files are preserved and prevent a new complete manifest from being published until resolved. readMirrorManifest validates reconstruction data read-only and retains read-only compatibility with historical mirror/AI manifests; WorkspaceStore.rebuild creates a distinct new DB.
+## Semantic projection and publication
 
-FilesStatus/FileEntry/FileExportResult live in src/domain/files.ts. FilesStatus.root is the absolute Workspace root; directories expose absolute paths. projection contains {path,absolutePath,notes,folders,attachments}, with entity-ID entries mapped to root-relative paths. directories.mirror and directories.attachments alias Markdown for existing callers. Mirror state includes dirty; revision is the last fully published revision. FilesPanel uses these actual paths for copying and Explorer actions. Files remain projections, never a second live authority.
+`src/domain/projection.ts` owns the catalog, selectors, proposals, strategies and scope-filtered plans. Canonical units are `noteProse:NoteID`, `binding:BindingID`, `recordInfo:RecordID`. Note/record/identifier/field selectors normalize to these units; duplicate aliases are rejected. The private catalog contains full owner layout; partial plans disclose only included units and declared dependency closure. Same-note bindings can occupy different groups without relocating ownership or duplicating canonical declarations.
 
-## Read-only vault migration
+Entry points: `createProjectionCatalog`, `createDefaultProjectionStrategy`, `createProjectionPlanningPackage`, `reviewProjectionProposal`, `compileProjectionPlan`, `createFullProjectionBundle`, `validateFullProjectionBundle`. Groups contain `{id,path,render:'sections-v1',members}`. Proposal bases include workspace/strategy revisions and a saved planning-package ID. `unassign` is explicit; omission alone does not remove an assignment. Unassigned units use the deterministic fallback policy.
 
-server/migration.ts exports planVault(sourceRoot):Promise<VaultPlan>, applyVault(plan,newDbPath):Promise<{snapshot,databasePath}>, and writeVaultReport(plan,outputDirectory):Promise<string>. VaultPlan contains the proposed snapshot, immutable blob bytes, source root and a private path/hash/size/mtime report. It preserves raw UTF-8 Markdown and hierarchy, resolves links without rewriting source, excludes plugin/tool directories and reports unsupported patterns. Apply rechecks the included source manifest, validates payloads and exclusively creates a new DB; output inside the source tree is refused. The CLI scripts/migrate-vault.ts defaults to preview and requires explicit --apply for DB creation. Its input bounds are intentionally separate from general DB storage limits; see MIGRATION.md.
+`projection-renderer.ts` exposes `renderProjection(plan)` and `reviewProjectionFile(baseline,changedText)`. The latter protects generated boundaries/tokens, classifies prose/binding edits versus cache observations, and supplies segmented `rawEdits` around unchanged references. Cache observations cannot authorize shared writes. Reading links/anchors/assets are representations; reconstruction metadata preserves canonical raw source.
 
-The local host uses 127.0.0.1:43821 by default; acceptance launch selects Workspace/.grasp/workspace.grasp.db. The path pointer only remembers selection. No package/user-content coupling is assumed; private migration copies and reports live in Scratch outside the repository, and the selected Workspace is separate from source artifacts.
+| Routes | Contract |
+| --- | --- |
+| `GET /api/projection/state` | `{strategy,status,catalog}`; catalog exposes identity/label/owner/revision/hash summaries, not all raw source. |
+| `POST /api/projection/package` | `{selectors?,provided?:'full'|'metadata',dependencyClosure?}` → persisted scope-declared package. |
+| `POST /api/projection/strategy/plan`, `/strategy/apply` | `{proposal}` → review/frozen token; `{token}` → `{snapshot,strategy,status}`. Unknown packages and stale bases are rejected. |
+| `POST /api/projection/checkpoint` | `{}` → `ProjectionStatus`. |
+| `POST /api/projection/export` | `{scope:{mode:'full'|'partial',units?,includeDependencies?,attachmentIds?}}` → `FileExportResult`. Full uses the main tree; partial is a one-off outbox artifact. |
+| `POST /api/projection/locate` | `{unitId}` → `{entry,anchor}` for the published file. |
+| `POST /api/files/external/plan` | `{path}` → ImportPlan plus `projectionFiles`; changed controlled reading files in the generation are reviewed together. Normal import/apply applies the frozen proposal atomically. |
+| File status/list/download/locate/reveal/open-folder | Root-confined browsing and actual Explorer paths. `FilesStatus.projection.units` includes binding-only group files. |
+| File inbox/import-plan/exchange/export/mirror-refresh | Inbox staging/controlled import, legacy exchange compatibility, full-tree export, or manual checkpoint through the same publisher. |
+
+`server/projection.ts` exports `ProjectionWorkspaceFiles(store)`, the **only active publisher** in the API. `server/files.ts` supplies confined file operations in passive mode plus legacy manifest reading; its old publisher is not scheduled by production.
+
+The main tree is `Workspace/Markdown/`, with `.grasp-export/` metadata **inside it**. Copy that hidden directory with Markdown/assets for a complete fallback. DB, exchange and internal recovery remain under `.grasp/`; legacy standalone DB paths use `<db>.files` as their managed root. There is no second persistent AI tree.
+
+Scheduling uses cheap revision/draft stamps, not whole-catalog hashing per keystroke. First publication/manual checkpoint are immediate; later dirty changes coalesce at about ten minutes. Draft-only changes also mark checkpoints pending. Close drains active work without forcing a new expensive checkpoint.
+
+`server/projection-generation.ts` stages independent ordinary-file generations, verifies hashes/coverage and writes the completion marker last. Publication uses a durable journal and two directory renames: **no cross-file atomicity guarantee and no hard-link dependency**. Restart validates interrupted state. External edits/deletions/unknown files are preserved; cutover rechecks concurrent changes. `.obsidian` configuration is preserved without becoming note authority. Two verified independent recovery generations are retained; changed/incomplete generations are not silently deleted. A dirty public tree can coexist with a newer internal checkpoint.
+
+Current-DB write authority comes from a **DB-held publication baseline**, not externally re-signable public metadata. Review uses protected owner/source mappings. Apply rechecks every reviewed hash and saves accepted hashes in the same DB transaction as the import; restart before publication does not lose approval. Exact edit proofs preserve untouched duplicate occurrence IDs.
+
+`readFullGenerationStreaming(manifestPath)` validates completion, file hashes, full expected plan/rendering, owner reconstruction, semantic state and drafts, then returns `{snapshot,readBlob,recovery}`. `WorkspaceStore.rebuildStreaming(path,input,readBlob,name?,recovery?,provenance?)` ingests one verified unique blob at a time into an exclusive new DB. Synchronous small-input rebuild and `readMirrorManifest` remain compatibility interfaces. Full rebuild retains lineage/strategy/entity/semantic IDs; partial export cannot rebuild a complete workspace.
+
+## Streaming vault migration boundary
+
+`server/migration.ts` currently exports:
+
+- `planVault(sourceRoot,{maxMarkdownBytes?}):Promise<VaultPlan>`: snapshot/report/source root, **no retained attachment bodies**.
+- `applyVault(plan,newDbPath,{onProgress?,availableBytes?}):Promise<VaultApplyResult>`: DB/checkpoint paths, source fingerprint and copied/resumed asset counts.
+- `writeVaultReport(plan,outputDirectory):Promise<string>`.
+
+Inventory hashes with 1 MiB chunks. Bounds are 20,000 entries, 10 MiB UTF-8 per note, 128 MiB aggregate Markdown and 64 MiB per attachment; there is no 512 MiB combined-vault cap. Apply checks capacity, uses a target-bound resumable checkpoint, revalidates source/staged payloads, invokes the streaming store adapter and exclusively publishes the new DB. Source provenance persists for full fallback. Source files are never written; plugin/configuration code is never executed. The CLI `scripts/migrate-vault.ts` defaults to preview and needs `--apply` for DB creation. Interface availability is separate from the actual corpus/restart evidence in `MIGRATION.md`.

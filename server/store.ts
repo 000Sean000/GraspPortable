@@ -8,10 +8,11 @@ import { parseNoteLanguage } from '../src/domain/note-language.js';
 import { buildKnowledge } from '../src/domain/knowledge.js';
 import type { ValueGraph } from '../src/domain/graph.js';
 import { canonicalPayload, sourceHash, semanticSourcePatch, type DraftAcknowledgement, type DurableDraft, type OperationReceipt, type SharedCommand, type SharedCommitResponse, type SharedStateResponse, type SourceSyntax } from './semantic.js';
+import { createDefaultProjectionStrategy, createProjectionCatalog, compileProjectionPlan, validateFullProjectionBundle, type FullProjectionBundle, type ProjectionStrategy, type ProjectionPlanningPackage } from '../src/domain/projection.js';
 
 // All persisted objects crossing this boundary are Grasp-owned plain data.
 const APPLICATION_ID = 0x47525031;
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 export const MAX_MARKDOWN_CHARACTERS = 10 * 1024 * 1024;
 export const MAX_ATTACHMENT_BYTES = 64 * 1024 * 1024;
 const identifier = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
@@ -33,6 +34,7 @@ export interface RecoveryPreview {
 }
 export type ImportNote = Pick<Note, 'id' | 'title' | 'markdown'> & { folderId?: string | null; syntaxVersion?: SourceSyntax };
 export interface ImportPayload { notes: ImportNote[]; records?: StructuredRecord[]; folders?: Folder[] }
+export interface ExternalProjectionApproval { path: string; sha256: string; generationFingerprint: string }
 type Row = Record<string, unknown>;
 
 export function requireString(value: unknown, field: string, max = 500): string {
@@ -167,6 +169,9 @@ const FOLDER_SCHEMA = `CREATE TABLE folders (id TEXT PRIMARY KEY, parent_id TEXT
   CREATE UNIQUE INDEX folders_siblings ON folders(COALESCE(parent_id, ''), name_key);`;
 const ATTACHMENT_SCHEMA = `CREATE TABLE attachment_blobs (sha256 TEXT PRIMARY KEY, bytes BLOB NOT NULL);
   CREATE TABLE attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, path_key TEXT NOT NULL UNIQUE, mime_type TEXT NOT NULL, sha256 TEXT NOT NULL REFERENCES attachment_blobs(sha256), size INTEGER NOT NULL, revision INTEGER NOT NULL, created_at TEXT NOT NULL);`;
+const PROJECTION_SCHEMA = `CREATE TABLE projection_strategy (singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL, strategy_json TEXT NOT NULL);
+  CREATE TABLE projection_packages (id TEXT PRIMARY KEY, package_json TEXT NOT NULL);
+  CREATE TABLE recovery_metadata (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);`;
 const SHARED_SCHEMA = `CREATE TABLE semantic_state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL, state_json TEXT NOT NULL);
   CREATE TABLE drafts (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, note_id TEXT NOT NULL, title TEXT NOT NULL, markdown TEXT NOT NULL, syntax_version TEXT NOT NULL, base_note_revision INTEGER NOT NULL, base_source_hash TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, source_edits_json TEXT);
   CREATE INDEX drafts_client ON drafts(client_id);
@@ -203,6 +208,7 @@ function inspectDatabase(db: DatabaseSync): number {
     db.prepare('SELECT id, revision FROM drafts LIMIT 1').get();
     db.prepare('SELECT id, payload_hash, receipt_json, inverse_json FROM operations LIMIT 1').get();
   }
+  if (version >= 5) { db.prepare('SELECT revision, strategy_json FROM projection_strategy LIMIT 1').get(); db.prepare('SELECT id FROM projection_packages LIMIT 1').get(); db.prepare('SELECT key FROM recovery_metadata LIMIT 1').get(); }
   return version;
 }
 function migrationFingerprint(db: DatabaseSync, version: number): string {
@@ -211,7 +217,7 @@ function migrationFingerprint(db: DatabaseSync, version: number): string {
   snapshot.folders.sort((a, b) => a.id.localeCompare(b.id));
   return JSON.stringify([snapshot, db.prepare('SELECT * FROM history ORDER BY id').all(), ...(version < 4 ? [] : [
     db.prepare('SELECT * FROM semantic_state ORDER BY singleton').all(), db.prepare('SELECT * FROM drafts ORDER BY id').all(), db.prepare('SELECT * FROM operations ORDER BY id').all(),
-  ])]);
+  ]), ...(version < 5 ? [] : [db.prepare('SELECT * FROM projection_strategy').all(), db.prepare('SELECT * FROM projection_packages ORDER BY id').all(), db.prepare('SELECT * FROM recovery_metadata ORDER BY key').all()])]);
 }
 
 function hasDraftSourceEdits(db: DatabaseSync): boolean { return db.prepare("PRAGMA table_info('drafts')").all().some(row => row.name === 'source_edits_json'); }
@@ -238,6 +244,22 @@ function validateSourceEdits(input: unknown): RawSourceChange[][] | undefined {
 function readDraft(row: Row): DurableDraft {
   const { source_edits_json, ...draft } = row;
   return { ...draft, ...(source_edits_json == null ? {} : { sourceEdits: validateSourceEdits(JSON.parse(String(source_edits_json))) }) } as unknown as DurableDraft;
+}
+
+export function validateRecoveryDrafts(input: unknown): DurableDraft[] {
+  if (!Array.isArray(input) || input.length > 10_000) throw new StoreError('Fallback drafts 清單無效。');
+  const ids = new Set<string>();
+  return input.map(value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new StoreError('Fallback draft 無效。');
+    const id = requireString(value.id, 'Draft ID', 128), clientId = requireString(value.clientId, 'Client ID', 128), noteId = requireString(value.noteId, 'Note ID', 128);
+    if (!id || !clientId || !noteId || ids.has(id)) throw new StoreError('Fallback draft identity 重複或空白。');
+    ids.add(id);
+    const baseSourceHash = requireString(value.baseSourceHash, 'Draft source hash', 64);
+    if (!/^[a-f0-9]{64}$/.test(baseSourceHash)) throw new StoreError('Fallback draft hash 無效。');
+    const sourceEdits = validateSourceEdits(value.sourceEdits);
+    return { id, clientId, noteId, title: requireString(value.title, 'Draft title'), markdown: requireString(value.markdown, 'Draft source', MAX_MARKDOWN_CHARACTERS), syntaxVersion: requireSyntax(value.syntaxVersion),
+      baseNoteRevision: requireRevision(value.baseNoteRevision), baseSourceHash, revision: requireRevision(value.revision), updatedAt: requireString(value.updatedAt, 'Draft timestamp', 100), ...(sourceEdits === undefined ? {} : { sourceEdits }) };
+  });
 }
 
 export class WorkspaceStore {
@@ -276,10 +298,14 @@ export class WorkspaceStore {
       if (exists && (existingVersion < SCHEMA_VERSION || !hasDraftSourceEdits(this.db))) this.migrationBackupPath = this.upgradeLegacy(existingVersion);
       this.db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL;');
       if (!exists) this.initialize(options.name ?? '我的 Workspace', options.seed ?? false);
+      if (!this.db.prepare('SELECT singleton FROM projection_strategy WHERE singleton=1').get()) {
+        const strategy = createDefaultProjectionStrategy(createProjectionCatalog(this.snapshot(), this.semanticState(), { hash: sourceHash }));
+        this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?)').run(strategy.revision, JSON.stringify(strategy));
+      }
     } catch (error) { this.db.close(); throw error; }
   }
 
-  static rebuild(path: string, input: unknown, blobs: { sha256: string; bytes: Uint8Array }[], name?: string): WorkspaceStore {
+  static rebuild(path: string, input: unknown, blobs: { sha256: string; bytes: Uint8Array }[], name?: string, recovery?: { bundle: FullProjectionBundle; drafts: DurableDraft[] }): WorkspaceStore {
     if (path === ':memory:') throw new StoreError('重建需要全新的 .db 檔案路徑。');
     const source = validateSnapshot(input);
     if (name !== undefined && !requireString(name, 'Workspace 名稱').trim()) throw new StoreError('Workspace 名稱不得為空。');
@@ -290,11 +316,17 @@ export class WorkspaceStore {
       supplied.set(blob.sha256, blob.bytes);
     }
     for (const a of source.attachments) if (supplied.get(a.sha256)?.byteLength !== a.size) throw new StoreError('重建缺少完整附件 bytes；尚未建立資料庫。');
+    if (recovery) {
+      const checked = validateFullProjectionBundle(recovery.bundle, { hash: sourceHash });
+      if (canonicalPayload(checked.bundle.snapshot) !== canonicalPayload(source)) throw new StoreError('重建 snapshot 與完整 fallback 不符。');
+      validateRecoveryDrafts(recovery.drafts);
+    }
     // Exclusive creation happens only after complete data/hash validation. A fresh
     // workspace ID separates stale browser tabs from the source database identity.
     const store = new WorkspaceStore(path, { create: true, exclusive: true, name: name ?? source.name });
     try {
-      store.transaction(() => {
+      store.db.exec('BEGIN IMMEDIATE');
+      try {
         store.db.exec('DELETE FROM notes; DELETE FROM records; DELETE FROM folders;');
         for (const [sha256, bytes] of supplied) store.db.prepare('INSERT INTO attachment_blobs (sha256, bytes) VALUES (?, ?)').run(sha256, bytes);
         for (const f of source.folders) store.writeFolder(f);
@@ -302,8 +334,71 @@ export class WorkspaceStore {
         for (const r of source.records) store.writeRecord(r);
         for (const a of source.attachments) store.writeAttachment(a);
         store.db.prepare('UPDATE workspace SET name=?, revision=?, settings_json=?').run(name?.trim() ?? source.name, source.revision, JSON.stringify(source.settings));
-      });
+        if (recovery) {
+          store.writeSemanticState({ ...recovery.bundle.semantic, workspaceId: store.id });
+          const strategy = { ...recovery.bundle.strategy, workspaceId: store.id };
+          store.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, JSON.stringify(strategy));
+          store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('manualDraftRecovery', JSON.stringify(recovery.drafts.length > 0));
+          store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('recoveredDraftIds', JSON.stringify(recovery.drafts.map(draft => draft.id)));
+          store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('lineageId', JSON.stringify(recovery.bundle.workspaceLineageId));
+          if (recovery.bundle.provenance !== undefined) store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('provenance', JSON.stringify(recovery.bundle.provenance));
+          for (const draft of recovery.drafts) store.db.prepare('INSERT INTO drafts (id, client_id, note_id, title, markdown, syntax_version, base_note_revision, base_source_hash, revision, updated_at, source_edits_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(draft.id, draft.clientId, draft.noteId, draft.title, draft.markdown, draft.syntaxVersion, draft.baseNoteRevision, draft.baseSourceHash, draft.revision, draft.updatedAt, draft.sourceEdits === undefined ? null : JSON.stringify(draft.sourceEdits));
+        } else {
+          store.initializeSemanticState();
+          const strategy = createDefaultProjectionStrategy(createProjectionCatalog(store.snapshot(), store.semanticState(), { hash: sourceHash }));
+          store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, JSON.stringify(strategy));
+        }
+        store.db.exec('COMMIT');
+      } catch (error) { store.db.exec('ROLLBACK'); throw error; }
       return store;
+    } catch (error) { store.close(); throw error; }
+  }
+
+  /** Bounded-blob ingestion for a private, exclusive new database. No active
+   * workspace is held across awaits and no collection retains attachment bytes. */
+  static async rebuildStreaming(path: string, input: unknown, readBlob: (sha256: string) => Promise<Uint8Array>, name?: string,
+    recovery?: { bundle: FullProjectionBundle; drafts: DurableDraft[] }, provenance?: unknown): Promise<WorkspaceStore> {
+    if (path === ':memory:') throw new StoreError('重建需要全新的 .db 檔案路徑。');
+    const source = validateSnapshot(input);
+    if (name !== undefined && !requireString(name, 'Workspace 名稱').trim()) throw new StoreError('Workspace 名稱不得為空。');
+    if (recovery) {
+      const checked = validateFullProjectionBundle(recovery.bundle, { hash: sourceHash });
+      if (canonicalPayload(checked.bundle.snapshot) !== canonicalPayload(source)) throw new StoreError('重建 snapshot 與完整 fallback 不符。');
+      validateRecoveryDrafts(recovery.drafts);
+    }
+    const store = new WorkspaceStore(path, { create: true, exclusive: true, name: name ?? source.name });
+    try {
+      store.db.exec('BEGIN IMMEDIATE');
+      try {
+        store.db.exec('DELETE FROM notes; DELETE FROM records; DELETE FROM folders;');
+        const seen = new Map<string, number>();
+        for (const asset of source.attachments) {
+          if (seen.has(asset.sha256)) { if (seen.get(asset.sha256) !== asset.size) throw new StoreError('同 hash 附件大小不一致。'); continue; }
+          const bytes = await readBlob(asset.sha256);
+          if (!(bytes instanceof Uint8Array) || bytes.byteLength !== asset.size || bytes.byteLength > MAX_ATTACHMENT_BYTES || createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw new StoreError('重建附件 SHA256 或大小不符；交易已取消。');
+          store.db.prepare('INSERT INTO attachment_blobs (sha256, bytes) VALUES (?, ?)').run(asset.sha256, bytes); seen.set(asset.sha256, asset.size);
+        }
+        for (const folder of source.folders) store.writeFolder(folder);
+        for (const note of source.notes) store.writeNote(note, note.updatedAt);
+        for (const record of source.records) store.writeRecord(record);
+        for (const asset of source.attachments) store.writeAttachment(asset);
+        store.db.prepare('UPDATE workspace SET name=?, revision=?, settings_json=?').run(name?.trim() ?? source.name, source.revision, JSON.stringify(source.settings));
+        let strategy: ProjectionStrategy;
+        if (recovery) {
+          store.writeSemanticState({ ...recovery.bundle.semantic, workspaceId: store.id });
+          strategy = { ...recovery.bundle.strategy, workspaceId: store.id };
+          for (const draft of recovery.drafts) store.db.prepare('INSERT INTO drafts (id, client_id, note_id, title, markdown, syntax_version, base_note_revision, base_source_hash, revision, updated_at, source_edits_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(draft.id, draft.clientId, draft.noteId, draft.title, draft.markdown, draft.syntaxVersion, draft.baseNoteRevision, draft.baseSourceHash, draft.revision, draft.updatedAt, draft.sourceEdits === undefined ? null : JSON.stringify(draft.sourceEdits));
+          store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('manualDraftRecovery', JSON.stringify(recovery.drafts.length > 0));
+          store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('recoveredDraftIds', JSON.stringify(recovery.drafts.map(draft => draft.id)));
+        } else { store.initializeSemanticState(); strategy = createDefaultProjectionStrategy(createProjectionCatalog(store.snapshot(), store.semanticState(), { hash: sourceHash })); }
+        store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, JSON.stringify(strategy));
+        store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('lineageId', JSON.stringify(recovery?.bundle.workspaceLineageId ?? source.id));
+        const original = provenance ?? recovery?.bundle.provenance;
+        if (original !== undefined) store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('provenance', JSON.stringify(original));
+        store.db.exec('COMMIT'); return store;
+      } catch (error) { store.db.exec('ROLLBACK'); throw error; }
     } catch (error) { store.close(); throw error; }
   }
 
@@ -335,7 +430,8 @@ export class WorkspaceStore {
       }
       // Early M2 schema4 synthetic workspaces already have durable drafts. Keep
       // their bytes and receipts in a verified backup before adding lineage.
-      if (version === 4 && !hasDraftSourceEdits(this.db)) this.db.exec('ALTER TABLE drafts ADD COLUMN source_edits_json TEXT');
+      if (version >= 4 && !hasDraftSourceEdits(this.db)) this.db.exec('ALTER TABLE drafts ADD COLUMN source_edits_json TEXT');
+      if (version < 5) this.db.exec(PROJECTION_SCHEMA);
       this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION};`);
       inspectDatabase(this.db);
       this.db.exec('COMMIT');
@@ -355,6 +451,7 @@ export class WorkspaceStore {
       CREATE INDEX records_collection ON records(collection);
       CREATE TABLE history (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, reason TEXT NOT NULL, workspace_revision INTEGER NOT NULL, snapshot_json TEXT NOT NULL);
       ${SHARED_SCHEMA}
+      ${PROJECTION_SCHEMA}
       PRAGMA application_id=${APPLICATION_ID}; PRAGMA user_version=${SCHEMA_VERSION};`);
     try {
       this.db.prepare('INSERT INTO workspace VALUES (?, ?, 1, ?)').run(randomUUID(), name.trim() || '我的 Workspace', '{}');
@@ -377,6 +474,44 @@ export class WorkspaceStore {
       if (ownsReadTransaction) this.db.exec('COMMIT');
       return snapshot;
     } catch (error) { if (ownsReadTransaction) this.db.exec('ROLLBACK'); throw error; }
+  }
+
+  /** One SQLite read transaction, including drafts that do not advance semantic revision. */
+  projectionCapture(): { snapshot: WorkspaceSnapshot; semantic: SharedSemanticState; strategy: ProjectionStrategy; drafts: DurableDraft[]; lineageId: string; provenance?: unknown } {
+    const owns = !this.db.isTransaction;
+    if (owns) this.db.exec('BEGIN');
+    try {
+      const snapshot = this.snapshot(), semantic = this.semanticState();
+      const row = this.db.prepare('SELECT strategy_json FROM projection_strategy WHERE singleton=1').get();
+      const strategy = row ? JSON.parse(String(row.strategy_json)) as ProjectionStrategy : createDefaultProjectionStrategy(createProjectionCatalog(snapshot, semantic, { hash: sourceHash }));
+      const metadata = (key: string): unknown => { const row = this.db.prepare('SELECT value_json FROM recovery_metadata WHERE key=?').get(key); return row ? JSON.parse(String(row.value_json)) : undefined; };
+      const capture = { snapshot, semantic, strategy, drafts: this.drafts(), lineageId: String(metadata('lineageId') ?? snapshot.id), provenance: metadata('provenance') };
+      if (owns) this.db.exec('COMMIT');
+      return capture;
+    } catch (error) { if (owns) this.db.exec('ROLLBACK'); throw error; }
+  }
+
+  recoveredDraftsManual(): boolean { return this.db.prepare("SELECT value_json FROM recovery_metadata WHERE key='manualDraftRecovery'").get()?.value_json === 'true'; }
+  recoveredDraftIds(): string[] { const row = this.db.prepare("SELECT value_json FROM recovery_metadata WHERE key='recoveredDraftIds'").get(); return row ? JSON.parse(String(row.value_json)) : []; }
+  projectionStamp(): string {
+    const w = this.db.prepare('SELECT id, revision FROM workspace').get()!, semantic = this.db.prepare('SELECT revision FROM semantic_state WHERE singleton=1').get()!, strategy = this.db.prepare('SELECT revision FROM projection_strategy WHERE singleton=1').get();
+    const drafts = this.db.prepare('SELECT id, revision, updated_at FROM drafts ORDER BY id').all();
+    return sourceHash(JSON.stringify([w.id, w.revision, semantic.revision, strategy?.revision ?? 0, drafts.map(draft => [draft.id, draft.revision, draft.updated_at])]));
+  }
+  saveProjectionPackage(value: ProjectionPlanningPackage): void { this.db.prepare('INSERT INTO projection_packages VALUES (?, ?)').run(value.id, JSON.stringify(value)); }
+  projectionPackage(id: string): ProjectionPlanningPackage | undefined { const row = this.db.prepare('SELECT package_json FROM projection_packages WHERE id=?').get(id); return row ? JSON.parse(String(row.package_json)) as ProjectionPlanningPackage : undefined; }
+  projectionMetadata<T>(key: 'published' | 'pending' | 'externalApprovals'): T | undefined { const row = this.db.prepare('SELECT value_json FROM recovery_metadata WHERE key=?').get(`projection:${key}`); return row ? JSON.parse(String(row.value_json)) as T : undefined; }
+  saveProjectionMetadata(key: 'published' | 'pending' | 'externalApprovals', value: unknown): void { this.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json').run(`projection:${key}`, JSON.stringify(value)); }
+
+  saveProjectionStrategy(strategy: ProjectionStrategy, workspaceRevision: number, strategyRevision: number): WorkspaceSnapshot {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const current = this.projectionCapture();
+      if (current.snapshot.revision !== workspaceRevision || current.strategy.revision !== strategyRevision || strategy.workspaceId !== current.snapshot.id || strategy.revision !== strategyRevision + 1) throw new StoreError('Projection 策略基線已過期，請重新審查。', 409);
+      compileProjectionPlan(createProjectionCatalog(current.snapshot, current.semantic, { hash: sourceHash }), strategy, { mode: 'full' });
+      this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, JSON.stringify(strategy));
+      this.db.exec('COMMIT'); return current.snapshot;
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
   semanticState(): SharedSemanticState {
@@ -767,7 +902,7 @@ export class WorkspaceStore {
     const settings = validateSettings(input);
     return this.transaction(() => this.db.prepare('UPDATE workspace SET settings_json=?').run(JSON.stringify(settings)));
   }
-  applyImport(payload: ImportPayload, workspaceRevision: number, recoveryReason = '匯入 Markdown', identityHints?: SemanticIdentityHints): WorkspaceSnapshot {
+  applyImport(payload: ImportPayload, workspaceRevision: number, recoveryReason = '匯入 Markdown', identityHints?: SemanticIdentityHints, approvals?: ExternalProjectionApproval[]): WorkspaceSnapshot {
     requireString(recoveryReason, 'Recovery reason', 1500);
     const notes = payload.notes.map(validateNote);
     const folders = payload.folders?.map(validateFolder);
@@ -805,6 +940,12 @@ export class WorkspaceStore {
           const unchanged = prior && prior.collection === r.collection && prior.name === r.name && canonicalPayload(prior.fields) === canonicalPayload(r.fields);
           this.writeRecord({ ...r, revision: unchanged ? prior.revision : Math.max((prior?.revision ?? 0) + 1, mutationRevision) });
         }
+      }
+      if (approvals?.length) {
+        const previous = this.projectionMetadata<ExternalProjectionApproval[]>('externalApprovals') ?? [];
+        const combined = new Map(previous.map(item => [item.path, item]));
+        for (const approval of approvals) combined.set(approval.path, approval);
+        this.saveProjectionMetadata('externalApprovals', [...combined.values()]);
       }
     }, { hints: () => identityHints });
   }

@@ -27,10 +27,10 @@ node scripts/launch.mjs --workspace "C:\Notes\My.grasp.db"
 ## 先試這五件事
 
 1. **找到與整理筆記。** 建立資料夾和中文筆記，用側欄搜尋標題、路徑或內容。Ctrl/⌘+P 快速切換；試試最近開啟、前後導覽，以及筆記「⋯」中的移動。資料夾位置與筆記 ID 分開保存。
-2. **寫作與連動。** 在範例修改 `@first_name`；離開該行後看 nested values 更新。點值前往定義，從 References 看來源、依賴與影響，再試「重新命名／移動 Namespace」的差異預覽。中文、Markdown、Source／Live Preview 與 Ctrl/⌘+Z／Shift+Z 使用同一編輯器。
+2. **寫作與連動。** 新筆記使用下方 raw literal 語法；從 reference 的「修改共享值」編輯定義，巢狀結果與正文快取一起保存。可跳到 definition、Find References、重新命名，以及獨立「撤銷共享修改」。Source／Live Preview／閱讀模式共用同一筆記；Ctrl/⌘+Z 管理本地輸入。
 3. **操作資料。** 在「資料」搜尋 record，修改欄位值，以 collection 或欄位計算值精確篩選。建立 table 筆記；點列名開啟 record，或按「開啟全部結果」分頁瀏覽。欄位詳細資料可以查看引用、插入 `{{collection.name.field}}`。
-4. **走一次 AI 交換。** 在「檔案與 Markdown」加入圖片與 Markdown、插入附件、檢查實際路徑，直接在檔案總管開啟唯一 Markdown projection。要更新既有筆記，使用「匯出 Markdown」產生的 `.grasp.md`，保留其 metadata；把修改後內容放進 inbox，審查差異後確認套用。一般 Markdown 匯入會新增筆記。
-5. **驗證保存與復原。** 關閉 host 再啟動，檢查筆記、records、附件和最近筆記。從「復原紀錄」查看一次修改的影響範圍。需要測試 mirror 重建時，指定完整 manifest 路徑與一個尚不存在的新 `.db`，保留原資料庫。
+4. **分組並取得檔案。** 開啟「分組策略與 Fallback」，可把同篇筆記的兩個共享定義分到不同 `.md`，預覽後保存策略，再建立完整 checkpoint。選取部分資料可直接匯出 Markdown 或下載外部分析 JSON；外部協作者回傳結構化分組提案，再由 App 審查。正常 AI 拖曳從「顯示筆記檔」進 File Explorer 即可。
+5. **驗證往返與保存。** 修改已發布檔案的正文或 Definition source 區塊後，在「檔案與 Markdown」審查外部修改；僅改 rendered value 不會自動改寫共享資料。完整重建使用 `Markdown/.grasp-export/manifest.json` 和尚不存在的新 `.db`；保留原 DB，重建後關閉 host 再啟動確認。
 
 ## 筆記與知識管理
 
@@ -40,23 +40,24 @@ Identifier 面板可依名稱、namespace、來源與狀態篩選，definitions�
 
 Records 可搜尋名稱、原始欄位值與計算值，並依名稱、collection 或欄位值排序。Query 的 `where` 使用成功計算後的字串做精確相等比對，區分大小寫。缺少或計算失敗的欄位不會誤匹配空字串。內嵌表格保留 200 列上限；「開啟全部結果」提供完整瀏覽與編輯入口。
 
-## 暫定值語法
+## 新筆記的值語法
 
-目前使用可替換的字串模板語法 `grasp-string-v1`，尚未凍結為長期語言規格：
+新筆記明示 `grasp-v1`。Binding 可放在正文適合的位置；literal 內容原樣保留，`+` 串接文字與 identifier 取值：
 
 ```text
-@first_name = "Sean"
-@last_name = "Wu"
-@full_name = "{first_name} {last_name}"
-@greeting = "你好，{full_name}！"
+@first_name = <|Sean|>
+@last_name = <|Wu|>
+@full_name = first_name + <| |> + last_name
+@greeting = <|你好，|> + full_name + <|！|>
 
-正文裡寫 {{greeting}}。
+正文裡寫 [你好，Sean Wu！](:ref:greeting)。
+另一種寫法：[[@full_name|Sean Wu]]。
 ```
 
-宣告獨立一行，右側是 JSON 字串。名稱以英文字母／底線開頭，後續可用英數、底線、點、連字號。模板 `{name}` 建立依賴；模板中的 `{{`／`}}` 表示文字大括號。Code fence、inline code 與跳脫的 `\{{name}}` 不解析正文引用。循環、缺少定義或超限會顯示診斷；值的更新只改呈現，保留 reference 原文。
+Literal 可包含換行、Markdown、空字串；內容含 `|>` 時使用 `<||...||>` 等配對 delimiter。完整 expression 在行尾／EOF／下一個 binding 結束；行尾 `+` 可續行，同行接正文用 `;`。真正的 code fence 不執行 binding。缺少定義、循環或超限會保存結構並顯示錯誤；上一個成功值會有明確標示。打到一半的 literal 保存為可恢復草稿，不取代已提交共享值。
 
 ```markdown
-正文也能引用 {{aura.flame.element}}。
+正文也能引用 [fire](:ref:aura.flame.element)。
 ```
 
 ````markdown
@@ -66,6 +67,8 @@ Records 可搜尋名稱、原始欄位值與計算值，並依名稱、collectio
 ````
 
 `where` 可省略。Query 是資料查詢描述，不執行 JavaScript 或 SQL。重新命名若會讓既有 query 的 collection／field 失效，會提示先處理 query；不會默默改寫其語意。
+
+原有範例、舊筆記及直接遷入的 Markdown 明示 `legacy-v0.2`，沿用 `@name = "JSON string"`、`{dependency}` 與 `{{reference}}` 相容語法；不自動重寫私人筆記。Record 欄位目前仍使用既有 `{identifier}` template 編輯。詳見 [語法契約](docs/BINDING-EDITING-CONTRACT.md)。
 
 ## 檔案、附件與攜帶
 
@@ -78,20 +81,25 @@ MainVault-Grasp/
 ├─ .grasp/
 │  ├─ workspace.grasp.db
 │  ├─ manifests/
+│  ├─ recovery/
 │  ├─ internal/
 │  └─ exchange/
 └─ Markdown/
-   ├─ <logical folders and ordinary .md files>
-   └─ <attachments at logical paths>
+   ├─ <logical folders / reviewed groups and ordinary .md files>
+   ├─ _Attachments/
+   └─ .grasp-export/
+      ├─ manifest.json
+      ├─ recovery.json
+      └─ <coverage and reading metadata>
 ```
 
-將 `Markdown/` 當 Obsidian vault 開啟。它是最新成功發布的可讀 projection；文件 ID、records、修訂與重建 metadata 位於 `.grasp`。修改筆記後會背景更新 projection；外部編輯、遺失檔案或路徑衝突會顯示 dirty 並暫停發布，保留目前檔案，不會偷偷覆寫。外部 Markdown 可從檔案面板「審查外部修改」預覽，確認後才更新原 note ID；若 DB 或檔案在審查後又改變，必須重新審查。
+將 `Markdown/` 當 Obsidian vault 開啟。它代表最後成功發布的完整 generation；DB 編輯約每 10 分鐘合併 checkpoint，也可立即手動建立。身分、原文、巢狀計算、策略與必要重建 metadata 隨隱藏的 `.grasp-export` 一起攜帶。外部編輯、遺失檔案或衝突會顯示 dirty 並擋住替換；「審查外部修改」列出差異，確認後才更新 DB。Public metadata 不能自行授予共享寫入權限。
 
 工具列「顯示筆記檔」直接在 File Explorer 選取目前筆記；「開啟資料夾」開啟目前筆記所在資料夾。筆記／資料夾操作選單及附件列也有 Explorer 入口。檔案面板顯示 absolute paths、workspace root、Markdown root；inbox/outbox 與重建 metadata 收在進階區。無須先 export 才能拖檔給 ChatGPT。
 
 一般 Markdown 匯入仍會新增筆記；帶原 workspace IDs 的 `.grasp.md` exchange 更新既有資料。對已發布 projection 的外部修改，使用其專用審查入口才能依 manifest 辨識原筆記。`.grasp/exchange/inbox` 保存待審查回傳；outbox 只保存明確產生的 controlled exchange 檔，不建立另一套完整 projection。
 
-附件上限 64 MiB；PNG/JPEG/GIF/WebP 可在 App Live Preview 顯示。Projection 保留原 Markdown 與附件 logical path，使原本有效的相對路徑／wiki embeds 可由外部工具讀取。Grasp 自訂值語法、query 與 `grasp-asset:` links 仍需要 Grasp 解讀，其他 viewer 不保證相同呈現。
+附件上限 64 MiB；PNG/JPEG/GIF/WebP 可在 App Live Preview 顯示。Projection 將成功解析的 note／asset links 映射到相對實體路徑，保留完整可讀值；未包含、缺失或歧義目標會標示。它是有定位與審查區塊的普通 Markdown，不保證與原始筆記排版完全相同；query、Mermaid、Excalidraw 等專用執行功能仍有平台限制。
 
 以 `.grasp/workspace.grasp.db` 開啟時，workspace root 為其上兩層。既有任意位置的 `.db` 仍使用旁邊的 `<db>.files/` 作為 projection root，內部同樣採 `Markdown/` + `.grasp/`。舊 mirror 不自動刪除；驗收準備已把本機舊演練與交換資料移到 SandboxRoot/Scratch 保留。
 
@@ -99,7 +107,7 @@ MainVault-Grasp/
 
 ## 保存與復原邊界
 
-只有已提交 snapshot 進入計算 worker。儲存失敗會保留瀏覽器草稿並阻止替換筆記；可從使用說明下載當前草稿。有 revision 衝突時，先保存草稿，再重新載入。尚未提交的草稿沒有瀏覽器崩潰後的自動復原。
+只有已提交 snapshot 進入共享計算。未完成草稿另存 SQLite，會顯示「草稿已保存」並可在重啟後恢復；草稿保存前的最後輸入仍可能因突然中斷而未落盤。衝突時保留兩份內容供比較，不猜測如何從展開文字反推 composition。重建帶回的草稿先列為手動恢復，避免自動提交舊稿。
 
 刪除、受控匯入、semantic rename 與復原會保存 DB recovery snapshot。復原預覽列出筆記、資料夾、records、附件的變化，套用會替換整個 workspace 並再保存目前版本。Recovery 在同一 DB 內，離機備份仍應另外保存。普通文字編輯使用編輯器 undo；最近 20 份文件保留本次執行的編輯歷史。
 
@@ -110,7 +118,7 @@ MainVault-Grasp/
 在原始碼 checkout 執行，先完成 build 再跑 production E2E：
 
 ```sh
-npm test
+npm test -- --maxWorkers=4
 npm run test:e2e
 npm run benchmark
 node --import tsx scripts/benchmark-files.ts
@@ -120,9 +128,10 @@ node scripts/smoke-package.mjs
 
 `npm run package` 產生 `artifacts/GraspPortable-0.2.0`；不包含 workspace、私人遷移內容、npm dependencies 或 Node runtime。既有版本目錄拒絕覆寫，`GraspPortable-0.1.0` 保持原樣。Package smoke 在 repository 外的隔離目錄驗證 launcher、靜態資產、保存／匯出／重啟，以及封裝後的附件與 mirror 路徑。
 
-E2E 在 Windows 優先使用已安裝 Edge，其他環境須先 `npx playwright install chromium`。測試資料在 `.cache/`；效能驗證應避開同時執行其他瀏覽器／benchmark。平台、原生中文 IME、非標準 Markdown 與大型資料處理的限制列在下方文件。
+E2E 在 Windows 優先使用已安裝 Edge，其他環境須先 `npx playwright install chromium`。測試 workspace 在 repo 外的 `SandboxRoot/Scratch/AutomatedTests/`；效能驗證應避開並行 benchmark。原生中文 IME、Obsidian／Explorer 桌面操作與 browser automation 證據分開記錄。
 
 - [架構與替換點](ARCHITECTURE.md)
+- [目前完整 Goal 的執行狀態](docs/EXECUTION-STATE.md)、[共享編輯證據](docs/M2-VERIFICATION.md)、[Projection 契約](docs/PROJECTION-CONTRACT.md)
 - [Phase 2 驗證紀錄](docs/PHASE2-VERIFICATION.md)與[執行計畫](docs/PHASE2-PLAN.md)
 - [計算與編輯器效能](docs/PERFORMANCE.md)、[檔案投影效能](docs/FILES-PERFORMANCE.md)
 - [技術決策](docs/DECISIONS.md)與[已知限制](docs/LIMITATIONS.md)

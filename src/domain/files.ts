@@ -8,7 +8,7 @@ export interface ExternalNoteReview {
 export interface FilesStatus {
   root: string;
   directories: { inbox: string; outbox: string; attachments: string; mirror: string; markdown: string; internal: string; manifests: string };
-  projection: { path: string; absolutePath: string; notes: ProjectionPath[]; folders: ProjectionPath[]; attachments: ProjectionPath[] };
+  projection: { path: string; absolutePath: string; notes: ProjectionPath[]; folders: ProjectionPath[]; attachments: ProjectionPath[]; units?: Array<{ unitId: string; path: string }> };
   mirror: {
     state: 'idle' | 'pending' | 'ready' | 'dirty' | 'error'; revision: number | null;
     manifestPath: string | null; indexPath: string | null; dirtyPaths: string[]; error?: string;
