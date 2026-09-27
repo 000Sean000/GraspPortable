@@ -1,6 +1,6 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-27。**這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
+更新：2026-09-27。**因額度停止，完整 A+B Goal 未完成。這是 current Working State 的唯一入口。** 新 thread 先讀此頁及下列 locator；不需要原對話、provider memory 或本機未提交檔案才能理解目標及續作。
 
 ## 1. Current objective、WHY 與範圍
 
@@ -64,7 +64,7 @@ Supplemental 中的 lexical 細節、schema、10 分鐘／兩代 checkpoint、�
 | M3 | Strategy review、semantic grouping、完整 exporter／checkpoint／rebuild 尚待實作 |
 | M4 | 全副本往返、真實 GUI、failure recovery、性能及整合驗收尚待完成 |
 
-Current handoff point：**M1 context adapter 與 raw-source 整合測試已驗證，準備保存第二個 checkpoint**。第一個 checkpoint `8048da627fc7e27f26d5de6b7ab7fcc295d7fac9` 已推送並 exact remote SHA verified。產品 Goal 仍 active，未宣稱 M1 或 A+B 完成；沒有 routine Human approval gate。沒有尚待 Human 再次確認的 link 視覺取捨。
+Exact stop point：**因額度停止，M1 context adapter 與 raw-source 整合測試已保存，未開始後續實作**。產品 checkpoint `d69ea80ad6bcf9cbe8e18ea519f7e2c63855003f`（前一個 `8048da627fc7e27f26d5de6b7ab7fcc295d7fac9`）已推送並 exact remote SHA verified，當時工作樹乾淨。2026-09-27 15:33:59 UTC quota 顯示 usedPercent=100／剩餘 0%；ordinaryUsageAllowed 欄位仍 true，基於已顯示 100% 使用執行使用者硬停工規則，不切 Luna/Reserve。沒有產品工作／測試程序仍在執行。未宣稱 M1 或 A+B 完成；不是新增 routine Human gate。
 
 Continuity review：一個未繼承原對話的 reviewer 從本頁出發，讀 Seed、Plan、三份 contracts、gate 與 baseline/evidence 後，已能恢復 WHY、settled decisions、actual repo、完整 plan、stop point、next action、Git locator 與 quota rule。初次發現缺 Projection／授權措辭不明，補齊後第二次判定 PASS。這是文件續作檢查，不是 M1/M2/M3/M4 產品驗收；Git 發布仍以實際 commit／remote verification 為準。
 
@@ -72,8 +72,8 @@ Open items：新語法 context 與表示重建仍需驗證。**2026-09-27 Human 
 
 ## 6. Exact next executable step
 
-1. 確認正常高能力額度；恢复／major milestone 前 status、fetch、比較 HEAD/upstream。保留工作樹，只有需要且安全時 ff-only 同步；目前正常額度仍可用但接近上限。
-2. 接續 `src/domain/note-language.ts`：處理合法長 fake-fence chain 觸發 8-pass ceiling 的限制，保留 fail-closed 與 bounded work；不能以無界重掃或只調大常數假裝修好。迴歸案例在 `tests/note-language.test.ts`，必須繼續防止暫時遮蔽外層 opener 導致啟用 payload 內的假 binding/reference。保持 context source offsets，true code／escaped opener／HTML／URL／metadata 排除。
+1. **等待正常高能力額度恢復後才續作**；恢復／major milestone 前確認 quota、status、fetch、比較 HEAD/upstream。保留工作樹，只有需要且安全時 ff-only 同步。不要以 ordinaryUsageAllowed 單一旗標忽略 100% 用量，也不使用 Reserve／reset credit。
+2. 接續 `src/domain/note-language.ts`：處理合法長 fake-fence chain 觸發 8-pass ceiling 的限制，保留 fail-closed 與 bounded work；不能以無界重掃或只調大常數假裝修好。迴歸案例在 `tests/note-language.test.ts`，必須繼續防止暫時遮蔽外層 opener 導致啟用 payload 內的假 binding/reference。保持 context source offsets，true code／escaped opener／HTML／URL／metadata 排除。停工前只讀過本機 `@lezer/markdown/dist/index.d.ts` 的 BlockContext／LeafBlock API 作後續方案線索，未選定新演算法、未新增 prototype 或修改相依套件。
 3. `tests/language-source-roundtrip.test.ts` 已證明兩式 patch＋raw EOL／undo、synthetic JSON DTO／composition 重建；下一步完成同 corpus 的實際可讀表示輸出、source-layout bundle 重建與比對。不能以 DTO 測試冒充 M3 full package／fresh DB。
 4. 驗證 paragraph／heading／list／quote／table 與實際 Obsidian reading。native Link 外觀不是硬 gate；工具缺口明列，不能聲稱實際 GUI 通過。語义反例先修正，必要時才以具體例子請 Human 裁定。
 5. M1 整體完成後更新 evidence、checkpoint／push，直接接 M2–M4。M2 draft/error/undo 政策已接受，直接照 contract 實作；外部 observation 的權限若產生必須裁定的具體案例才提出。
@@ -99,6 +99,6 @@ git ls-remote origin refs/heads/master
 
 Sandbox 的 `Acceptance/MainVault-Source` 與原 MainVault 唯讀；`Acceptance/MainVault-Grasp/.grasp/workspace.grasp.db` 為既有 rehearsal DB，唯一可讀樹是 `Acceptance/MainVault-Grasp/Markdown`。寫入測試只能在 repo 外 `Scratch` 獨立副本。私人檔案不在 Git，異機 clone 沒有是預期：可先跑 synthetic M1，不得聲稱已驗 MainVault；全量驗收需原機副本。啟動既有驗收用 Sandbox `開啟 MainVault 驗收.cmd`／`README-驗收.md`；一般 repo `npm ci`、`npm run build`、`npm start`（Node 24+），開新 Scratch workspace，勿用私人 workspace 測試新 code。
 
-本產品 Goal quota start：2026-09-27 15:07:39 UTC，Codex account-wide 95% used；純 codec validation snapshot：15:16:52 UTC，97% used；兩次 ordinaryUsageAllowed=true，window 10,080 分鐘、reset `1791048521`。後續觀測見 [Usage log](USAGE-LOG.md)，不要把歷史 snapshot 當未來可用額度。只用正常高能力額度；耗盡或只剩 Luna Reserve／GPT-5.6 Luna 就停止實作、研究、debug、benchmark，不開始長工作、不切 Reserve。只做可負擔的 coherent 保存／validation／commit／push，標 **因額度停止**、留下 exact next step，不把產品標完成。
+本產品 Goal quota start：2026-09-27 15:07:39 UTC，Codex account-wide 95% used；停工 snapshot：15:33:59 UTC，100% used，ordinaryUsageAllowed=true，window 10,080 分鐘、reset `1791048521`。帳戶觀測差值 5 pp／26m 20s，不是本任務精確帳單。完整分段觀測見 [Usage log](USAGE-LOG.md)。只用正常高能力額度；耗盡或只剩 Luna Reserve／GPT-5.6 Luna 就停止實作、研究、debug、benchmark，不開始長工作、不切 Reserve。此次最後只保存停工文件並做 Git coherence validation／commit／push，不再重跑既有通過的 build/tests。
 
 每個 coherent milestone 已授權直接 commit／push，不重複問 Human。Temporary network failure 保留 local commit／待 push 標記；branch protection、conflict、credential/history risk 停 Git mutation，不破壞性 workaround。Quota 恢復且仍有有效續作授權才繼續。Native 新 executable 若需要 application approval，另取得核准；舊 Notepad GUI confirmation 不涵蓋新 App。

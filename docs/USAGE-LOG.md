@@ -63,3 +63,13 @@ Lexical checkpoint: `8048da627fc7e27f26d5de6b7ab7fcc295d7fac9`, pushed to origin
 Start snapshot **2026-09-27 15:21:01 UTC, 97% used**; validation **2026-09-27 15:28:26 UTC, 99% used**. Both ordinaryUsageAllowed=true, same Codex account window/reset `1791048521`: **2 pp / 7m 25s**, not exclusive task billing, excludes subsequent documentation/Git closeout. No Luna/Reserve/reset used.
 
 Validated context shielding and fake-fence regression, 29 context tests, 3 raw-source/DTO integration tests, full 308-test suite and build. CLI parser benchmark and 8-pass limitation are in M1-VERIFICATION; M1 not complete. Human accepted durable draft/missing-cycle commit/independent semantic undo decisions, now saved in SHARED-VALUE-CONTRACT. Checkpoint subject: `feat: isolate note syntax contexts and preserve source edits`.
+
+Context checkpoint `d69ea80ad6bcf9cbe8e18ea519f7e2c63855003f` pushed and exact remote SHA verified at **2026-09-27 15:32:12 UTC**, clean master, 99% used, ordinaryUsageAllowed=true.
+
+## Quota hard stop — product Goal incomplete
+
+**2026-09-27 15:33:59 UTC**: Codex quota shows **usedPercent=100**, displayed remaining **0%**, same 10,080-minute window/reset `1791048521`. `ordinaryUsageAllowed` still reports true; the agent applied the user's stop rule on the visible 100% usage and did not assume reserve authorization from that flag. Substantive implementation/research/debug/benchmark stopped immediately. No Luna/Reserve/reset credit used; subsequent activity is minimal docs/Git safe closeout only.
+
+Account-wide start 95% → stop 100% = **5 pp over 26m 20s**. Two measured implementation segments total 4 pp; the other observed point falls during subsequent integration/documentation/Git and brief next-step API inspection. These are integer shared-account observations, not task-exclusive billing. The final state is **因額度停止**, not Goal complete. Both product checkpoints are on origin/master; no product edits remain uncommitted. Exact next action, tests, benchmark, M1 limit and M2 accepted policies are in EXECUTION-STATE and linked contracts.
+
+Safe-closeout commit message: `docs: record quota stop and exact M1 continuation`.
