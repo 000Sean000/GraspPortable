@@ -45,3 +45,11 @@ export function safeLink(url: string): string | null {
   if (/^(https?:\/\/|mailto:)/i.test(value)) return value;
   return null;
 }
+
+export function assetIdentifier(url: string): string | null { return /^grasp-asset:([A-Za-z0-9_-]+)$/.exec(url.trim())?.[1] ?? null; }
+export function inlineAsset(mimeType: string): boolean { return ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(mimeType.toLowerCase()); }
+export function assetUrl(id: string, workspaceId: string): string { return `/api/assets/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspaceId)}`; }
+export function attachmentMarkdown(attachment: { id: string; name: string; mimeType: string }, embed = inlineAsset(attachment.mimeType)): string {
+  const label = attachment.name.replace(/[\r\n]/g, ' ').replace(/[\\\[\]]/g, '\\$&');
+  return `${embed && inlineAsset(attachment.mimeType) ? '!' : ''}[${label}](grasp-asset:${attachment.id})`;
+}

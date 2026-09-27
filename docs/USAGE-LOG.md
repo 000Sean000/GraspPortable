@@ -17,3 +17,9 @@ P2-2 commit association: `2bc1bcd87568e7b31b1eb848555c5c60a8afaf08`, pushed and 
 | Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
 | P2-3 Knowledge and record management | 2026-09-27 00:46:06 | 2026-09-27 01:02:11 | 33% | 38% | 5 pp | 16m 05s | Association appended after checkpoint | Codex account quota, same reset window 1791048521 | Full knowledge/record browsing, reviewed semantic rename, query navigation and recovery scope; build, 129 tests and 16 E2E pass; personal UI rename/edit/recovery |
+
+P2-3 commit association: `52ffe9967cc820c96f66bb5a30a7d9eccb0c9150`, pushed and remote SHA verified before M4.
+
+| Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| P2-4 Files, attachments and Markdown fallback | 2026-09-27 01:03:59 | 2026-09-27 01:23:46 | 38% | 48% | 10 pp | 19m 47s | Association appended after checkpoint | Codex account quota, same reset window 1791048521 | Schema 3 DB assets, visible files/exchange, immutable incremental mirror, validated new-DB rebuild and broken-DB startup UI; build, 159 tests and 19 production E2E pass; 2,820-note projection benchmark and personal UI use |

@@ -123,6 +123,13 @@ describe('logical paths, resolution and backlinks', () => {
     expect(index.links[1].resolvedTarget!.mediaType).toBe('image/png');
   });
 
+  it('resolves canonical grasp-asset addresses only against owned attachment metadata', () => {
+    const index = buildLinkIndex([note('n', '![image](grasp-asset:owned) [missing](grasp-asset:absent)')], [], [{ id: 'owned', path: 'images/chart.png' }]);
+    expect(index.links.map(link => link.status)).toEqual(['resolved', 'missing']);
+    expect(index.links[0].resolvedTarget!.id).toBe('owned');
+    expect(index.assetBacklinks.get('owned')).toHaveLength(1);
+  });
+
   it('handles encoded filenames, literal percent/wiki titles, external links and unsafe traversal/schemes explicitly', () => {
     const markdown = '[one](A%20B.md) [hash](A%23B.md) [[100%]] [bad](bad%ZZ.md) [[../../outside]] [bad](javascript:alert) [site](https://example.com) [file](file:///tmp/x) [encoded](%6Aavascript:bad) [query](A.md?x=1)';
     const index = buildLinkIndex([note('source', markdown), note('a', '', null, 'A B'), note('hash', '', null, 'A#B'), note('pct', '', null, '100%')]);

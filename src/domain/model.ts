@@ -1,7 +1,8 @@
 export interface Folder { id: string; parentId: string | null; name: string; revision: number }
+export interface Attachment { id: string; name: string; path: string; mimeType: string; sha256: string; size: number; revision: number; createdAt: string }
 export interface Note { id: string; title: string; markdown: string; revision: number; updatedAt: string; folderId: string | null }
 export interface StructuredRecord { id: string; collection: string; name: string; fields: Record<string, string>; revision: number }
-export interface WorkspaceSnapshot { id: string; name: string; revision: number; notes: Note[]; folders: Folder[]; records: StructuredRecord[]; settings: Record<string, string> }
+export interface WorkspaceSnapshot { id: string; name: string; revision: number; notes: Note[]; folders: Folder[]; attachments: Attachment[]; records: StructuredRecord[]; settings: Record<string, string> }
 export interface SourceLocation { noteId: string; from: number; to: number; line: number }
 export type ValueOwner = { kind: 'note'; noteId: string } | { kind: 'record'; recordId: string; collection: string; recordName: string; field: string };
 export interface Definition { name: string; template: string; location: SourceLocation; dependencies: string[]; owner?: ValueOwner; nameLocation?: SourceLocation }

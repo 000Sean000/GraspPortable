@@ -12,7 +12,7 @@ class FakeWorker {
   terminate() { this.terminated = true; }
   reply(data: unknown) { this.onmessage?.({ data }); }
 }
-const snapshot = (revision: number): WorkspaceSnapshot => ({ id: 'workspace', name: 'Test', revision, folders: [], notes: [], records: [], settings: {} });
+const snapshot = (revision: number): WorkspaceSnapshot => ({ id: 'workspace', name: 'Test', revision, folders: [], notes: [], records: [], attachments: [], settings: {} });
 describe('worker lifecycle and stale result rejection', () => {
   beforeEach(() => { FakeWorker.instances = []; vi.stubGlobal('Worker', FakeWorker); vi.useFakeTimers(); });
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });

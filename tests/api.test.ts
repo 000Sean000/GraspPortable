@@ -22,7 +22,7 @@ async function host(options: { dir?: string; remember?: boolean } = {}): Promise
   const server: Server = createServer((req, res) => { void api.handle(req, res).then(handled => { if (!handled) { res.statusCode = 404; res.end(); } }); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   let stopped = false;
-  const stop = async () => { if (stopped) return; await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); api.close(); stopped = true; };
+  const stop = async () => { if (stopped) return; await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await api.close(); stopped = true; };
   cleanups.push(async () => { await stop(); if (!options.dir) rmSync(dir, { recursive: true, force: true }); });
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('Expected TCP host');
   return { base: `http://127.0.0.1:${address.port}`, dir, stop };

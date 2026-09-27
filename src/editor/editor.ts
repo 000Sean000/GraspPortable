@@ -6,7 +6,7 @@ import { syntaxTree, syntaxHighlighting, defaultHighlightStyle, indentOnInput, b
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import type { RuntimeResult, StructuredRecord, ValueResult } from '../domain/model';
-import { executeQuery, parseQuery, safeLink, type RecordQuery } from './query';
+import { assetIdentifier, assetUrl, executeQuery, inlineAsset, parseQuery, safeLink, type RecordQuery } from './query';
 import './editor.css';
 
 export interface EditorAdapter {
@@ -14,10 +14,26 @@ export interface EditorAdapter {
   getDocument(): string;
   insertText(text: string): void;
   setRuntime(result: RuntimeResult, records?: StructuredRecord[]): void;
+  setAssets(workspaceId: string, attachments: readonly EditorAsset[], links?: readonly EditorAssetLink[]): void;
   focusRange(from: number, to: number): void;
   setMode(mode: 'live' | 'source'): void;
   destroy(): void;
 }
+export interface EditorAsset { id: string; name: string; mimeType: string }
+export interface EditorAssetLink { from: number; to: number; id: string; raw: string; embed: boolean; label?: string }
+interface AssetState { workspaceId: string; attachments: ReadonlyMap<string, EditorAsset>; links: readonly EditorAssetLink[] }
+const updateAssets = StateEffect.define<AssetState>();
+const assetsField = StateField.define<AssetState>({
+  create: () => ({ workspaceId: '', attachments: new Map(), links: [] }),
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(updateAssets)) return effect.value;
+    if (tr.docChanged && value.links.length) return { ...value, links: value.links.flatMap(link => {
+      const from = tr.changes.mapPos(link.from, 1), to = tr.changes.mapPos(link.to, -1);
+      return from >= 0 && to >= from && to <= tr.state.doc.length && tr.state.doc.sliceString(from, to) === link.raw ? [{ ...link, from, to }] : [];
+    }) };
+    return value;
+  },
+});
 interface EditorOptions {
   onChange(markdown: string): void;
   onNavigate(name: string): void;
@@ -114,6 +130,20 @@ class LinkWidget extends WidgetType {
       }
     }
     return element;
+  }
+  ignoreEvent(): boolean { return true; }
+}
+class AssetWidget extends WidgetType {
+  constructor(readonly asset: EditorAsset, readonly workspaceId: string, readonly embed: boolean, readonly label = asset.name) { super(); }
+  eq(other: AssetWidget): boolean { return other.asset.id === this.asset.id && other.asset.mimeType === this.asset.mimeType && other.workspaceId === this.workspaceId && other.embed === this.embed && other.label === this.label; }
+  toDOM(view: EditorView): HTMLElement {
+    const link = document.createElement('a'); link.className = 'gp-link gp-asset'; link.href = assetUrl(this.asset.id, this.workspaceId); link.dataset.assetId = this.asset.id; link.rel = 'noopener noreferrer';
+    link.textContent = this.label; link.title = this.asset.name;
+    if (this.embed && inlineAsset(this.asset.mimeType)) {
+      link.target = '_blank'; const image = document.createElement('img'); image.src = link.href; image.alt = this.label; image.loading = 'lazy'; image.className = 'gp-markdown-image';
+      image.addEventListener('load', () => view.requestMeasure()); image.addEventListener('error', () => { image.replaceWith(document.createTextNode(`▧ ${this.label}（附件無法載入）`)); view.requestMeasure(); }); link.replaceChildren(image);
+    } else { link.download = this.asset.name; link.textContent = `↓ ${this.label}`; }
+    return link;
   }
   ignoreEvent(): boolean { return true; }
 }
@@ -225,10 +255,13 @@ function inlineDecorations(view: EditorView, options: EditorOptions): Decoration
   const declarations: Array<{ from: number; to: number }> = [];
   const seenLines = new Set<number>();
   const values = state.field(runtimeField).result.values;
+  const assets = state.field(assetsField);
+  const assetLinks = assets.links.filter(link => link.from >= 0 && link.to <= state.doc.length && state.doc.sliceString(link.from, link.to) === link.raw && assets.attachments.has(link.id) && !sourceAt(state, link.from, link.to));
   const lookupValue = (name: string): ValueResult | undefined => Object.hasOwn(values, name) ? values[name] : undefined;
   const add = (from: number, to: number, decoration: Decoration) => { if (from < to) ranges.push(decoration.range(from, to)); };
   const conceal = (from: number, to: number) => { if (hidden.some(range => range.from <= from && range.to >= to)) return; hidden.push({ from, to }); add(from, to, Decoration.replace({})); };
   for (const visible of view.visibleRanges) {
+    for (const link of assetLinks) if (link.from >= visible.from && link.from <= visible.to && !hidden.some(range => range.from === link.from && range.to === link.to)) { hidden.push({ from: link.from, to: link.to }); add(link.from, link.to, Decoration.replace({ widget: new AssetWidget(assets.attachments.get(link.id)!, assets.workspaceId, link.embed, link.label) })); }
     for (let pos = state.doc.lineAt(visible.from).from; pos <= visible.to;) {
       const line = state.doc.lineAt(pos); pos = line.to + 1;
       if (seenLines.has(line.number)) continue; seenLines.add(line.number);
@@ -249,6 +282,7 @@ function inlineDecorations(view: EditorView, options: EditorOptions): Decoration
       }
     }
     syntaxTree(state).iterate({ from: visible.from, to: visible.to, enter(node) {
+      if (assetLinks.some(link => node.from >= link.from && node.to <= link.to)) return false;
       if (declarations.some(range => range.from <= node.from && range.to >= node.to)) return false;
       const editing = sourceAt(state, node.from, node.to);
       if (/^ATXHeading[1-6]$/.test(node.name)) {
@@ -276,7 +310,10 @@ function inlineDecorations(view: EditorView, options: EditorOptions): Decoration
       if (node.name === 'Link' || node.name === 'Image') {
         const source = state.doc.sliceString(node.from, node.to);
         const match = /^!?\[([^\]]*)\]\((<?[^\s)]+>?)(?:\s+["'][^"']*["'])?\)$/.exec(source);
-        if (match) { add(node.from, node.to, Decoration.replace({ widget: new LinkWidget(renderLinkReferences(match[1], values), renderLinkReferences(match[2].replace(/^<|>$/g, ''), values), node.name === 'Image') })); return false; }
+        if (match) {
+          const label = renderLinkReferences(match[1], values), url = renderLinkReferences(match[2].replace(/^<|>$/g, ''), values), id = assetIdentifier(url), asset = id ? assets.attachments.get(id) : undefined;
+          add(node.from, node.to, Decoration.replace({ widget: asset ? new AssetWidget(asset, assets.workspaceId, node.name === 'Image', label) : new LinkWidget(label, url, node.name === 'Image') })); return false;
+        }
       }
       if (node.name === 'HorizontalRule') add(node.from, node.to, Decoration.mark({ class: 'gp-horizontal-rule' }));
     } });
@@ -295,18 +332,19 @@ function identifierAtSelection(state: EditorState): string | null {
 /** Only this adapter knows CodeMirror types. Domain and application callers do not. */
 export function createEditor(parent: HTMLElement, options: EditorOptions): EditorAdapter {
   let runtime: RuntimeState = { result: emptyRuntime, records: [] }; let mode: 'live' | 'source' = 'live';
+  let assets: AssetState = { workspaceId: '', attachments: new Map(), links: [] };
   const preview = ViewPlugin.fromClass(class {
     decorations: DecorationSet;
     constructor(view: EditorView) { this.decorations = inlineDecorations(view, options); }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some(tr => tr.effects.some(effect => effect.is(updateRuntime) || effect.is(updateMode)))) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some(tr => tr.effects.some(effect => effect.is(updateRuntime) || effect.is(updateMode) || effect.is(updateAssets)))) {
         this.decorations = inlineDecorations(update.view, options);
       }
     }
   }, { decorations: value => value.decorations });
   const makeState = (doc: string): EditorState => {
     const state = EditorState.create({ doc, extensions: [
-      runtimeField, modeField, markdown({ base: markdownLanguage }), history(), drawSelection(), dropCursor(), indentOnInput(), bracketMatching(),
+      runtimeField, modeField, assetsField, markdown({ base: markdownLanguage }), history(), drawSelection(), dropCursor(), indentOnInput(), bracketMatching(),
       syntaxHighlighting(defaultHighlightStyle), highlightActiveLine(), highlightSelectionMatches(),
       EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 筆記編輯器', spellcheck: 'false', autocapitalize: 'off' }),
       EditorState.tabSize.of(2), editorOptions.of(options), queriesField, preview,
@@ -336,7 +374,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
       ]),
       EditorView.updateListener.of(update => { if (update.docChanged && !update.transactions.some(tr => tr.annotation(externalChange))) options.onChange(update.state.doc.toString()); }),
     ] });
-    return state.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode)], annotations: externalChange.of(true) }).state;
+    return state.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode), updateAssets.of(assets)], annotations: externalChange.of(true) }).state;
   };
   const view = new EditorView({ state: makeState(''), parent });
   view.dom.classList.add('gp-editor');
@@ -351,12 +389,13 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
       }
       const previous = nextKey && recentStates.get(nextKey);
       // External import/recovery is a new document version; never resurrect stale undo.
-      const state = previous && previous.doc.toString() === markdown ? previous.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode)], annotations: externalChange.of(true) }).state : makeState(markdown);
+      const state = previous && previous.doc.toString() === markdown ? previous.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode), updateAssets.of(assets)], annotations: externalChange.of(true) }).state : makeState(markdown);
       documentKey = nextKey; view.setState(state);
     },
     getDocument: () => view.state.doc.toString(),
     insertText(text) { view.dispatch({ ...view.state.replaceSelection(text), userEvent: 'input', annotations: isolateHistory.of('full'), scrollIntoView: true }); view.focus(); },
     setRuntime(result, records = []) { runtime = { result, records }; view.dispatch({ effects: updateRuntime.of(runtime) }); },
+    setAssets(workspaceId, attachments, links = []) { assets = { workspaceId, attachments: new Map(attachments.map(asset => [asset.id, asset])), links }; view.dispatch({ effects: updateAssets.of(assets) }); },
     focusRange(from, to) { const length = view.state.doc.length; const start = Math.max(0, Math.min(from, length)); const end = Math.max(start, Math.min(to, length)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
     setMode(next) { mode = next; view.dispatch({ effects: updateMode.of(next) }); },
     destroy() { recentStates.clear(); view.destroy(); },

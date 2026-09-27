@@ -217,7 +217,7 @@ test.describe.serial('production concurrency and draft safety', () => {
     await otherTab.goto(origin); await saved(otherTab);
     await otherTab.locator('#workspace-open').click();
     const secondPath = resolve(folder, `other-tab-${caseNumber}.grasp.db`);
-    await otherTab.getByLabel('資料庫路徑').fill(secondPath);
+    await otherTab.getByLabel('資料庫路徑', { exact: true }).fill(secondPath);
     await otherTab.getByLabel('新 workspace 名稱').fill('Workspace from another tab');
     await otherTab.getByRole('button', { name: '建立新 workspace', exact: true }).click();
     await expect(otherTab.locator('#workspace-name')).toHaveText('Workspace from another tab'); await saved(otherTab);

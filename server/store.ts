@@ -1,13 +1,14 @@
 import { DatabaseSync } from 'node:sqlite';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
-import type { Folder, Note, StructuredRecord, WorkspaceSnapshot } from '../src/domain/model.js';
+import type { Attachment, Folder, Note, StructuredRecord, WorkspaceSnapshot } from '../src/domain/model.js';
 
 // All persisted objects crossing this boundary are Grasp-owned plain data.
 const APPLICATION_ID = 0x47525031;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const MAX_MARKDOWN = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 64 * 1024 * 1024;
 const identifier = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 export class StoreError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
@@ -16,11 +17,12 @@ export interface RecoveryEntry { id: number; createdAt: string; reason: string; 
 type RecoveryChange<T> = { id: string; kind: 'create' | 'update' | 'delete'; before: T | null; after: T | null };
 export interface RecoveryPreview {
   id: number; createdAt: string; reason: string; scope: 'workspace'; workspaceRevision: number; snapshotRevision: number;
-  current: { notes: number; folders: number; records: number }; target: { notes: number; folders: number; records: number };
+  current: { notes: number; folders: number; records: number; attachments: number }; target: { notes: number; folders: number; records: number; attachments: number };
   changes: {
     notes: (RecoveryChange<{ title: string; folderId: string | null }> & { contentChanged: boolean })[];
     folders: RecoveryChange<{ name: string; parentId: string | null }>[];
     records: (RecoveryChange<{ collection: string; name: string; fieldCount: number }> & { changedFields: string[] })[];
+    attachments: RecoveryChange<Pick<Attachment, 'name' | 'path' | 'size' | 'sha256'>>[];
   };
   settingsChanged: boolean; nameBefore: string; nameAfter: string;
 }
@@ -49,6 +51,22 @@ export function validateNote(input: { id: unknown; title: unknown; markdown: unk
   return { id, title, markdown: requireString(input.markdown, 'Markdown', MAX_MARKDOWN), ...(input.folderId === undefined ? {} : { folderId: requireFolderId(input.folderId) }) };
 }
 function folderNameKey(name: string): string { return name.normalize('NFC').toLowerCase(); }
+export function normalizeAttachmentPath(input: unknown): string {
+  const path = requireString(input, '附件相對路徑', 4000).replaceAll('\\', '/');
+  const parts = path.split('/');
+  if (!path || parts.some(part => !part || part === '.' || part === '..' || part.length > 255 || /[<>:"|?*\u0000-\u001f\u007f]/.test(part) || /[. ]$/.test(part) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) throw new StoreError('附件路徑必須是安全的相對路徑，不得含有絕對路徑、..、保留名稱或無效字元。');
+  return path;
+}
+export function validateAttachment(input: unknown): Attachment {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new StoreError('附件 metadata 格式錯誤。');
+  const a = input as Record<string, unknown>;
+  const id = requireString(a.id, '附件 ID', 128); const path = normalizeAttachmentPath(a.path);
+  const name = requireString(a.name, '附件名稱', 255);
+  const mimeType = requireString(a.mimeType, '附件 MIME type', 100).toLowerCase();
+  const sha256 = requireString(a.sha256, '附件 SHA256', 64);
+  if (!id || name !== path.split('/').at(-1) || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(mimeType) || !/^[0-9a-f]{64}$/.test(sha256) || !Number.isSafeInteger(a.size) || (a.size as number) < 0 || (a.size as number) > MAX_ATTACHMENT_BYTES) throw new StoreError('附件名稱、MIME type、雜湊或大小不合法（單檔最多 64 MiB）。');
+  return { id, name, path, mimeType, sha256, size: a.size as number, revision: requireRevision(a.revision), createdAt: requireString(a.createdAt, '附件建立時間', 100) };
+}
 export function validateFolder(input: unknown): Folder {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new StoreError('資料夾格式錯誤。');
   const f = input as Record<string, unknown>;
@@ -102,7 +120,7 @@ function validateSettings(input: unknown): Record<string, string> {
   if (Object.keys(settings).length > 200) throw new StoreError('Settings 超過上限。');
   return settings;
 }
-function validateSnapshot(input: unknown): WorkspaceSnapshot {
+export function validateSnapshot(input: unknown): WorkspaceSnapshot {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new StoreError('Workspace snapshot 格式錯誤。');
   const value = input as Record<string, unknown>;
   const id = requireString(value.id, 'Workspace ID', 128);
@@ -116,11 +134,15 @@ function validateSnapshot(input: unknown): WorkspaceSnapshot {
   });
   if (value.folders !== undefined && !Array.isArray(value.folders)) throw new StoreError('Snapshot 資料夾格式錯誤。');
   const folders = ((value.folders ?? []) as unknown[]).map(validateFolder);
+  if (value.attachments !== undefined && !Array.isArray(value.attachments)) throw new StoreError('Snapshot 附件格式錯誤。');
+  const attachments = ((value.attachments ?? []) as unknown[]).map(validateAttachment);
   const records = value.records.map(validateRecord);
-  if ([...notes, ...folders, ...records].some(n => n.revision === 0 || n.revision > revision)) throw new StoreError('Workspace snapshot revision 不一致。');
+  if ([...notes, ...folders, ...records, ...attachments].some(n => n.revision === 0 || n.revision > revision)) throw new StoreError('Workspace snapshot revision 不一致。');
   if (new Set(notes.map(n => n.id)).size !== notes.length || new Set(records.map(r => r.id)).size !== records.length || new Set(records.map(r => `${r.collection}\0${r.name}`)).size !== records.length) throw new StoreError('Workspace snapshot 有重複資料。');
   validateHierarchy(folders, notes);
-  return { id, name, revision, notes, folders, records, settings: validateSettings(value.settings) };
+  const attachmentPaths = attachments.map(a => folderNameKey(a.path)); const pathSet = new Set(attachmentPaths);
+  if (new Set(attachments.map(a => a.id)).size !== attachments.length || pathSet.size !== attachments.length || attachmentPaths.some(path => { const parts = path.split('/'); return parts.some((_, i) => i > 0 && pathSet.has(parts.slice(0, i).join('/'))); })) throw new StoreError('Workspace snapshot 有重複附件 ID，或附件路徑互相衝突。');
+  return { id, name, revision, notes, folders, attachments, records, settings: validateSettings(value.settings) };
 }
 function welcomeNotes(): Pick<Note, 'id' | 'title' | 'markdown'>[] {
   return [
@@ -131,31 +153,38 @@ function welcomeNotes(): Pick<Note, 'id' | 'title' | 'markdown'>[] {
 
 const FOLDER_SCHEMA = `CREATE TABLE folders (id TEXT PRIMARY KEY, parent_id TEXT REFERENCES folders(id) DEFERRABLE INITIALLY DEFERRED, name TEXT NOT NULL, name_key TEXT NOT NULL, revision INTEGER NOT NULL);
   CREATE UNIQUE INDEX folders_siblings ON folders(COALESCE(parent_id, ''), name_key);`;
+const ATTACHMENT_SCHEMA = `CREATE TABLE attachment_blobs (sha256 TEXT PRIMARY KEY, bytes BLOB NOT NULL);
+  CREATE TABLE attachments (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL, path_key TEXT NOT NULL UNIQUE, mime_type TEXT NOT NULL, sha256 TEXT NOT NULL REFERENCES attachment_blobs(sha256), size INTEGER NOT NULL, revision INTEGER NOT NULL, created_at TEXT NOT NULL);`;
 function readSnapshot(db: DatabaseSync, version = SCHEMA_VERSION): WorkspaceSnapshot {
   const w = db.prepare('SELECT id, name, revision, settings_json FROM workspace').get()!;
   const notes = db.prepare(`SELECT id, title, markdown, revision, updated_at AS updatedAt, ${version === 1 ? 'NULL' : 'folder_id'} AS folderId FROM notes ORDER BY rowid`).all() as unknown as Note[];
   const folders = version === 1 ? [] : db.prepare('SELECT id, parent_id AS parentId, name, revision FROM folders ORDER BY rowid').all() as unknown as Folder[];
+  const attachments = version < 3 ? [] : db.prepare('SELECT id, name, path, mime_type AS mimeType, sha256, size, revision, created_at AS createdAt FROM attachments ORDER BY rowid').all() as unknown as Attachment[];
   const records = db.prepare('SELECT id, collection, name, fields_json, revision FROM records ORDER BY collection, name').all().map(r => ({ id: String(r.id), collection: String(r.collection), name: String(r.name), fields: JSON.parse(String(r.fields_json)), revision: Number(r.revision) }));
-  return { id: String(w.id), name: String(w.name), revision: Number(w.revision), settings: JSON.parse(String(w.settings_json)), notes, folders, records };
+  return { id: String(w.id), name: String(w.name), revision: Number(w.revision), settings: JSON.parse(String(w.settings_json)), notes, folders, attachments, records };
 }
 function inspectDatabase(db: DatabaseSync): number {
   const app = Number(db.prepare('PRAGMA application_id').get()?.application_id);
   const version = Number(db.prepare('PRAGMA user_version').get()?.user_version);
   if (app !== APPLICATION_ID) throw new StoreError('這不是 GraspPortable workspace；原檔未變更。');
-  if (version !== 1 && version !== SCHEMA_VERSION) throw new StoreError(`此 workspace schema 為 ${version}；本版支援 1–${SCHEMA_VERSION}，原檔未變更。`);
+  if (version < 1 || version > SCHEMA_VERSION) throw new StoreError(`此 workspace schema 為 ${version}；本版支援 1–${SCHEMA_VERSION}，原檔未變更。`);
   if (db.prepare('PRAGMA quick_check').get()?.quick_check !== 'ok') throw new StoreError('Workspace 完整性檢查失敗，原檔未變更。');
   if (db.prepare('SELECT COUNT(*) AS count FROM workspace').get()!.count !== 1) throw new StoreError('Workspace metadata 不完整，原檔未變更。');
   validateSnapshot(readSnapshot(db, version));
   db.prepare('SELECT id, created_at, reason, workspace_revision, snapshot_json FROM history LIMIT 1').get();
-  if (version === 2) {
+  if (version >= 2) {
     if (db.prepare('PRAGMA foreign_key_check').all().length) throw new StoreError('Workspace 資料夾關聯不完整，原檔未變更。');
     for (const f of db.prepare('SELECT name, name_key FROM folders').all()) if (f.name_key !== folderNameKey(String(f.name))) throw new StoreError('Workspace 資料夾名稱索引不一致，原檔未變更。');
   }
+  if (version >= 3) for (const a of db.prepare('SELECT a.path, a.path_key, a.size, length(b.bytes) AS byte_size FROM attachments a LEFT JOIN attachment_blobs b ON b.sha256=a.sha256').all()) {
+    if (a.size !== a.byte_size || a.path_key !== folderNameKey(String(a.path))) throw new StoreError('Workspace 附件資料不完整或路徑索引不一致，原檔未變更。');
+  }
   return version;
 }
-function migrationFingerprint(db: DatabaseSync): string {
-  const snapshot = readSnapshot(db, 1);
+function migrationFingerprint(db: DatabaseSync, version: number): string {
+  const snapshot = readSnapshot(db, version);
   snapshot.notes.sort((a, b) => a.id.localeCompare(b.id));
+  snapshot.folders.sort((a, b) => a.id.localeCompare(b.id));
   return JSON.stringify([snapshot, db.prepare('SELECT * FROM history ORDER BY id').all()]);
 }
 
@@ -165,11 +194,12 @@ export class WorkspaceStore {
   private db: DatabaseSync;
   get id(): string { return String(this.db.prepare('SELECT id FROM workspace').get()!.id); }
 
-  constructor(path: string, options: { create?: boolean; name?: string; seed?: boolean } = {}) {
+  constructor(path: string, options: { create?: boolean; name?: string; seed?: boolean; exclusive?: boolean } = {}) {
     requireString(options.name ?? '我的 Workspace', 'Workspace 名稱');
     this.path = path === ':memory:' ? path : resolve(path);
     if (path !== ':memory:' && extname(path).toLowerCase() !== '.db') throw new StoreError('請選擇 .db workspace 檔案。');
     const exists = path !== ':memory:' && existsSync(this.path);
+    if (exists && options.exclusive) throw new StoreError('目標 workspace 已存在；重建只允許建立全新的 .db，原檔未變更。', 409);
     if (!exists && !options.create && path !== ':memory:') throw new StoreError('Workspace 不存在；建立新 workspace 時請勾選建立。', 404);
     // Inspect existing databases read-only before issuing ANY pragma or schema mutation.
     let existingVersion = SCHEMA_VERSION;
@@ -189,14 +219,42 @@ export class WorkspaceStore {
     }
     this.db = new DatabaseSync(this.path, { timeout: 1_500 });
     try {
-      if (exists && existingVersion === 1) this.migrationBackupPath = this.upgradeV1();
+      if (exists && existingVersion < SCHEMA_VERSION) this.migrationBackupPath = this.upgradeLegacy(existingVersion);
       this.db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL;');
       if (!exists) this.initialize(options.name ?? '我的 Workspace', options.seed ?? false);
     } catch (error) { this.db.close(); throw error; }
   }
 
-  private upgradeV1(): string {
-    const backupPath = `${this.path}.schema1-backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.db`;
+  static rebuild(path: string, input: unknown, blobs: { sha256: string; bytes: Uint8Array }[], name?: string): WorkspaceStore {
+    if (path === ':memory:') throw new StoreError('重建需要全新的 .db 檔案路徑。');
+    const source = validateSnapshot(input);
+    if (name !== undefined && !requireString(name, 'Workspace 名稱').trim()) throw new StoreError('Workspace 名稱不得為空。');
+    const supplied = new Map<string, Uint8Array>();
+    for (const blob of blobs) {
+      if (!(blob.bytes instanceof Uint8Array) || blob.bytes.byteLength > MAX_ATTACHMENT_BYTES || createHash('sha256').update(blob.bytes).digest('hex') !== blob.sha256) throw new StoreError('重建附件的 SHA256 或大小不符；尚未建立資料庫。');
+      if (supplied.has(blob.sha256)) throw new StoreError('重建附件 blob 重複。');
+      supplied.set(blob.sha256, blob.bytes);
+    }
+    for (const a of source.attachments) if (supplied.get(a.sha256)?.byteLength !== a.size) throw new StoreError('重建缺少完整附件 bytes；尚未建立資料庫。');
+    // Exclusive creation happens only after complete data/hash validation. A fresh
+    // workspace ID separates stale browser tabs from the source database identity.
+    const store = new WorkspaceStore(path, { create: true, exclusive: true, name: name ?? source.name });
+    try {
+      store.transaction(() => {
+        store.db.exec('DELETE FROM notes; DELETE FROM records; DELETE FROM folders;');
+        for (const [sha256, bytes] of supplied) store.db.prepare('INSERT INTO attachment_blobs (sha256, bytes) VALUES (?, ?)').run(sha256, bytes);
+        for (const f of source.folders) store.writeFolder(f);
+        for (const n of source.notes) store.writeNote(n, n.updatedAt);
+        for (const r of source.records) store.writeRecord(r);
+        for (const a of source.attachments) store.writeAttachment(a);
+        store.db.prepare('UPDATE workspace SET name=?, revision=?, settings_json=?').run(name?.trim() ?? source.name, source.revision, JSON.stringify(source.settings));
+      });
+      return store;
+    } catch (error) { store.close(); throw error; }
+  }
+
+  private upgradeLegacy(version: number): string {
+    const backupPath = `${this.path}.schema${version}-backup-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.db`;
     // VACUUM INTO produces a consistent independent database, including history.
     // Reserve the destination exclusively, validate it, then compare under a write
     // lock before changing schema so a concurrent v1 edit cannot escape the backup.
@@ -207,16 +265,16 @@ export class WorkspaceStore {
     let fingerprint: string;
     try {
       backup = new DatabaseSync(backupPath, { readOnly: true });
-      if (inspectDatabase(backup) !== 1) throw new StoreError('升級備份的 schema 不符，已停止升級。');
-      fingerprint = migrationFingerprint(backup);
+      if (inspectDatabase(backup) !== version) throw new StoreError('升級備份的 schema 不符，已停止升級。');
+      fingerprint = migrationFingerprint(backup, version);
     } finally { backup?.close(); }
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      if (inspectDatabase(this.db) !== 1 || migrationFingerprint(this.db) !== fingerprint) throw new StoreError('備份後 workspace 已變更，請關閉其他 GraspPortable 程序再重新開啟；尚未升級。', 409);
-      this.db.exec(`${FOLDER_SCHEMA}
+      if (inspectDatabase(this.db) !== version || migrationFingerprint(this.db, version) !== fingerprint) throw new StoreError('備份後 workspace 已變更，請關閉其他 GraspPortable 程序再重新開啟；尚未升級。', 409);
+      if (version === 1) this.db.exec(`${FOLDER_SCHEMA}
         ALTER TABLE notes ADD COLUMN folder_id TEXT REFERENCES folders(id);
-        CREATE INDEX notes_folder ON notes(folder_id);
-        PRAGMA user_version=${SCHEMA_VERSION};`);
+        CREATE INDEX notes_folder ON notes(folder_id);`);
+      this.db.exec(`${ATTACHMENT_SCHEMA} PRAGMA user_version=${SCHEMA_VERSION};`);
       inspectDatabase(this.db);
       this.db.exec('COMMIT');
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
@@ -228,6 +286,7 @@ export class WorkspaceStore {
     this.db.exec(`BEGIN IMMEDIATE;
       CREATE TABLE workspace (id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, settings_json TEXT NOT NULL);
       ${FOLDER_SCHEMA}
+      ${ATTACHMENT_SCHEMA}
       CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, markdown TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, folder_id TEXT REFERENCES folders(id));
       CREATE INDEX notes_folder ON notes(folder_id);
       CREATE TABLE records (id TEXT PRIMARY KEY, collection TEXT NOT NULL, name TEXT NOT NULL, fields_json TEXT NOT NULL, revision INTEGER NOT NULL, UNIQUE(collection, name));
@@ -270,7 +329,7 @@ export class WorkspaceStore {
     if (Number(this.db.prepare('SELECT revision FROM workspace').get()?.revision) !== revision) throw new StoreError('Workspace 已變更，請重新預覽後再套用。', 409);
   }
   private nextRevision(): number { return Number(this.db.prepare('SELECT revision FROM workspace').get()!.revision) + 1; }
-  private expectEntity(table: 'notes' | 'records' | 'folders', id: string, revision: number, allowCreate = false): boolean {
+  private expectEntity(table: 'notes' | 'records' | 'folders' | 'attachments', id: string, revision: number, allowCreate = false): boolean {
     requireRevision(revision);
     const current = this.db.prepare(`SELECT revision FROM ${table} WHERE id=?`).get(id);
     if (!current) {
@@ -284,11 +343,42 @@ export class WorkspaceStore {
     const snapshot = this.snapshot();
     this.db.prepare('INSERT INTO history (created_at, reason, workspace_revision, snapshot_json) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), reason, snapshot.revision, JSON.stringify(snapshot));
   }
+  private writeAttachment(a: Attachment): void {
+    this.db.prepare('INSERT INTO attachments (id, name, path, path_key, mime_type, sha256, size, revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(a.id, a.name, a.path, folderNameKey(a.path), a.mimeType, a.sha256, a.size, a.revision, a.createdAt);
+  }
+  createAttachment(name: unknown, mimeType: unknown, bytes: Uint8Array, path: unknown = name): WorkspaceSnapshot {
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new StoreError('附件單檔最多 64 MiB。', 413);
+    const attachment = validateAttachment({ id: randomUUID(), name, path, mimeType, sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.byteLength, revision: 0, createdAt: new Date().toISOString() });
+    return this.transaction(() => {
+      const key = folderNameKey(attachment.path);
+      if (this.db.prepare('SELECT path_key FROM attachments').all().some(row => { const old = String(row.path_key); return old === key || old.startsWith(`${key}/`) || key.startsWith(`${old}/`); })) throw new StoreError('此附件路徑已存在或與現有附件路徑衝突；請使用不同名稱，現有 bytes 不會被覆蓋。', 409);
+      const existing = this.db.prepare('SELECT sha256 FROM attachment_blobs WHERE sha256=?').get(attachment.sha256);
+      if (existing) this.readBlob(attachment.sha256);
+      else this.db.prepare('INSERT INTO attachment_blobs (sha256, bytes) VALUES (?, ?)').run(attachment.sha256, bytes);
+      this.writeAttachment({ ...attachment, revision: this.nextRevision() });
+    });
+  }
+  readBlob(sha256: string): Uint8Array {
+    const result = this.db.prepare('SELECT bytes FROM attachment_blobs WHERE sha256=?').get(sha256);
+    if (!result || !(result.bytes instanceof Uint8Array)) throw new StoreError('找不到附件內容；請使用完整備份回復。', 404);
+    if (createHash('sha256').update(result.bytes).digest('hex') !== sha256) throw new StoreError('附件雜湊不符；拒絕傳送或匯出損壞內容。');
+    return result.bytes;
+  }
+  readAttachment(id: string): { attachment: Attachment; bytes: Uint8Array } {
+    const row = this.db.prepare('SELECT id, name, path, mime_type AS mimeType, sha256, size, revision, created_at AS createdAt FROM attachments WHERE id=?').get(id);
+    if (!row) throw new StoreError('找不到附件。', 404);
+    const attachment = validateAttachment(row); const bytes = this.readBlob(attachment.sha256);
+    if (bytes.byteLength !== attachment.size) throw new StoreError('附件大小不符，拒絕傳送。');
+    return { attachment, bytes };
+  }
+  deleteAttachment(id: string, revision: number): WorkspaceSnapshot {
+    return this.transaction(() => { this.expectEntity('attachments', id, revision); this.recover('刪除附件'); this.db.prepare('DELETE FROM attachments WHERE id=?').run(id); });
+  }
   private expectFolder(id: string | null): void {
     if (id !== null && !this.db.prepare('SELECT id FROM folders WHERE id=?').get(id)) throw new StoreError('找不到目標資料夾。');
   }
-  private writeNote(note: Pick<Note, 'id' | 'title' | 'markdown' | 'folderId' | 'revision'>): void {
-    this.db.prepare('INSERT INTO notes (id, title, markdown, revision, updated_at, folder_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, markdown=excluded.markdown, revision=excluded.revision, updated_at=excluded.updated_at, folder_id=excluded.folder_id').run(note.id, note.title, note.markdown, note.revision, new Date().toISOString(), note.folderId);
+  private writeNote(note: Pick<Note, 'id' | 'title' | 'markdown' | 'folderId' | 'revision'>, updatedAt = new Date().toISOString()): void {
+    this.db.prepare('INSERT INTO notes (id, title, markdown, revision, updated_at, folder_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, markdown=excluded.markdown, revision=excluded.revision, updated_at=excluded.updated_at, folder_id=excluded.folder_id').run(note.id, note.title, note.markdown, note.revision, updatedAt, note.folderId);
   }
   private writeFolder(folder: Folder): void {
     this.db.prepare('INSERT INTO folders (id, parent_id, name, name_key, revision) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id, name=excluded.name, name_key=excluded.name_key, revision=excluded.revision').run(folder.id, folder.parentId, folder.name, folderNameKey(folder.name), folder.revision);
@@ -419,6 +509,7 @@ export class WorkspaceStore {
       const notes: RecoveryPreview['changes']['notes'] = [];
       const folders: RecoveryPreview['changes']['folders'] = [];
       const records: RecoveryPreview['changes']['records'] = [];
+      const attachments: RecoveryPreview['changes']['attachments'] = [];
       const targetNotes = new Map(snapshot.notes.map(n => [n.id, n]));
       const currentNotes = new Map(current.notes.map(n => [n.id, n]));
       for (const noteId of new Set([...currentNotes.keys(), ...targetNotes.keys()])) {
@@ -441,8 +532,16 @@ export class WorkspaceStore {
         if (before && after && before.collection === after.collection && before.name === after.name && changedFields.length === 0) continue;
         records.push({ id: recordId, kind: !before ? 'create' : !after ? 'delete' : 'update', before: before ? { collection: before.collection, name: before.name, fieldCount: Object.keys(before.fields).length } : null, after: after ? { collection: after.collection, name: after.name, fieldCount: Object.keys(after.fields).length } : null, changedFields });
       }
-      const counts = (s: WorkspaceSnapshot) => ({ notes: s.notes.length, folders: s.folders.length, records: s.records.length });
-      const result: RecoveryPreview = { id, createdAt: String(entry.created_at), reason: String(entry.reason), scope: 'workspace', workspaceRevision: current.revision, snapshotRevision: snapshot.revision, current: counts(current), target: counts(snapshot), changes: { notes, folders, records }, settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(snapshot.settings), nameBefore: current.name, nameAfter: snapshot.name };
+      const targetAttachments = new Map(snapshot.attachments.map(a => [a.id, a]));
+      const currentAttachments = new Map(current.attachments.map(a => [a.id, a]));
+      for (const attachmentId of new Set([...currentAttachments.keys(), ...targetAttachments.keys()])) {
+        const before = currentAttachments.get(attachmentId); const after = targetAttachments.get(attachmentId);
+        if (before && after && before.name === after.name && before.path === after.path && before.sha256 === after.sha256 && before.mimeType === after.mimeType && before.size === after.size) continue;
+        const summary = (a: Attachment) => ({ name: a.name, path: a.path, size: a.size, sha256: a.sha256 });
+        attachments.push({ id: attachmentId, kind: !before ? 'create' : !after ? 'delete' : 'update', before: before ? summary(before) : null, after: after ? summary(after) : null });
+      }
+      const counts = (s: WorkspaceSnapshot) => ({ notes: s.notes.length, folders: s.folders.length, records: s.records.length, attachments: s.attachments.length });
+      const result: RecoveryPreview = { id, createdAt: String(entry.created_at), reason: String(entry.reason), scope: 'workspace', workspaceRevision: current.revision, snapshotRevision: snapshot.revision, current: counts(current), target: counts(snapshot), changes: { notes, folders, records, attachments }, settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(snapshot.settings), nameBefore: current.name, nameAfter: snapshot.name };
       this.db.exec('COMMIT');
       return result;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
@@ -458,14 +557,17 @@ export class WorkspaceStore {
       const noteRevisions = new Map(current.notes.map(n => [n.id, n.revision]));
       const folderRevisions = new Map(current.folders.map(f => [f.id, f.revision]));
       const recordRevisions = new Map(current.records.map(r => [r.id, r.revision]));
+      const attachmentRevisions = new Map(current.attachments.map(a => [a.id, a.revision]));
+      for (const a of snapshot.attachments) if (this.readBlob(a.sha256).byteLength !== a.size) throw new StoreError('Recovery 附件 bytes 不完整，沒有套用任何內容。');
       this.recover('回復前的 Workspace');
-      this.db.exec('DELETE FROM notes; DELETE FROM records; DELETE FROM folders;');
+      this.db.exec('DELETE FROM notes; DELETE FROM records; DELETE FROM folders; DELETE FROM attachments;');
       for (const f of snapshot.folders) this.writeFolder({ ...f, revision: Math.max(f.revision, folderRevisions.get(f.id) ?? 0, current.revision) + 1 });
       for (const n of snapshot.notes) {
         const revision = Math.max(n.revision, noteRevisions.get(n.id) ?? 0, current.revision) + 1;
         this.writeNote({ ...n, revision });
       }
       for (const r of snapshot.records) this.writeRecord({ ...r, revision: Math.max(r.revision, recordRevisions.get(r.id) ?? 0, current.revision) + 1 });
+      for (const a of snapshot.attachments) this.writeAttachment({ ...a, revision: Math.max(a.revision, attachmentRevisions.get(a.id) ?? 0, current.revision) + 1 });
       this.db.prepare('UPDATE workspace SET name=?, settings_json=?').run(snapshot.name, JSON.stringify(snapshot.settings));
     });
   }

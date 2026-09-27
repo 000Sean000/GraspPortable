@@ -40,13 +40,13 @@ const server = createServer(async (req, res) => {
   }
 });
 server.listen(port, '127.0.0.1', () => console.log(`GraspPortable: http://127.0.0.1:${port}${dev ? ' (development)' : ''}`));
-server.on('error', error => { console.error(error); process.exitCode = 1; api.close(); });
+server.on('error', error => { console.error(error); process.exitCode = 1; void api.close(); });
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
   stopping = true;
   await vite?.close();
-  server.close(() => { api.close(); process.exit(0); });
+  server.close(async () => { try { await api.close(); process.exit(0); } catch (error) { console.error(error); process.exit(1); } });
   server.closeIdleConnections();
 }
 process.on('SIGINT', shutdown);

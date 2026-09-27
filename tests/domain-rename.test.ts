@@ -6,7 +6,7 @@ import type { Note, StructuredRecord, WorkspaceSnapshot } from '../src/domain/mo
 
 const note = (id: string, markdown: string): Note => ({ id, title: id, markdown, folderId: null, revision: 1, updatedAt: '' });
 const record = (id: string, collection: string, name: string, fields: Record<string, string>): StructuredRecord => ({ id, collection, name, fields, revision: 1 });
-const snapshot = (notes: Note[], records: StructuredRecord[] = []): WorkspaceSnapshot => ({ id: 'workspace', name: 'Test', revision: 7, notes, records, folders: [], settings: {} });
+const snapshot = (notes: Note[], records: StructuredRecord[] = []): WorkspaceSnapshot => ({ id: 'workspace', name: 'Test', revision: 7, notes, records, folders: [], attachments: [], settings: {} });
 const rename = (from: string, to: string, mode: 'identifier' | 'namespace' = 'identifier') => ({ from, to, mode });
 
 describe('semantic identifier rename', () => {

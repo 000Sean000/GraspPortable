@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-09-27T01:18:02.984Z",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "corpus": "synthetic only",
+  "notes": 2820,
+  "noteBytes": 6318510,
+  "records": 100,
+  "attachments": 1,
+  "coldMirror": {
+    "milliseconds": 2540.99,
+    "writtenFiles": 2821,
+    "reusedFiles": 0
+  },
+  "wholeAiFolder": {
+    "milliseconds": 2239.08,
+    "files": 2823,
+    "payloadBytes": 6322606
+  },
+  "warmOneChange": {
+    "milliseconds": 674.37,
+    "writtenFiles": 1,
+    "reusedFiles": 2820,
+    "manifestBytes": 1254355,
+    "changedNoteBytes": 2259
+  },
+  "validatedRebuild": {
+    "milliseconds": 4427.8,
+    "notes": 2820,
+    "blobs": 1
+  },
+  "limits": [
+    "Warm update still scans metadata/stats for every current projected file and writes a full manifest/index.",
+    "Stat signature cache avoids rehashing unchanged projection bytes; rebuild always reads and verifies all bytes.",
+    "This measures filesystem projection, not editor latency. No background pruning."
+  ]
+}

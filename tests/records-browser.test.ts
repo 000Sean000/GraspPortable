@@ -14,7 +14,7 @@ window.draw=()=>window.panel.render(document.querySelector('#records'),window.da
 describe.skipIf(!hasChromium && !hasEdge)('record browser at 10000 records', () => {
   let server: ViteDevServer; let browser: Browser; let page: Page; const errors: string[] = [];
   beforeAll(async () => {
-    server = await createServer({ configFile: false, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'records-harness', configureServer(server) { server.middlewares.use('/__records-test', async (_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(await server.transformIndexHtml('/__records-test', harness)); }); } }] });
+    server = await createServer({ configFile: false, cacheDir: '.cache/vite-tests/records-' + process.pid + '-' + Date.now(), server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{ name: 'records-harness', configureServer(server) { server.middlewares.use('/__records-test', async (_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(await server.transformIndexHtml('/__records-test', harness)); }); } }] });
     await server.listen(); browser = await chromium.launch({ headless: true, ...(!hasChromium ? { channel: 'msedge' } : {}) }); page = await browser.newPage({ viewport: { width: 1000, height: 1000 } }); page.on('pageerror', error => errors.push(error.message));
   }, 30000);
   beforeEach(async () => { await page.goto(`${server.resolvedUrls!.local[0]}__records-test`); await page.waitForFunction(() => Boolean((window as any).panel)); });

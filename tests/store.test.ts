@@ -20,7 +20,7 @@ describe('authoritative SQLite workspace', () => {
     s.close(); const reopened = new WorkspaceStore(file); stores.push(reopened);
     expect(reopened.snapshot()).toEqual(committed);
     const probe = new DatabaseSync(file, { readOnly: true });
-    try { expect(probe.prepare('PRAGMA user_version').get()?.user_version).toBe(2); } finally { probe.close(); }
+    try { expect(probe.prepare('PRAGMA user_version').get()?.user_version).toBe(3); } finally { probe.close(); }
   });
 
   it('rejects stale note and record mutations without partial writes or advancing authority', () => {

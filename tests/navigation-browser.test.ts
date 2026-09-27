@@ -30,7 +30,7 @@ describe.skipIf(!hasChromium && !hasEdge)('bounded note navigator in real browse
   let server: ViteDevServer; let browser: Browser; let page: Page;
   const errors: string[] = [];
   beforeAll(async () => {
-    server = await createServer({ configFile: false, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'navigation-harness', configureServer(server) {
+    server = await createServer({ configFile: false, cacheDir: '.cache/vite-tests/navigation-' + process.pid + '-' + Date.now(), server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{ name: 'navigation-harness', configureServer(server) {
       server.middlewares.use('/__navigation-test', async (_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(await server.transformIndexHtml('/__navigation-test', harness)); });
     } }] });
     await server.listen(); browser = await chromium.launch({ headless: true, ...(!hasChromium ? { channel: 'msedge' } : {}) });

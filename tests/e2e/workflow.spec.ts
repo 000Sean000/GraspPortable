@@ -48,7 +48,7 @@ test.describe.serial('production build complete workflow', () => {
     await page.goto(url); await saved(page);
     await page.locator('#workspace-open').click();
     workspacePath = resolve(folder, 'created.grasp.db');
-    await page.getByLabel('資料庫路徑').fill(workspacePath); await page.getByLabel('新 workspace 名稱').fill('驗證工作區'); await page.getByRole('button', { name: '建立新 workspace', exact: true }).click();
+    await page.getByLabel('資料庫路徑', { exact: true }).fill(workspacePath); await page.getByLabel('新 workspace 名稱').fill('驗證工作區'); await page.getByRole('button', { name: '建立新 workspace', exact: true }).click();
     await expect(page.locator('#workspace-name')).toHaveText('驗證工作區');
     await page.getByLabel('筆記標題', { exact: true }).fill('我的測試筆記'); await source(page, sample);
     await expect(value(page, 'greeting')).toHaveText('你好，Sean Wu！');

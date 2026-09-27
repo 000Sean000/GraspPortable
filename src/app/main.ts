@@ -4,6 +4,9 @@ import { LinksPanel } from './links-panel';
 import { createNavigator } from './navigation';
 import { KnowledgePanel } from './knowledge-panel';
 import { RecordsPanel } from './records-panel';
+import { FilesPanel } from './files-panel';
+import { attachmentMarkdown } from '../editor/query';
+import type { FileEntry, FileExportResult, FilesStatus } from '../domain/files';
 import type { RecordQuery } from '../editor/query';
 import type { RenamePlan } from '../domain/rename';
 import type { RecoveryPreview } from '../../server/store';
@@ -16,7 +19,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 01</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
   <section id="navigation" aria-label="筆記與資料夾"></section>
-  <div class="sidebar-bottom"><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
+  <div class="sidebar-bottom"><button id="files">▧ 檔案與 Mirror</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
 </aside>
 <main class="main-pane">
   <header class="toolbar"><span id="breadcrumb">WORKSPACE / NOTES</span><div class="toolbar-actions"><button id="mode" aria-pressed="true">Live Preview</button><button id="save" title="Ctrl / ⌘ + S">儲存</button><button id="delete-note" class="quiet" title="刪除目前筆記">刪除</button><button id="toggle-inspector" class="quiet" aria-label="切換知識面板">◫</button></div></header>
@@ -40,6 +43,7 @@ let panel: 'values' | 'records' | 'issues' | 'links' = 'values';
 const linksPanel = new LinksPanel();
 const knowledgePanel = new KnowledgePanel();
 const recordsPanel = new RecordsPanel();
+const filesPanel = new FilesPanel();
 let valueFilter = '';
 let selectedIdentifier: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -128,10 +132,17 @@ function markDraft(markdown = editor.getDocument()) {
   clearTimeout(saveTimer); saveTimer = setTimeout(() => void run(flush), 350);
 }
 function updateStats() { $('document-stats').textContent = `${editor.getDocument().length.toLocaleString()} 字元`; }
+function updateEditorAssets() {
+  const note = snapshot.notes.find(n => n.id === activeId);
+  const links = snapshot.attachments.length && note && !drafts.has(activeId) ? (linksPanel.getIndex(snapshot).byNote.get(activeId) ?? []).flatMap(link => link.status === 'resolved' && link.resolvedTarget?.kind === 'asset' ? [{ from: link.location.from, to: link.location.to, raw: link.raw, id: link.resolvedTarget.id, embed: link.embed, label: link.alias }] : []) : [];
+  editor.setAssets(snapshot.id, snapshot.attachments, links);
+}
 function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   if (snapshot && next.id === snapshot.id && next.revision < snapshot.revision) return;
   const changedWorkspace = snapshot && next.id !== snapshot.id;
   snapshot = next;
+  $('navigation').inert = false;
+  for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files']) ($<HTMLButtonElement>(id)).disabled = false;
   setWorkspaceId(next.id);
   if (changedWorkspace) {
     runtime = undefined; selectedIdentifier = undefined; valueFilter = ''; ($('note-search') as HTMLInputElement).value = '';
@@ -146,6 +157,7 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   const clean = !drafts.has(activeId);
   if (resetEditor || (clean && current && (editor.getDocument() !== current.markdown || ($('note-title') as HTMLInputElement).value !== current.title))) showActiveNote();
   else if (clean && current) editorBase = { workspaceId: snapshot.id, noteId: current.id, revision: current.revision };
+  if (clean) updateEditorAssets();
   $('runtime-status').textContent = '背景計算中…';
   runtimeFailure = undefined;
   worker.update(snapshot);
@@ -185,6 +197,7 @@ function showActiveNote() {
   $('editor').classList.toggle('no-note', !note);
   editor.setDocument(draft?.markdown ?? note?.markdown ?? '', `${snapshot.id}:${activeId}`);
   editorBase = note ? { workspaceId: snapshot.id, noteId: note.id, revision: draft?.baseRevision ?? note.revision } : undefined;
+  updateEditorAssets();
   if (runtime) editor.setRuntime(runtime, snapshot.records);
   $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || note?.title || '建立筆記'}`;
   $('note-meta').textContent = note ? `修訂 ${note.revision} · ${new Date(note.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '';
@@ -250,11 +263,38 @@ function renderInspector() {
     retry: () => worker.retry(),
   });
 }
-function openModal(title: string) { $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
-function closeModal() { ($('modal') as HTMLDialogElement).close(); }
+function openModal(title: string) { filesPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
+function closeModal() { filesPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
 function labeled(label: string, input: HTMLElement) { const group = element('label', 'field'); group.append(element('span', '', label), input); return group; }
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+async function upload<T>(path: string, bytes: Blob | string, type = 'text/markdown;charset=utf-8'): Promise<T> {
+  const response = await fetch('/api' + path, { method: 'POST', headers: { ...workspaceHeaders(), 'Content-Type': type }, body: bytes });
+  const data = await response.json(); if (!response.ok) throw new Error(data.error || data.message || '檔案保存失敗'); return data as T;
+}
+function downloadFile(entry: FileEntry) {
+  const link = element('a'); link.href = `/api/files/download?path=${encodeURIComponent(entry.path)}&workspace=${encodeURIComponent(snapshot.id)}`; link.download = entry.name; link.click();
+}
+async function filesDialog() {
+  await flush();
+  await filesPanel.show(openModal('檔案、附件與 Markdown Mirror'), {
+    getSnapshot: () => snapshot,
+    getDatabasePath: async () => (await request<{ path: string }>('/host')).path,
+    getStatus: () => request<FilesStatus>('/files/status'),
+    list: path => request<FileEntry[]>(`/files?path=${encodeURIComponent(path)}`),
+    retryMirror: () => navigationCommand(async () => { await flush(); return request<FilesStatus>('/files/mirror/refresh', 'POST', {}); }),
+    buildExport: () => navigationCommand(async () => { await flush(); return request<FileExportResult>('/files/export', 'POST', {}); }),
+    openFolder: path => request('/files/open-folder', 'POST', { path }),
+    downloadFile,
+    stageMarkdown: files => navigationCommand(async () => { for (const file of files) await upload<FileEntry>(`/files/inbox?name=${encodeURIComponent(file.name)}`, file); }),
+    saveInbox: (name, text) => navigationCommand(() => upload<FileEntry>(`/files/inbox?name=${encodeURIComponent(name)}`, text)),
+    reviewInbox: entry => navigationCommand(async () => { await flush(); showImportPlan(await request<ImportPlan>('/files/import/plan', 'POST', { path: entry.path })); }),
+    uploadAttachments: files => navigationCommand(async () => { await flush(); for (const file of files) acceptSnapshot(await upload<WorkspaceSnapshot>(`/assets?name=${encodeURIComponent(file.name)}`, file, file.type || 'application/octet-stream')); }),
+    deleteAttachment: asset => navigationCommand(async () => { await flush(); acceptSnapshot(await request<WorkspaceSnapshot>(`/assets/${encodeURIComponent(asset.id)}`, 'DELETE', { revision: asset.revision })); }),
+    insertAttachment: (asset, embed) => navigationCommand(async () => { if (!activeId) throw new Error('請先建立或選擇筆記。'); closeModal(); editor.insertText(attachmentMarkdown(asset, embed)); }),
+    onError: message => toast(message, true),
+  });
+}
 async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
 async function createQueryNote(input: string | RecordQuery) { const query = typeof input === 'string' ? { collection: input } : input; await createNote(`${query.collection} · 資料檢視`, `# ${query.collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify(query, null, 2)}\n\`\`\`\n`); }
 
@@ -304,12 +344,21 @@ function workspaceDialog() {
   const body = openModal('開啟或建立 workspace');
   body.append(element('p', 'muted', '每個 workspace 是一個 SQLite 資料庫。輸入本機路徑；新建檔案可使用 .grasp.db 副檔名。'));
   const currentPath = element('p', 'muted', '目前路徑：讀取中…'); body.append(currentPath);
-  void request<{ path: string; warning?: string; migrationBackupPath?: string }>('/host').then(host => { currentPath.textContent = `目前路徑：${host.path}${host.migrationBackupPath ? `\n升級前備份：${host.migrationBackupPath}` : ''}${host.warning ? `\n${host.warning}` : ''}`; }).catch(() => { currentPath.textContent = ''; });
+  void request<{ path: string; warning?: string; error?: string; migrationBackupPath?: string }>('/host').then(host => { currentPath.textContent = `目前路徑：${host.path}${host.migrationBackupPath ? `\n升級前備份：${host.migrationBackupPath}` : ''}${host.error ? `\n${host.error}` : ''}${host.warning ? `\n${host.warning}` : ''}`; }).catch(() => { currentPath.textContent = ''; });
   const path = input('', 'workspaces/MyKnowledge.grasp.db'); path.setAttribute('aria-label', '資料庫路徑');
   const name = input('', '我的知識庫'); name.setAttribute('aria-label', '新 workspace 名稱');
   body.append(labeled('資料庫路徑', path), labeled('新 workspace 名稱（建立時使用）', name));
   const action = async (create: boolean) => transition(async () => { await flush(); if (!path.value.trim()) throw new Error('請輸入資料庫路徑。'); const next = await request<WorkspaceSnapshot>('/workspace/open', 'POST', { path: path.value.trim(), create, name: name.value.trim() || '我的知識庫' }); activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); });
   const actions = element('div', 'form-actions'); actions.append(button('開啟既有資料庫', () => action(false)), button('建立新 workspace', () => action(true), 'primary')); body.append(actions);
+  const fallback = element('details', 'diff-card'); fallback.append(element('summary', '', '從 Markdown mirror 重建到新的資料庫'));
+  fallback.append(element('p', 'muted', '選擇 mirror 的完整 manifest 路徑與尚不存在的 .db 路徑。會驗證所有內容與附件；原始資料庫和 mirror 都會保留。重建後是新的 workspace，筆記與資料的 ID 仍保留。'));
+  const manifest = input('', 'C:\\…\\Knowledge.grasp.db.files\\mirror\\manifests\\…json'); manifest.setAttribute('aria-label', 'Mirror manifest 路徑');
+  const target = input('', 'C:\\…\\Recovered.grasp.db'); target.setAttribute('aria-label', '重建的新資料庫路徑');
+  fallback.append(labeled('Mirror manifest', manifest), labeled('新的 .db 路徑', target), button('驗證並重建新 workspace', async () => transition(async () => {
+    await flush(); if (!manifest.value.trim() || !target.value.trim()) throw new Error('請填寫 manifest 與新的資料庫路徑。');
+    const next = await request<WorkspaceSnapshot>('/workspace/rebuild', 'POST', { manifestPath: manifest.value.trim(), newPath: target.value.trim() });
+    activeId = ''; acceptSnapshot(next, true); setSaveStatus('✓ 已儲存至 SQLite'); closeModal(); toast('已驗證 mirror 並重建至新資料庫；原檔保留。');
+  }), 'primary')); body.append(fallback);
 }
 function recordDialog(record?: StructuredRecord) {
   const body = openModal(record ? '編輯結構化資料' : '新增結構化資料');
@@ -350,7 +399,10 @@ function importDialog() {
 function showImportPlan(plan: ImportPlan) {
   const body = openModal('審查匯入計畫');
   const changed = plan.changes.filter(c => c.kind !== 'unchanged');
-  body.append(element('p', 'muted', `影響 ${changed.length} 份筆記 · ${plan.records.length} 筆匯入 records · 以 workspace 修訂 ${plan.workspaceRevision} 為基準。套用前會保存可復原版本。`));
+  const oldRecords = new Map(snapshot.records.map(record => [record.id, JSON.stringify(record)]));
+  const incomingIds = new Set(plan.records.map(record => record.id));
+  const recordChanges = plan.records.filter(record => oldRecords.get(record.id) !== JSON.stringify(record)).length + snapshot.records.filter(record => !incomingIds.has(record.id)).length;
+  body.append(element('p', 'muted', `影響 ${changed.length} 份筆記 · ${recordChanges} 筆 records 變更 · 以 workspace 修訂 ${plan.workspaceRevision} 為基準。套用前會保存可復原版本。`));
   const folderNames = new Map([...snapshot.folders, ...plan.folders].map(f => [f.id, f.name]));
   const folderLabel = (id: string | null) => id === null ? '根資料夾' : folderNames.get(id) || id;
   for (const folder of plan.folders) {
@@ -375,12 +427,13 @@ async function historyDialog() {
   if (!records.length) body.append(element('p', 'empty', '還沒有需要復原的操作。'));
   for (const record of records) { const row = element('div', 'history-row'); row.append(element('div', '', `${new Date(record.createdAt).toLocaleString('zh-TW')} · ${record.reason} · r${record.workspaceRevision}`), button('檢查復原', async () => {
     await flush(); const preview = await request<RecoveryPreview>(`/history/${encodeURIComponent(record.id)}/preview`);
-    const confirm = openModal('確認復原 workspace'); confirm.append(element('p', '', `將復原至 ${new Date(record.createdAt).toLocaleString('zh-TW')} 的快照。整個 workspace 的筆記、資料夾與 records 都會替換；目前版本會另存於復原紀錄。`));
-    confirm.append(element('p', 'muted', `筆記 ${preview.current.notes} → ${preview.target.notes} · 資料夾 ${preview.current.folders} → ${preview.target.folders} · records ${preview.current.records} → ${preview.target.records}${preview.settingsChanged ? ' · Workspace 設定也會回復' : ''}`));
+    const confirm = openModal('確認復原 workspace'); confirm.append(element('p', '', `將復原至 ${new Date(record.createdAt).toLocaleString('zh-TW')} 的快照。整個 workspace 的筆記、資料夾、records 與附件都會替換；目前版本會另存於復原紀錄。`));
+    confirm.append(element('p', 'muted', `筆記 ${preview.current.notes} → ${preview.target.notes} · 資料夾 ${preview.current.folders} → ${preview.target.folders} · records ${preview.current.records} → ${preview.target.records} · 附件 ${preview.current.attachments} → ${preview.target.attachments}${preview.settingsChanged ? ' · Workspace 設定也會回復' : ''}`));
     const changes = [
       ...preview.changes.notes.map(c => `筆記 · ${c.kind} · ${c.before?.title || '（無）'} → ${c.after?.title || '（無）'}${c.contentChanged ? ' · 內容變更' : ''}`),
       ...preview.changes.folders.map(c => `資料夾 · ${c.kind} · ${c.before?.name || '（無）'} → ${c.after?.name || '（無）'}`),
       ...preview.changes.records.map(c => `Record · ${c.kind} · ${c.before ? `${c.before.collection}.${c.before.name}` : '（無）'} → ${c.after ? `${c.after.collection}.${c.after.name}` : '（無）'} · 欄位：${c.changedFields.join(', ')}`),
+      ...preview.changes.attachments.map(c => `附件 · ${c.kind} · ${c.before?.path || '（無）'} → ${c.after?.path || '（無）'}`),
     ];
     paged(confirm, changes, text => element('p', 'diff-card', text));
     confirm.append(button('取消', closeModal), button('確認復原', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/history/${encodeURIComponent(record.id)}/restore`, 'POST', { workspaceRevision: preview.workspaceRevision }); acceptSnapshot(next, true); closeModal(); toast('已復原 workspace。'); }), 'primary'));
@@ -397,12 +450,14 @@ $('mode').onclick = () => void run(async () => { mode = mode === 'live' ? 'sourc
 $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-hidden');
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
-$('export').onclick = () => void run(async () => { await flush(); const response = await fetch('/api/export', { headers: workspaceHeaders() }); if (!response.ok) throw new Error('匯出失敗；workspace 可能已被其他分頁切換，請重新載入。'); download(await response.text(), `${snapshot.name.replace(/[\\/:*?"<>|]/g, '_')}.grasp.md`); toast('Markdown 已下載。外部修改後可透過匯入審查套用。'); });
+$('files').onclick = () => void run(filesDialog);
+$('export').onclick = () => void run(async () => { await flush(); const entry = await request<FileEntry>('/files/exchange', 'POST', {}); downloadFile(entry); toast(`已保存至 outbox 並下載：${entry.absolutePath}`); });
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
 $('help').onclick = helpDialog;
 $('modal-close').onclick = closeModal;
 document.addEventListener('close', () => {
+  filesPanel.destroy();
   if (!pendingNavigation || document.querySelector('dialog[open]')) return;
   const pending = pendingNavigation; pendingNavigation = undefined;
   if (pending.workspaceId === snapshot?.id) void saveNavigationSettings(pending.patch).catch(error => toast(String(error), true));
@@ -410,7 +465,14 @@ document.addEventListener('close', () => {
 document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void run(flush); } });
 window.addEventListener('beforeunload', event => { if (drafts.size || saving || saveFailure) { event.preventDefault(); event.returnValue = ''; } });
 void run(async () => {
-  const initial = await request<WorkspaceSnapshot>('/workspace');
+  let initial: WorkspaceSnapshot;
+  try { initial = await request<WorkspaceSnapshot>('/workspace'); }
+  catch (error) {
+    $('workspace-name').textContent = '選擇可用的 Workspace'; $('runtime-status').textContent = '尚未開啟資料庫';
+    setSaveStatus('資料庫未開啟 · 原檔保留', true); $('navigation').inert = true; $('editor').classList.add('no-note');
+    for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files']) ($<HTMLButtonElement>(id)).disabled = true;
+    workspaceDialog(); toast(error instanceof Error ? error.message : String(error), true); return;
+  }
   mode = initial.settings.mode === 'source' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live'));
   acceptSnapshot(initial, true); setSaveStatus('✓ 已儲存至 SQLite');
   const host = await request<{ path: string; warning?: string }>('/host');

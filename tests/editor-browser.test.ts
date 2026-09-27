@@ -13,7 +13,7 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
   let server: ViteDevServer; let browser: Browser; let page: Page;
   const errors: string[] = [];
   beforeAll(async () => {
-    server = await createServer({ configFile: false, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'editor-test-harness', configureServer(server) {
+    server = await createServer({ configFile: false, cacheDir: '.cache/vite-tests/editor-' + process.pid + '-' + Date.now(), server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{ name: 'editor-test-harness', configureServer(server) {
       server.middlewares.use('/__editor-test', async (_req, res) => {
         res.setHeader('Content-Type', 'text/html');
         res.end(await server.transformIndexHtml('/__editor-test', '<!doctype html><button id="save">Save</button><div id="editor"></div><script type="module">import {createEditor} from "/src/editor/editor.ts"; window.changes=[]; window.navigation=[]; window.references=[]; window.editor=createEditor(document.querySelector("#editor"),{onChange:s=>window.changes.push(s),onNavigate:s=>{window.navigation.push(s);window.testNavigate?.(s)},onFindReferences:s=>window.references.push(s),onOpenRecord:s=>(window.openedRecords??=[]).push(s),onOpenQuery:q=>(window.openedQueries??=[]).push(q)});</script>'));
@@ -188,6 +188,33 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
     await page.keyboard.press('ControlOrMeta+Shift+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before {{aura.item.label}} after');
     await page.keyboard.insertText('!'); await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before {{aura.item.label}} after');
     expect(errors).toEqual([]);
+  });
+
+  it('renders known raster assets with workspace guard, downloads unsafe types and maps original embeds safely', async () => {
+    const requests: string[] = [];
+    const assetRoute = '**/api/assets/**';
+    await page.route(assetRoute, async route => { requests.push(route.request().url()); await route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') }); });
+    const wiki = '![[pictures/photo.png|Original photo]]', relative = '![Original relative](../pictures/photo.png)';
+    const source = '# Assets\n\n![PNG](grasp-asset:png)\n\n![SVG](grasp-asset:svg)\n\n[HTML](grasp-asset:html)\n\n![Unknown](grasp-asset:unknown)\n\n' + wiki + '\n\n' + relative + '\n';
+    const attachments = [{ id: 'png', name: 'photo.png', mimeType: 'image/png' }, { id: 'svg', name: 'unsafe.svg', mimeType: 'image/svg+xml' }, { id: 'html', name: 'unsafe.html', mimeType: 'text/html' }];
+    const links = [wiki, relative].map(raw => ({ from: source.indexOf(raw), to: source.indexOf(raw) + raw.length, id: 'png', raw, embed: true, label: 'Original asset' }));
+    try {
+      await page.evaluate(({ source, attachments, links }) => { const e = (window as any).editor; e.setMode('live'); e.setDocument(source); e.setAssets('workspace&guard', attachments, links); e.focusRange(0, 0); }, { source, attachments, links });
+      await page.waitForFunction(() => [...document.querySelectorAll<HTMLImageElement>('.gp-asset img')].length === 3 && [...document.querySelectorAll<HTMLImageElement>('.gp-asset img')].every(image => image.complete && image.naturalWidth > 0));
+      expect(await page.locator('.gp-asset[download]').count()).toBe(2);
+      expect(await page.locator('.gp-asset[data-asset-id="svg"]').getAttribute('download')).toBe('unsafe.svg');
+      expect(await page.locator('.gp-asset[data-asset-id="html"]').getAttribute('download')).toBe('unsafe.html');
+      expect(await page.locator('iframe,object,embed').count()).toBe(0);
+      expect(await page.locator('.gp-asset[data-asset-id="unknown"]').count()).toBe(0);
+      expect(requests.every(url => url.includes('/api/assets/png?workspace=workspace%26guard'))).toBe(true);
+      expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(source);
+      await page.keyboard.insertText('Prefix\n');
+      expect(await page.locator('.gp-asset img').count()).toBe(3); // Source spans follow ordinary preceding edits.
+      await page.evaluate(({ attachments, links }) => (window as any).editor.setAssets('workspace&guard', attachments, links), { attachments, links });
+      expect(await page.locator('.gp-asset img').count()).toBe(1); // Stale source offsets never replace unrelated text.
+      await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(source);
+      expect(errors).toEqual([]);
+    } finally { await page.unroute(assetRoute); await page.evaluate(() => (window as any).editor.setAssets('', [])); }
   });
 
   it('round-trips source through the real clipboard and pastes a 12k-definition note', async () => {

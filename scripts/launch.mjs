@@ -6,7 +6,8 @@ if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('GraspPort
 const port = Number(process.env.PORT || 43821);
 const url = `http://127.0.0.1:${port}`;
 async function available() {
-  try { const response = await fetch(url + '/api/workspace', { signal: AbortSignal.timeout(1000) }); return response.ok && response.headers.get('x-graspportable') === '1'; } catch { return false; }
+  // The recovery UI is healthy even when a selected database cannot open.
+  try { const response = await fetch(url + '/api/host', { signal: AbortSignal.timeout(1000) }); return response.ok && response.headers.get('x-graspportable') === '1'; } catch { return false; }
 }
 function openBrowser() {
   if (process.env.GRASP_NO_BROWSER === '1') return;

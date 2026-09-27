@@ -372,3 +372,5 @@ test-results/
 *.grasp.db
 *.grasp.db-shm
 *.grasp.db-wal
+*.grasp.db.files/
+*.grasp.db.schema*-backup-*.db

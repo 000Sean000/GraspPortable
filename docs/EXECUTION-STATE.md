@@ -19,3 +19,7 @@ Phase 2 checkpoint M3: complete paginated knowledge/record management, owner-awa
 Suggested checkpoint: `feat: add reviewed identifier changes and complete record browsing`
 
 Final M3 validation: 129 tests and build pass; 16 production E2E green.
+
+Phase 2 checkpoint M4: files/inbox/outbox UI, DB-owned attachments, schema 3 with validated upgrade backups, persistent immutable Markdown mirror, external-edit preservation and fresh-DB rebuild/startup recovery are implemented. Build, 159 tests and 19 production E2E pass. Root personally used the Files workflow on a separate synthetic workspace; 2,820-note projection benchmark is recorded. Next step after M4 push: M5 private representative MainVault copy/import, fidelity and link/asset audit, UI/mirror/exchange/restart/rollback, final unchanged-source manifest, package and final acceptance. Goal remains active and unfinished.
+
+Suggested checkpoint: `feat: add workspace files and verified Markdown fallback`

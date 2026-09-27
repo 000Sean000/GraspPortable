@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { executeQuery, parseQuery, safeLink } from '../src/editor/query';
+import { assetIdentifier, assetUrl, attachmentMarkdown, executeQuery, inlineAsset, parseQuery, safeLink } from '../src/editor/query';
 import type { RuntimeResult, StructuredRecord } from '../src/domain/model';
 
 const record: StructuredRecord = { id: 'r1', collection: 'aura', name: 'bright', fields: { element: '{base}', description: '<script>alert(1)</script>' }, revision: 1 };
@@ -24,5 +24,14 @@ describe('editor query projection', () => {
     expect(safeLink('https://example.com')).toBe('https://example.com');
     expect(safeLink('mailto:test@example.com')).toBe('mailto:test@example.com');
     for (const url of ['javascript:alert(1)', 'data:text/html,test', 'file:///c:/secret', '//example.com', 'java\nscript:alert(1)']) expect(safeLink(url)).toBeNull();
+  });
+  it('uses portable attachment IDs, escaped labels and a strict raster allowlist', () => {
+    expect(assetIdentifier('grasp-asset:known-id')).toBe('known-id');
+    for (const url of ['grasp-asset:../bad', 'grasp-asset:id?html=1', 'javascript:alert(1)', '/api/assets/id', 'grasp-asset:id/path']) expect(assetIdentifier(url)).toBeNull();
+    expect(assetUrl('a/b', 'workspace&other')).toBe('/api/assets/a%2Fb?workspace=workspace%26other');
+    expect(attachmentMarkdown({ id: 'id', name: '[圖]\\.png', mimeType: 'image/png' })).toBe('![\\[圖\\]\\\\.png](grasp-asset:id)');
+    expect(attachmentMarkdown({ id: 'id', name: 'page.svg', mimeType: 'image/svg+xml' }, true)).toBe('[page.svg](grasp-asset:id)');
+    for (const mime of ['image/png', 'image/jpeg', 'image/gif', 'image/webp']) expect(inlineAsset(mime)).toBe(true);
+    for (const mime of ['text/html', 'image/svg+xml', 'application/pdf', 'image/avif']) expect(inlineAsset(mime)).toBe(false);
   });
 });

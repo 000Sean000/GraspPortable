@@ -19,7 +19,7 @@ afterEach(() => {
 describe('schema 2 and durable note hierarchy', () => {
   it('backs up and validates a v1 workspace before upgrading; old history remains restorable', () => {
     const path = file(); const legacy = createV1Workspace(path); const s = open(path);
-    expect(s.snapshot()).toEqual({ ...legacy, folders: [], notes: legacy.notes.map(n => ({ ...n, folderId: null })) });
+    expect(s.snapshot()).toEqual({ ...legacy, folders: [], attachments: [], notes: legacy.notes.map(n => ({ ...n, folderId: null })) });
     expect(s.migrationBackupPath).toBeTruthy(); expect(existsSync(s.migrationBackupPath!)).toBe(true);
     const backup = new DatabaseSync(s.migrationBackupPath!, { readOnly: true });
     try {

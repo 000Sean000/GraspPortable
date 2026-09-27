@@ -13,17 +13,22 @@ export class LinksPanel {
   private filter = '';
   private page = 0;
   private noteId = '';
+  private viewWorkspace = '';
 
-  render(container: HTMLElement, snapshot: WorkspaceSnapshot, activeId: string, navigate: (location: SourceLocation) => void) {
+  getIndex(snapshot: WorkspaceSnapshot): NoteLinkIndex {
     const old = this.previous;
     const unchanged = old?.id === snapshot.id && old.notes.length === snapshot.notes.length && old.folders.length === snapshot.folders.length
       && snapshot.notes.every((n, i) => { const p = old.notes[i]; return p.id === n.id && p.markdown === n.markdown && p.title === n.title && p.folderId === n.folderId; })
-      && snapshot.folders.every((f, i) => { const p = old.folders[i]; return p.id === f.id && p.name === f.name && p.parentId === f.parentId; });
-    if (!unchanged) this.index = buildLinkIndex(snapshot.notes, snapshot.folders, [], old?.id === snapshot.id ? this.index : undefined);
-    if (old?.id !== snapshot.id) { this.view = 'outgoing'; this.filter = ''; }
-    if (this.noteId !== activeId) { this.page = 0; this.noteId = activeId; }
+      && snapshot.folders.every((f, i) => { const p = old.folders[i]; return p.id === f.id && p.name === f.name && p.parentId === f.parentId; })
+      && old.attachments.length === snapshot.attachments.length && snapshot.attachments.every((a, i) => { const p = old.attachments[i]; return p.id === a.id && p.path === a.path && p.mimeType === a.mimeType && p.sha256 === a.sha256; });
+    if (!unchanged) this.index = buildLinkIndex(snapshot.notes, snapshot.folders, snapshot.attachments.map(a => ({ id: a.id, path: a.path, mediaType: a.mimeType })), old?.id === snapshot.id ? this.index : undefined);
     this.previous = snapshot;
-    const index = this.index!;
+    return this.index!;
+  }
+  render(container: HTMLElement, snapshot: WorkspaceSnapshot, activeId: string, navigate: (location: SourceLocation) => void) {
+    if (this.viewWorkspace !== snapshot.id) { this.view = 'outgoing'; this.filter = ''; this.viewWorkspace = snapshot.id; }
+    if (this.noteId !== activeId) { this.page = 0; this.noteId = activeId; }
+    const index = this.getIndex(snapshot);
     const focus = document.activeElement?.id === 'link-search';
     const selection = focus ? (document.activeElement as HTMLInputElement).selectionStart : null;
     container.replaceChildren(text('p', '筆記路徑連結與 identifier 分開管理。修改標題或移動後，失效的文字連結會明確顯示。', 'panel-intro'));
@@ -55,6 +60,9 @@ export class LinksPanel {
     if (link.candidates) card.append(text('p', link.candidates.map(t => t.path).join(' / '), 'record-field'));
     card.append(action('查看原文', () => navigate(link.location)));
     if (link.destination) card.append(action('前往目標 ↗', () => navigate(link.destination!)));
+    if (link.resolvedTarget?.kind === 'asset') {
+      const a = document.createElement('a'); a.textContent = '開啟附件 ↗'; a.href = `/api/assets/${encodeURIComponent(link.resolvedTarget.id)}?workspace=${encodeURIComponent(this.previous!.id)}`; a.target = '_blank'; a.rel = 'noopener'; card.append(a);
+    }
     container.append(card);
   }
 }

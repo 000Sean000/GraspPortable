@@ -247,6 +247,12 @@ function resolveLink(link: ParsedNoteLink, catalog: NoteCatalog, cache: Map<stri
   const result: ResolvedNoteLink = { ...link, status: 'missing' };
   const input = link.target.trim();
   if (!input) return { ...result, status: 'unsupported', message: 'Link destination is empty.' };
+  if (input.startsWith('grasp-asset:')) {
+    const id = input.slice('grasp-asset:'.length);
+    const candidates = catalog.targets.filter(target => target.kind === 'asset' && target.id === id);
+    if (candidates.length === 1) return { ...result, status: 'resolved', resolvedTarget: candidates[0] };
+    return { ...result, status: candidates.length ? 'ambiguous' : 'missing', message: 'Owned attachment ID is missing or ambiguous.', ...(candidates.length ? { candidates } : {}) };
+  }
   if (/[\u0000-\u001f]/.test(input)) return { ...result, status: 'unsafe', message: 'Control characters are not allowed in links.' };
   if (/^[a-z][a-z\d+.-]*:/i.test(input) || input.startsWith('//')) {
     const safe = /^(https?:\/\/|mailto:)/i.test(input) || input.startsWith('//');
