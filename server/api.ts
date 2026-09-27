@@ -199,7 +199,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
         if (method === 'POST' && path === '/api/files/import/plan') {
           const b = await read(req); const file = await withFiles(() => activeFiles.read(requireString(b.path, '相對檔案路徑', 4096), 32 * 1024 * 1024)); checkTarget(activeStore);
           if (!/\.(md|markdown|txt)$/i.test(file.name)) throw new StoreError('請選擇 Markdown 或文字檔進行匯入預覽。');
-          let markdown: string; try { markdown = new TextDecoder('utf-8', { fatal: true }).decode(file.bytes); } catch { throw new StoreError('匯入檔案不是完整 UTF-8 文字，未變更資料庫。'); }
+          let markdown: string; try { markdown = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(file.bytes); } catch { throw new StoreError('匯入檔案不是完整 UTF-8 文字，未變更資料庫。'); }
           json(res, exchange.plan(markdown, activeStore.snapshot())); return true;
         }
         if (method === 'POST' && path === '/api/files/mirror/refresh') {

@@ -1,12 +1,29 @@
-# 第一版技術決策
+# 已採用的技術與產品決策
 
-- **TypeScript + browser App Runtime**：同一套自有資料語意可在目前 Windows 與未來 WebView host 重用。輸入不經跨 runtime roundtrip；不用為第一版先建完整 native wrapper。
-- **CodeMirror 6**：成熟的 selection、history、composition、viewport 支援；自有 adapter 實作同區 Live Preview。實際大量 clipboard paste、背景 runtime update、undo/redo 與 navigation 已納入瀏覽器測試。[官方來源](https://github.com/codemirror/view)。
-- **SQLite / Node 24 node:sqlite**：本機 transactional、單一 portable database，無雲端帳號／服務。`node:sqlite` 在目前 Node 24 仍屬非穩定 API，僅封裝在 store adapter；SQLite 格式與 Grasp 資料語意不依赖該 API。[Node 文件](https://nodejs.org/docs/latest-v24.x/api/sqlite.html)。
-- **自有窄字串語法 + 增量 dependency graph**：需求只有 string、formatted string 與 reference；無 eval、loops、side effects。先用正確的 affected graph 演算法，實測後沒有引入 native calculation 的必要。
-- **Web Worker**：將 parse/calculate 與輸入執行緒分開；可取消 superseded work，revision 拒絕晚到結果。連續取消時會重新建 worker/cache，屬已知成本。
-- **Vite / Vitest / Playwright**：產出靜態 browser bundle 與無外部 production package 依賴的 Node host；測試包含真實 Edge 與真正 host restart。原始空 .NET solution 沒有必須繼承的實作。
+以下對應 v0.2 已實作及測試的 desktop app，不是下一輪的固定技術限制。核心 documents 定義需求；本文件解釋目前的產品與工程選擇。
 
-MIT 授權的 CodeMirror/Lezer 等第三方程式保留於產物 notices。套件版本由 package-lock 鎖定；不把依賴自動升級當作一般啟動步驟。
+| 決策 | 實際理由與代價 |
+| --- | --- |
+| TypeScript browser app + Node local host | Editor、domain、worker 使用同一套 plain contracts；目前 Windows 可直接啟動。未來 mobile/WebView 仍需 platform storage/files adapter 與實機驗證 |
+| CodeMirror 6 adapter | 使用成熟的 selection、history、composition、viewport 能力，同區提供 source/Live Preview；不同 editor 可保留文字與 navigation 契約替換 |
+| Raw source / editor position mapping | 真實 rehearsal 有 117／160 notes 使用 CRLF；adapter 保留原始 separators 與 BOM，集中轉換 raw UTF-16 offsets，並讓 undo 保存換行 metadata，避免 title-only edit 或跳轉改寫原文 |
+| SQLite + Node 24 node:sqlite | Transaction、portable DB、optimistic revision 與 BLOB 共用單一 authority；Node SQLite API 僅在 store adapter，不讓 SQL/handle 進入 editor/domain |
+| 穩定 note/folder/asset IDs | 邏輯資料夾與值 namespace 分離；移動筆記不換 ID。重複 note title 可保留並顯示連結歧義；同層 folder 名稱、附件路徑衝突則拒絕 |
+| 窄字串 Value Language + dependency graph | 現有 string/formatted/nested requirements 可由無 side effects 的 grammar 完成。沒有因假想 arithmetic/runtime 建完整語言；語法仍為 provisional grasp-string-v1 |
+| Web Worker + metadata-only reuse | 輸入留在 UI；worker 計算 committed content。Metadata-only 保存不重新解析 knowledge；真正 superseded 計算可終止並重建 worker，代價是失去該 worker cache |
+| Bounded DOM + 全結果搜尋／分頁 | Navigation、identifiers/references/diagnostics、records/fields、files 都能查到全部結果；inline query 保留 200 列上限並提供全部結果入口，避免把整份 vault 一次掛進 DOM |
+| Owner-aware semantic rename | 使用 parser 提供的精確 spans 和 record ownership，只改語意 token。Preview 顯示直接／下游影響與衝突；host 檢查投影後的儲存限制才發 token，apply 原子提交與 recovery |
+| 獨立 note/asset link resolver | Wiki/Markdown paths、aliases、heading/block anchors 與 grasp-asset:ID 不映射成值 identifiers。歧義、缺失及未支援片段保留並報告，避免猜錯目標 |
+| DB-owned immutable attachments | Metadata 進 snapshot、bytes 留在 SQLite，以 SHA256 去重並驗證。單檔 64 MiB；PNG/JPEG/GIF/WebP 可 inline，其餘下載，HTML/SVG 不作 active content 執行 |
+| Immutable incremental mirror | 改一份筆記不重寫整個 vault 的 payload；完整 manifest/index 最後發布。外部編輯不被覆寫；仍需掃描檔案 metadata、寫完整 manifest，且目前不自動清除舊 revisions |
+| Controlled file exchange / new-DB rebuild | Inbox 不自動匯入；review token 綁定 workspace/revision。已驗證 manifest/bytes 只能重建新 .db，保留 entities、換 workspace ID，原壞 DB 不覆寫 |
+| Read-only bounded migration | 專用 CLI 先建立 private preview/report，再明確套用至新 DB；source paths/hashes/mtime 在套用前重查。保留 Markdown/frontmatter 與附件，不自動推導 records 或執行 plugins |
+| Vite / Vitest / Playwright | Browser/worker 與 bundled Node host 分開產出；tests 包含 production Edge、磁碟 DB 與真正 host restart。Browser harness 使用各自的 Vite cache，避免並行測試互相污染 |
 
-Provisional：editor rendering 風格、Node host、SQLite adapter、目前 value grammar。使用者可以依手感局部替換；穩定的是 Note-first、DB authority、reference 語意與 controlled exchange。
+既有 DB 的 schema 升級先使用 VACUUM INTO 產生一致的獨立備份，驗證後在 write transaction 內再比對來源才改 schema。這是 SQLite 支援的 live backup 方式；不能用隨意複製正在寫入的 DB 取代。[SQLite 文件](https://www.sqlite.org/lang_vacuum.html)
+
+Collection/filtered-field rename 若會破壞既有 grasp-query，目前以明確診斷阻止套用，保留 query source。跨越無法明確判斷的 dotted record ownership 也拒絕；不以 global regex 猜測改寫。這些限制列於 [LIMITATIONS.md](LIMITATIONS.md)。
+
+Dependency versions 由 package-lock.json 鎖定，正常啟動不自動升級套件。產物保留第三方 notices。Editor 呈現、host、SQLite adapter 與 grammar 都可因實際使用回饋替換；穩定需求是 Note-first、DB authority、reference 語意、可回復的 controlled changes。
+
+M5 已驗證 160-note private rehearsal 的 hashes、controlled exchange/recovery 與 mirror rebuild；production E2E 另驗證 CRLF 編輯、heading navigation、image preview、undo、restart 與 unchanged-file import。人工 private-workspace 操作及最終 package smoke 的交付狀態見 [VERIFICATION.md](VERIFICATION.md)。

@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readdir, realpath, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep, toNamespacedPath } from 'node:path';
 import type { Attachment, Folder, Note, WorkspaceSnapshot } from '../src/domain/model.js';
 import type { FileEntry, FileExportResult, FilesStatus } from '../src/domain/files.js';
-import { validateSnapshot } from './store.js';
+import { MAX_MARKDOWN_CHARACTERS, validateSnapshot } from './store.js';
 
 type BlobReader = (sha256: string) => Uint8Array | Promise<Uint8Array>;
 interface ProjectedNote extends Omit<Note, 'markdown'> { file: string; sha256: string; size: number }
@@ -273,7 +273,9 @@ export class WorkspaceFiles {
     const version = revisionName(snapshot.revision), manifestPath = `mirror/manifests/${version}.json`, indexPath = `mirror/index/${version}.md`;
     // An index is not authoritative until its matching manifest is published last.
     await this.tree.writeNew(indexPath, utf8(indexText(manifest, manifestPath, indexPath)));
-    await this.tree.writeNew(manifestPath, utf8(envelope(manifest)));
+    const metadataBytes = utf8(envelope(manifest));
+    if (metadataBytes.length > MAX_FILE) throw new Error('Mirror metadata exceeds the supported 128 MiB rebuild limit; DB remains authoritative.');
+    await this.tree.writeNew(manifestPath, metadataBytes);
     this.current = manifest;
     this.state.mirror = { state: 'ready', revision: snapshot.revision, manifestPath, indexPath, dirtyPaths: [...dirty], writtenFiles: written, reusedFiles: reused, elapsedMs: performance.now() - started };
   }
@@ -318,7 +320,9 @@ export class WorkspaceFiles {
     const manifest: MirrorManifest = { format: 'grasp-mirror', version: 1, kind: 'ai', createdAt: new Date().toISOString(), workspace: { id: snapshot.id, name: snapshot.name, revision: snapshot.revision, settings: snapshot.settings }, notes, folders: snapshot.folders, records: snapshot.records, attachments, dirtyPaths: [] };
     const manifestPath = `${base}/grasp-manifest.json`, indexPath = `${base}/README.md`;
     await this.tree.writeNew(indexPath, utf8(indexText(manifest, 'grasp-manifest.json', 'README.md') + '\nAI 修改回傳：請將需要的 Markdown 放入 exchange/inbox，再透過 App 預覽匯入。manifest 是原始快照 checksum，修改後不能直接當作可信重建來源。\n'));
-    await this.tree.writeNew(manifestPath, utf8(envelope(manifest)));
+    const metadataBytes = utf8(envelope(manifest));
+    if (metadataBytes.length > MAX_FILE) throw new Error('AI-folder metadata exceeds the supported 128 MiB rebuild limit.');
+    await this.tree.writeNew(manifestPath, metadataBytes);
     return { path: base, absolutePath: this.tree.absolute(base), manifestPath, indexPath, files: files + 2, bytes };
   }
 }
@@ -340,7 +344,9 @@ export async function readMirrorManifest(manifestAbsolutePath: string): Promise<
     if (!entry || typeof entry.file !== 'string' || !/^[a-f\d]{64}$/.test(entry.sha256) || !Number.isSafeInteger(entry.size) || entry.size < 0) throw new Error('Invalid note file metadata.');
     if (!(mirror ? entry.file.startsWith('mirror/notes/') : entry.file.startsWith('notes/'))) throw new Error('Note file is outside its designated area.');
     const pathKey = entry.file.normalize('NFC').toLowerCase(); if (usedPaths.has(pathKey)) throw new Error('Duplicate projected file path.'); usedPaths.add(pathKey);
-    const bytes = await tree.read(entry.file, 10 * 1024 * 1024);
+    // SQLite's source limit counts UTF-16 code units; each can occupy up to
+    // three UTF-8 bytes. validateSnapshot below enforces the original limit.
+    const bytes = await tree.read(entry.file, MAX_MARKDOWN_CHARACTERS * 3);
     if (bytes.length !== entry.size || digest(bytes) !== entry.sha256) throw new Error(`Note hash mismatch: ${entry.id}`);
     const markdown = bytes.toString('utf8'); if (!utf8(markdown).equals(bytes)) throw new Error('Note is not valid UTF-8.');
     const { file: _file, sha256: _sha, size: _size, ...metadata } = entry; notes.push({ ...metadata, markdown });

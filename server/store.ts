@@ -7,7 +7,7 @@ import type { Attachment, Folder, Note, StructuredRecord, WorkspaceSnapshot } fr
 // All persisted objects crossing this boundary are Grasp-owned plain data.
 const APPLICATION_ID = 0x47525031;
 const SCHEMA_VERSION = 3;
-const MAX_MARKDOWN = 10 * 1024 * 1024;
+export const MAX_MARKDOWN_CHARACTERS = 10 * 1024 * 1024;
 export const MAX_ATTACHMENT_BYTES = 64 * 1024 * 1024;
 const identifier = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 export class StoreError extends Error {
@@ -48,7 +48,7 @@ export function validateNote(input: { id: unknown; title: unknown; markdown: unk
   const id = requireString(input.id, '筆記 ID', 128);
   const title = requireString(input.title, '標題', 500).trim();
   if (!id || !title) throw new StoreError('筆記 ID 與標題不得為空。');
-  return { id, title, markdown: requireString(input.markdown, 'Markdown', MAX_MARKDOWN), ...(input.folderId === undefined ? {} : { folderId: requireFolderId(input.folderId) }) };
+  return { id, title, markdown: requireString(input.markdown, 'Markdown', MAX_MARKDOWN_CHARACTERS), ...(input.folderId === undefined ? {} : { folderId: requireFolderId(input.folderId) }) };
 }
 function folderNameKey(name: string): string { return name.normalize('NFC').toLowerCase(); }
 export function normalizeAttachmentPath(input: unknown): string {

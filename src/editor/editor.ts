@@ -7,6 +7,7 @@ import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import type { RuntimeResult, StructuredRecord, ValueResult } from '../domain/model';
 import { assetIdentifier, assetUrl, executeQuery, inlineAsset, parseQuery, safeLink, type RecordQuery } from './query';
+import { editorToRaw, insertedSourceEffects, normalizeSource, rawDocument, rawSourceField, rawSourceHistory, rawSourceNormalization, rawToEditor, sourceFormat } from './raw-source';
 import './editor.css';
 
 export interface EditorAdapter {
@@ -26,7 +27,7 @@ const updateAssets = StateEffect.define<AssetState>();
 const assetsField = StateField.define<AssetState>({
   create: () => ({ workspaceId: '', attachments: new Map(), links: [] }),
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(updateAssets)) return effect.value;
+    for (const effect of tr.effects) if (effect.is(updateAssets)) return { ...effect.value, links: effect.value.links.map(link => ({ ...link, from: rawToEditor(tr.state, link.from), to: rawToEditor(tr.state, link.to), raw: normalizeSource(link.raw) })) };
     if (tr.docChanged && value.links.length) return { ...value, links: value.links.flatMap(link => {
       const from = tr.changes.mapPos(link.from, 1), to = tr.changes.mapPos(link.to, -1);
       return from >= 0 && to >= from && to <= tr.state.doc.length && tr.state.doc.sliceString(from, to) === link.raw ? [{ ...link, from, to }] : [];
@@ -344,10 +345,16 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
   }, { decorations: value => value.decorations });
   const makeState = (doc: string): EditorState => {
     const state = EditorState.create({ doc, extensions: [
+      rawSourceField.init(() => sourceFormat(doc)), rawSourceHistory, rawSourceNormalization,
       runtimeField, modeField, assetsField, markdown({ base: markdownLanguage }), history(), drawSelection(), dropCursor(), indentOnInput(), bracketMatching(),
       syntaxHighlighting(defaultHighlightStyle), highlightActiveLine(), highlightSelectionMatches(),
       EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 筆記編輯器', spellcheck: 'false', autocapitalize: 'off' }),
       EditorState.tabSize.of(2), editorOptions.of(options), queriesField, preview,
+      EditorView.clipboardOutputFilter.of((text, state) => {
+        const selection = state.selection.main;
+        return state.selection.ranges.length === 1 && !selection.empty && text === state.doc.sliceString(selection.from, selection.to)
+          ? rawDocument(state).slice(editorToRaw(state, selection.from), editorToRaw(state, selection.to)) : text;
+      }),
       // Some input drivers/layouts report lowercase "z" even with Shift held.
       // CodeMirror's character fallback otherwise tries unshifted Ctrl+Z first.
       Prec.highest(EditorView.domEventHandlers({ keydown(event, view) {
@@ -372,7 +379,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
         { key: 'Shift-F12', run: view => { const name = identifierAtSelection(view.state); if (!name) return false; options.onFindReferences(name); return true; } },
         ...defaultKeymap, ...historyKeymap, ...completionKeymap, ...searchKeymap, indentWithTab,
       ]),
-      EditorView.updateListener.of(update => { if (update.docChanged && !update.transactions.some(tr => tr.annotation(externalChange))) options.onChange(update.state.doc.toString()); }),
+      EditorView.updateListener.of(update => { if (update.docChanged && !update.transactions.some(tr => tr.annotation(externalChange))) options.onChange(rawDocument(update.state)); }),
     ] });
     return state.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode), updateAssets.of(assets)], annotations: externalChange.of(true) }).state;
   };
@@ -382,21 +389,24 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
   const recentStates = new Map<string, EditorState>();
   return {
     setDocument(markdown, nextKey) {
-      if (documentKey === nextKey && view.state.doc.toString() === markdown) return;
+      if (documentKey === nextKey && rawDocument(view.state) === markdown) return;
       if (documentKey && documentKey !== nextKey) {
         recentStates.delete(documentKey); recentStates.set(documentKey, view.state);
         while (recentStates.size > 20) recentStates.delete(recentStates.keys().next().value!);
       }
       const previous = nextKey && recentStates.get(nextKey);
       // External import/recovery is a new document version; never resurrect stale undo.
-      const state = previous && previous.doc.toString() === markdown ? previous.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode), updateAssets.of(assets)], annotations: externalChange.of(true) }).state : makeState(markdown);
+      const state = previous && rawDocument(previous) === markdown ? previous.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode), updateAssets.of(assets)], annotations: externalChange.of(true) }).state : makeState(markdown);
       documentKey = nextKey; view.setState(state);
     },
-    getDocument: () => view.state.doc.toString(),
-    insertText(text) { view.dispatch({ ...view.state.replaceSelection(text), userEvent: 'input', annotations: isolateHistory.of('full'), scrollIntoView: true }); view.focus(); },
+    getDocument: () => rawDocument(view.state),
+    insertText(text) {
+      const tr = view.state.update({ ...view.state.replaceSelection(text), userEvent: 'input', annotations: isolateHistory.of('full'), scrollIntoView: true, filter: false });
+      view.dispatch(view.state.update(tr, { effects: insertedSourceEffects(tr, text), sequential: true })); view.focus();
+    },
     setRuntime(result, records = []) { runtime = { result, records }; view.dispatch({ effects: updateRuntime.of(runtime) }); },
     setAssets(workspaceId, attachments, links = []) { assets = { workspaceId, attachments: new Map(attachments.map(asset => [asset.id, asset])), links }; view.dispatch({ effects: updateAssets.of(assets) }); },
-    focusRange(from, to) { const length = view.state.doc.length; const start = Math.max(0, Math.min(from, length)); const end = Math.max(start, Math.min(to, length)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
+    focusRange(from, to) { const start = rawToEditor(view.state, from); const end = Math.max(start, rawToEditor(view.state, to)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
     setMode(next) { mode = next; view.dispatch({ effects: updateMode.of(next) }); },
     destroy() { recentStates.clear(); view.destroy(); },
   };

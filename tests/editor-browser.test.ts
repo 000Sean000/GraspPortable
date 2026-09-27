@@ -217,6 +217,44 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
     } finally { await page.unroute(assetRoute); await page.evaluate(() => (window as any).editor.setAssets('', [])); }
   });
 
+  it('preserves mixed original line endings through navigation, source edits, assets and undo', async () => {
+    const declaration = '@name = "Sean"', wiki = '![[images/photo.png]]';
+    const source = '# Welcome\r\n\r\n' + declaration + '\n\n' + wiki + '\r\n\r\nHello {{name}}\r\nEnd';
+    const attachments = [{ id: 'mixed-photo', name: 'photo.png', mimeType: 'image/png' }];
+    const links = [{ from: source.indexOf(wiki), to: source.indexOf(wiki) + wiki.length, id: 'mixed-photo', raw: wiki, embed: true }];
+    const route = '**/api/assets/mixed-photo**';
+    await page.route(route, value => value.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') }));
+    try {
+      await page.evaluate(({ source, declaration, attachments, links, runtime }) => {
+        const e = (window as any).editor; e.setMode('live'); e.setDocument(source, 'mixed:eol'); e.setAssets('mixed-workspace', attachments, links); e.setRuntime(runtime); e.focusRange(0, 0);
+        (window as any).testNavigate = () => e.focusRange(source.indexOf(declaration), source.indexOf(declaration) + declaration.length);
+      }, { source, declaration, attachments, links, runtime });
+      expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(source);
+      await page.waitForSelector('.gp-asset img');
+      await page.locator('.gp-value:not(.gp-declaration) .gp-value-text').click();
+      expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(declaration);
+      await page.keyboard.insertText('@name = "小明"');
+      const edited = source.replace(declaration, '@name = "小明"');
+      expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited);
+      expect(await page.evaluate(() => (window as any).changes.at(-1))).toBe(edited);
+      expect(await page.locator('.gp-asset img').count()).toBe(1);
+      // A metadata save roundtrip must not replace the state and silently clear undo.
+      await page.evaluate(edited => (window as any).editor.setDocument(edited, 'mixed:eol'), edited);
+      await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(source);
+      await page.keyboard.press('ControlOrMeta+Shift+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited);
+      await page.evaluate(edited => { const e = (window as any).editor; e.focusRange(edited.indexOf('Hello'), edited.indexOf('Hello') + 5); }, edited);
+      expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Hello');
+      await page.evaluate(() => (window as any).editor.insertText('Hello\r\nInserted\n'));
+      expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited.replace('Hello', 'Hello\r\nInserted\n'));
+      await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited);
+      await page.evaluate(edited => { const e = (window as any).editor; e.focusRange(edited.length, edited.length); }, edited);
+      await page.keyboard.press('Enter');
+      expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited + '\r\n');
+      await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe(edited);
+      expect(errors).toEqual([]);
+    } finally { await page.unroute(route); await page.evaluate(() => { (window as any).testNavigate = undefined; (window as any).editor.setAssets('', []); }); }
+  });
+
   it('round-trips source through the real clipboard and pastes a 12k-definition note', async () => {
     await page.evaluate(sample => { const e = (window as any).editor; e.setMode('source'); e.setDocument(sample); e.focusRange(0, 0); }, sample);
     await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.press('ControlOrMeta+c');

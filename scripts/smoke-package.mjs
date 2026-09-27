@@ -7,7 +7,8 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const source = resolve(root, process.argv[2] || 'artifacts/GraspPortable-0.1.0');
+const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+const source = resolve(root, process.argv[2] || `artifacts/GraspPortable-${version}`);
 assert.ok(existsSync(join(source, 'dist/server.mjs')), 'Build and package first.');
 const folder = mkdtempSync(join(tmpdir(), 'grasp-package-smoke-'));
 const port = 43832;
@@ -71,8 +72,20 @@ try {
   const response = await fetch(origin + '/api/notes/' + note.id, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Grasp-Workspace': workspace.id }, body: JSON.stringify({ title: 'Package restart proof', markdown: '# Packaged product\n\n@name = "中文保存"\n{{name}}', revision: note.revision }) });
   assert.equal(response.status, 200); workspace = await response.json();
   const exported = await (await fetch(origin + '/api/export')).text(); assert.ok(exported.includes('中文保存'));
+  // Package-boundary probes: the bundled host must save DB-owned bytes and
+  // publish its filesystem projection without source files or node_modules.
+  // Rebuild and controlled import workflows remain covered by production E2E.
+  const attachmentBytes = Buffer.from('Packaged attachment — 中文', 'utf8');
+  const upload = await fetch(origin + '/api/assets?name=package-smoke.txt', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'X-Grasp-Workspace': workspace.id }, body: attachmentBytes });
+  assert.equal(upload.status, 200); workspace = await upload.json();
+  const attachment = workspace.attachments.find(asset => asset.name === 'package-smoke.txt'); assert.ok(attachment); assert.equal(attachment.size, attachmentBytes.length);
+  const retrieved = await fetch(`${origin}/api/assets/${attachment.id}?workspace=${encodeURIComponent(workspace.id)}`); assert.equal(retrieved.status, 200); assert.deepEqual(Buffer.from(await retrieved.arrayBuffer()), attachmentBytes);
+  const projection = await fetch(origin + '/api/files/mirror/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Grasp-Workspace': workspace.id }, body: '{}' });
+  assert.equal(projection.status, 200); const files = await projection.json(); assert.equal(files.mirror.state, 'ready'); assert.equal(files.mirror.revision, workspace.revision);
+  assert.ok(existsSync(resolve(files.root, files.mirror.manifestPath))); assert.ok(existsSync(resolve(files.root, files.mirror.indexPath)));
   await stop(); const reopened = await start(); assert.deepEqual(reopened, workspace);
-  const evidence = { timestamp: new Date().toISOString(), node: process.version, platform: process.platform, source: basename(source), packagedFiles: packagedFiles.length, staticAssetsLoaded: assets.length, builtinHostImports: imports, isolatedOutsideRepository: true, installedDependenciesRequired: false, launcherStarted: true, databaseWriteExportRestart: 'passed', privateFilesAbsent: true };
+  const persistedAttachment = await fetch(`${origin}/api/assets/${attachment.id}?workspace=${encodeURIComponent(reopened.id)}`); assert.equal(persistedAttachment.status, 200); assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes);
+  const evidence = { timestamp: new Date().toISOString(), node: process.version, platform: process.platform, source: basename(source), packagedFiles: packagedFiles.length, staticAssetsLoaded: assets.length, builtinHostImports: imports, isolatedOutsideRepository: true, installedDependenciesRequired: false, launcherStarted: true, databaseWriteExportRestart: 'passed', attachmentBytesRestart: 'passed', mirrorPublished: 'passed', privateFilesAbsent: true };
   mkdirSync(join(root, 'docs/benchmarks'), { recursive: true });
   writeFileSync(join(root, 'docs/benchmarks/package-smoke.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));

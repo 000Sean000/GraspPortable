@@ -29,6 +29,8 @@ test('a damaged DB leaves the launcher and recovery UI usable without modifying 
   const [code] = await once(launcher, 'exit'); expect(code).toBe(0); expect(log).toContain('already running');
   await page.goto(origin); await expect(page.locator('#modal')).toBeVisible();
   await expect(page.locator('#save')).toBeDisabled();
+  await page.keyboard.press('Escape'); await expect(page.getByLabel('筆記標題', { exact: true })).toBeDisabled();
+  await page.locator('#workspace-open').click();
   await expect(page.locator('#modal-body')).toContainText(broken);
   expect(readFileSync(broken)).toEqual(bytes);
   await page.getByLabel('資料庫路徑', { exact: true }).fill(resolve(folder, 'fresh.grasp.db'));

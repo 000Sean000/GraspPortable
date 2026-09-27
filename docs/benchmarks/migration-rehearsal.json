@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-27T01:32:48.793Z",
+  "sourceFingerprint": "deadaf0a1f5e8fec41c5abccf5516ac71c29330dcebe4f072e982e2fbb9fba8a",
+  "notes": 160,
+  "folders": 44,
+  "attachments": 11,
+  "sourceBytes": 6784617,
+  "sourceContentFidelity": "all hashes equal",
+  "restart": "exact persisted snapshot",
+  "exchangeRoundtrip": "no changes",
+  "controlledAiImport": "one note reviewed, nested values reactive, all source content restored",
+  "mirrorRebuild": "all note metadata and asset hashes equal; new workspace ID",
+  "links": {
+    "total": 730,
+    "resolved": 302,
+    "missing": 419,
+    "ambiguous": 0,
+    "external": 9,
+    "unsafe": 0,
+    "unsupported": 0
+  },
+  "unsupportedCounts": {
+    "excalidraw": 2,
+    "math": 6,
+    "mermaid": 2
+  },
+  "timings": {
+    "applyMs": 128.54719999999998,
+    "linkIndexMs": 74.1603,
+    "mirrorMs": 236.6422
+  }
+}

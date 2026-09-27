@@ -127,4 +127,14 @@ describe('immutable workspace file projection', () => {
     const output = manifest(files); expect(new Set(output.payload.notes.map((note: { file: string }) => note.file)).size).toBe(2);
     expect((await readMirrorManifest(join(files.root, status.mirror.manifestPath!))).snapshot).toEqual(snapshot);
   });
+
+  it('rebuilds legal Unicode notes larger than 10 MiB in UTF-8 while preserving the store character limit', async () => {
+    const files = service(), snapshot = source();
+    snapshot.attachments = []; snapshot.notes[0].markdown = '中'.repeat(3_500_000);
+    expect(Buffer.byteLength(snapshot.notes[0].markdown)).toBeGreaterThan(10 * 1024 * 1024);
+    files.schedule(snapshot, () => bytes); const status = await files.flush();
+    expect(status.mirror.state).toBe('ready');
+    const rebuilt = await readMirrorManifest(join(files.root, status.mirror.manifestPath!));
+    expect(rebuilt.snapshot.notes[0].markdown).toBe(snapshot.notes[0].markdown);
+  });
 });

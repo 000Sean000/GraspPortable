@@ -1,0 +1,18 @@
+{
+  "notes": 2820,
+  "assets": 506,
+  "fullIndexMs": 411.78589999999997,
+  "fullLinks": 11710,
+  "fullStatuses": {
+    "resolved": 11399,
+    "missing": 219,
+    "unsupported": 1,
+    "external": 91
+  },
+  "subsetMissing": 419,
+  "subsetMissingStatusesWithFullCatalog": {
+    "missing": 15,
+    "resolved": 404
+  },
+  "note": "Read-only source Markdown and catalog audit using Grasp resolver; no import of full vault and no Obsidian conformance claim."
+}

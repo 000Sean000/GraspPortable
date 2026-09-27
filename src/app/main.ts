@@ -16,7 +16,7 @@ import './style.css';
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <aside class="sidebar">
-  <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 01</span></div></div>
+  <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 02</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
   <section id="navigation" aria-label="筆記與資料夾"></section>
   <div class="sidebar-bottom"><button id="files">▧ 檔案與 Mirror</button><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
@@ -393,8 +393,9 @@ function importDialog() {
   body.append(element('p', 'muted', '匯出檔保留 note IDs 與 records；一般 Markdown 會新增一份筆記。選取檔案或貼上文字後，先建立匯入計畫。'));
   const file = element('input'); file.type = 'file'; file.accept = '.md,.markdown,text/markdown,text/plain'; file.setAttribute('aria-label', '選取 Markdown 匯入檔案');
   const source = element('textarea', 'import-source'); source.rows = 10; source.placeholder = '貼上 AI 回傳的 Markdown…'; source.setAttribute('aria-label', '匯入 Markdown');
-  file.onchange = () => void run(async () => { const selected = file.files?.[0]; if (selected) source.value = await selected.text(); });
-  body.append(file, source, button('驗證並檢視差異', async () => { await flush(); const plan = await request<ImportPlan>('/import/plan', 'POST', { markdown: source.value }); showImportPlan(plan); }, 'primary'));
+  let loadedFile: { raw: string; displayed: string } | undefined;
+  file.onchange = () => void run(async () => { const selected = file.files?.[0]; if (selected) { const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await selected.arrayBuffer()); source.value = raw; loadedFile = { raw, displayed: source.value }; } });
+  body.append(file, source, button('驗證並檢視差異', async () => { await flush(); const markdown = loadedFile && source.value === loadedFile.displayed ? loadedFile.raw : source.value; const plan = await request<ImportPlan>('/import/plan', 'POST', { markdown }); showImportPlan(plan); }, 'primary'));
 }
 function showImportPlan(plan: ImportPlan) {
   const body = openModal('審查匯入計畫');
@@ -469,6 +470,7 @@ void run(async () => {
   try { initial = await request<WorkspaceSnapshot>('/workspace'); }
   catch (error) {
     $('workspace-name').textContent = '選擇可用的 Workspace'; $('runtime-status').textContent = '尚未開啟資料庫';
+    ($('note-title') as HTMLInputElement).disabled = true;
     setSaveStatus('資料庫未開啟 · 原檔保留', true); $('navigation').inert = true; $('editor').classList.add('no-note');
     for (const id of ['save', 'mode', 'delete-note', 'export', 'import', 'history', 'files']) ($<HTMLButtonElement>(id)).disabled = true;
     workspaceDialog(); toast(error instanceof Error ? error.message : String(error), true); return;

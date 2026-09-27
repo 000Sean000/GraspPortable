@@ -5,6 +5,10 @@ process.chdir(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 const root = process.cwd();
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 if (!existsSync('dist/server.mjs')) throw new Error('Run npm run build before packaging.');
+const documentation = ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md', 'PHASE2-PLAN.md', 'PHASE2-VERIFICATION.md', 'FILES-PERFORMANCE.md', 'IMPLEMENTATION-CONTRACT.md', 'USAGE-LOG.md'];
+for (const name of documentation) if (!existsSync(join('docs', name))) throw new Error(`Required delivery document missing: docs/${name}`);
+// Only explicitly public migration reports enter the package, never .cache/private rehearsal files.
+documentation.push(...readdirSync('docs').filter(name => /^MIGRATION(?:-[A-Za-z0-9_-]+)?\.md$/i.test(name)));
 const destination = resolve('artifacts', `GraspPortable-${pkg.version}`);
 if (existsSync(destination)) throw new Error(`Refusing to reuse existing package directory: ${destination}. It may contain workspace data. Move the existing package aside or choose a new version; no package files were changed.`);
 mkdirSync(dirname(destination), { recursive: true });
@@ -15,7 +19,7 @@ for (const path of ['dist', 'Start-GraspPortable.cmd', 'README.md', 'ARCHITECTUR
 mkdirSync(join(destination, 'scripts'), { recursive: true });
 cpSync('scripts/launch.mjs', join(destination, 'scripts/launch.mjs'));
 mkdirSync(join(destination, 'docs'), { recursive: true });
-for (const name of ['DECISIONS.md', 'LIMITATIONS.md', 'PERFORMANCE.md', 'VERIFICATION.md']) if (existsSync(join('docs', name))) cpSync(join('docs', name), join(destination, 'docs', name));
+for (const name of documentation) cpSync(join('docs', name), join(destination, 'docs', name));
 if (existsSync('docs/benchmarks')) cpSync('docs/benchmarks', join(destination, 'docs/benchmarks'), { recursive: true });
 const notices = ['GraspPortable third-party notices', 'Production host requires an independently installed Node.js 24+ runtime.', 'Browser bundle and Markdown parser include the following packages:', ''];
 const seen = new Set();
@@ -29,5 +33,5 @@ function visit(name) {
 }
 for (const name of Object.keys(pkg.dependencies)) visit(name);
 writeFileSync(join(destination, 'THIRD-PARTY-NOTICES.txt'), notices.join('\n\n'));
-writeFileSync(join(destination, 'PACKAGE-INFO.txt'), `GraspPortable ${pkg.version}\nBuilt ${new Date().toISOString()}\nNo user workspaces, secrets or node_modules are included.\nRequires Node.js >=24.0.0.\nWindows: Start-GraspPortable.cmd\nOther desktop: node scripts/launch.mjs\nCopy workspace only while its host is closed.\n`);
+writeFileSync(join(destination, 'PACKAGE-INFO.txt'), `GraspPortable ${pkg.version}\nBuilt ${new Date().toISOString()}\nNo user workspaces, private migration files, secrets or node_modules are included.\nRequires an independently installed Node.js >=24.0.0.\nWindows: Start-GraspPortable.cmd\nOther desktop: node scripts/launch.mjs\nCopy workspace only while its host is closed. The .grasp.db contains notes, records and attachment bytes.\nCopy the matching .grasp.db.files directory too when preserving mirror fallback, inbox or prior exports.\nRebuild from a verified manifest only into a new database; preserve the original database and file tree.\n`);
 console.log(destination);

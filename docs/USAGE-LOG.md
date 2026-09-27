@@ -23,3 +23,11 @@ P2-3 commit association: `52ffe9967cc820c96f66bb5a30a7d9eccb0c9150`, pushed and 
 | Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
 | P2-4 Files, attachments and Markdown fallback | 2026-09-27 01:03:59 | 2026-09-27 01:23:46 | 38% | 48% | 10 pp | 19m 47s | Association appended after checkpoint | Codex account quota, same reset window 1791048521 | Schema 3 DB assets, visible files/exchange, immutable incremental mirror, validated new-DB rebuild and broken-DB startup UI; build, 159 tests and 19 production E2E pass; 2,820-note projection benchmark and personal UI use |
+
+P2-4 commit association: `07e53b9ed7168ae2967632fba21a8f94b1a57831`, pushed and remote SHA verified before M5.
+
+| Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| P2-5 Real migration and v0.2 release | 2026-09-27 01:25:11 | 2026-09-27 01:54:18 | 48% | 58% | 10 pp | 29m 07s | Association appended after checkpoint | Codex account quota, same reset window 1791048521; ordinary usage allowed | 160-note/11-asset private rehearsal, source fidelity and unchanged full original vault, CRLF/BOM editor/import fixes, manual UI/restart, build 179 tests/20 E2E and isolated v0.2 package smoke |
+
+Five major milestones consumed 7 + 6 + 5 + 10 + 10 = 38 percentage points across their measured intervals. The full goal span increased from 19% to 58%, or 39 percentage points in the same account window (1h 39m 24s); the extra point is between milestone snapshots, not silently attributed. Files/mirror and migration/release each used 10 pp, the largest measured segments. This is account-wide integer quota evidence, not precise per-task billing or token consumption. Final Git/documentation closeout occurs after this validation snapshot.

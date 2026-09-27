@@ -70,6 +70,18 @@ describe('managed files and startup recovery HTTP workflows', () => {
     expect((await request(h.base, '/api/files/import/plan', { path: bad.path })).status).toBe(400); expect(await getSnapshot(h.base)).toEqual(applied);
   });
 
+  it('preserves BOM and CRLF bytes when reviewing and applying a plain Markdown inbox file', async () => {
+    const h = await host(); const before = await getSnapshot(h.base);
+    const raw = '\uFEFF# 中文\r\n\r\nPlain Markdown\r\n';
+    const inbox = await (await fetch(h.base + '/api/files/inbox?name=raw.md', { method: 'POST', headers: { 'Content-Type': 'text/markdown' }, body: Buffer.from(raw, 'utf8') })).json() as FileEntry;
+    expect(readFileSync(inbox.absolutePath)).toEqual(Buffer.from(raw, 'utf8'));
+    const plan = await (await request(h.base, '/api/files/import/plan', { path: inbox.path })).json() as ImportPlan;
+    expect(plan.canApply).toBe(true); expect(await getSnapshot(h.base)).toEqual(before);
+    const applied = await (await request(h.base, '/api/import/apply', { token: plan.token, workspaceRevision: plan.workspaceRevision })).json() as WorkspaceSnapshot;
+    const added = applied.notes.filter(note => !before.notes.some(previous => previous.id === note.id));
+    expect(added).toHaveLength(1); expect(Buffer.from(added[0]!.markdown, 'utf8')).toEqual(Buffer.from(raw, 'utf8'));
+  });
+
   it('keeps host recovery alive for a corrupt default database and never overwrites it while opening another DB', async () => {
     const corrupt = Buffer.from('This is not a SQLite database.'); const h = await host({ prepare: path => writeFileSync(path, corrupt) });
     const info = await (await fetch(h.base + '/api/host')).json() as { error: string; unavailablePath: string };
