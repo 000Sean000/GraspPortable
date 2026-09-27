@@ -1,0 +1,15 @@
+{
+  "notes": 3000,
+  "widestFolderNotes": 2275,
+  "maxDepth": 6,
+  "mountedNotesAtMost": 80,
+  "searchInputToVisibleResultMs": [
+    27.94130000000041,
+    19.876000000000204,
+    21.87750000000051,
+    18.980399999998554,
+    17.703800000001138
+  ],
+  "platform": "win32",
+  "includesAutomationOverhead": true
+}

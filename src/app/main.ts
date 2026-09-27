@@ -1,5 +1,7 @@
 import { createEditor } from '../editor/editor';
 import { RuntimeClient } from '../runtime/client';
+import { LinksPanel } from './links-panel';
+import { createNavigator } from './navigation';
 import { request, setWorkspaceId, workspaceHeaders } from './api';
 import type { WorkspaceSnapshot, RuntimeResult, ImportPlan, StructuredRecord, SourceLocation } from '../domain/model';
 import './style.css';
@@ -8,9 +10,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 <aside class="sidebar">
   <div class="brand"><span class="brand-mark">g.</span><div>Grasp<span>PORTABLE / 01</span></div></div>
   <button class="workspace-button" id="workspace-open"><span class="tiny-label">WORKSPACE</span><strong id="workspace-name">開啟中…</strong><span class="workspace-hint">切換或建立資料庫 ↗</span></button>
-  <div class="nav-heading"><span>筆記</span><button id="new-note" class="icon-button" aria-label="新增筆記" title="新增筆記">＋</button></div>
-  <input id="note-search" class="search" type="search" placeholder="搜尋筆記與內容…" aria-label="搜尋筆記">
-  <nav id="note-list" aria-label="筆記列表"></nav>
+  <section id="navigation" aria-label="筆記與資料夾"></section>
   <div class="sidebar-bottom"><button id="export">↗ 匯出 Markdown</button><button id="import">↙ 匯入與審查</button><button id="history">↶ 復原紀錄</button><button id="help">? 使用說明</button><p>Local knowledge, connected.<br><span>SQLite · 本機資料庫</span></p></div>
 </aside>
 <main class="main-pane">
@@ -19,7 +19,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="editor" aria-label="Markdown 編輯區"></div>
   <footer class="statusbar"><span id="save-status" role="status">載入中</span><span id="runtime-status">準備計算…</span><span id="document-stats"></span></footer>
 </main>
-<aside class="inspector"><div class="inspector-heading"><span class="eyebrow">KNOWLEDGE</span><h2>筆記裡的連結</h2><p>從文字到值，保持同步。</p></div><div class="tabs" role="tablist"><button id="tab-values" role="tab" aria-selected="true">識別值</button><button id="tab-records" role="tab" aria-selected="false">資料</button><button id="tab-issues" role="tab" aria-selected="false">診斷 <span id="issue-count">0</span></button></div><div id="inspector-content"></div></aside>
+<aside class="inspector"><div class="inspector-heading"><span class="eyebrow">KNOWLEDGE</span><h2>筆記裡的連結</h2><p>從文字到值，保持同步。</p></div><div class="tabs" role="tablist"><button id="tab-values" role="tab" aria-selected="true">識別值</button><button id="tab-records" role="tab" aria-selected="false">資料</button><button id="tab-links" role="tab" aria-selected="false">連結</button><button id="tab-issues" role="tab" aria-selected="false">診斷 <span id="issue-count">0</span></button></div><div id="inspector-content"></div></aside>
 <div id="toast" class="toast" role="alert" hidden></div>
 <dialog id="modal"><div class="modal-header"><h2 id="modal-title"></h2><button id="modal-close" class="icon-button" aria-label="關閉對話框">×</button></div><div id="modal-body"></div></dialog>`;
 
@@ -31,14 +31,16 @@ let runtime: RuntimeResult | undefined;
 let runtimeFailure: string | undefined;
 let activeId = '';
 let mode: 'live' | 'source' = 'live';
-let panel: 'values' | 'records' | 'issues' = 'values';
+let panel: 'values' | 'records' | 'issues' | 'links' = 'values';
+const linksPanel = new LinksPanel();
 let valueFilter = '';
 let selectedIdentifier: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saving: Promise<void> | undefined;
 let saveFailure: Error | undefined;
 let draftSequence = 0;
-const drafts = new Map<string, { title: string; markdown: string; sequence: number }>();
+const drafts = new Map<string, { title: string; markdown: string; sequence: number; baseRevision: number }>();
+let editorBase: { workspaceId: string; noteId: string; revision: number } | undefined;
 let actionTail: Promise<unknown> = Promise.resolve();
 const runtimeWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
 const worker = new RuntimeClient(result => {
@@ -55,6 +57,29 @@ const editor = createEditor($('editor'), {
   onChange: markdown => { if (snapshot && activeId) markDraft(markdown); },
   onNavigate: name => void run(() => navigateIdentifier(name)),
   onFindReferences: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
+});
+// The Navigator owns presentation and derived search state; all mutations still
+// pass through this application's ordered save/command queue.
+function navigationCommand<T>(action: () => Promise<T>): Promise<T> {
+  const workspaceId = snapshot?.id;
+  const next = actionTail.then(async () => { if (workspaceId !== snapshot?.id) throw new Error('Workspace 已切換，請重新操作。'); return action(); });
+  actionTail = next.catch(() => {}); return next;
+}
+async function navigationMutation(path: string, method: 'POST' | 'PUT' | 'DELETE', payload: () => unknown) {
+  await transition(async () => { await flush(); acceptSnapshot(await request<WorkspaceSnapshot>(path, method, payload()), true); setSaveStatus('✓ 已儲存至 SQLite'); });
+}
+const navigator = createNavigator($('navigation'), {
+  onSelect: (id, range) => { const source = snapshot.notes.find(n => n.id === id)?.markdown; return navigationCommand(async () => { await flush(); await selectNote(id); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); editor.focusRange(range.from, range.to); } }); },
+  onCreateNote: folderId => navigationCommand(async () => { await createNote('未命名筆記', '', folderId); ($('note-title') as HTMLInputElement).focus(); ($('note-title') as HTMLInputElement).select(); }),
+  onRenameNote: (id, title) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}`, 'PUT', () => { const note = snapshot.notes.find(n => n.id === id)!; return { title, markdown: note.markdown, revision: note.revision }; })),
+  onMoveNote: (id, folderId) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}/move`, 'PUT', () => ({ folderId, revision: snapshot.notes.find(n => n.id === id)!.revision }))),
+  onDeleteNote: id => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}`, 'DELETE', () => ({ revision: snapshot.notes.find(n => n.id === id)!.revision }))),
+  onCreateFolder: (parentId, name) => navigationCommand(() => navigationMutation('/folders', 'POST', () => ({ parentId, name }))),
+  onRenameFolder: (id, name) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name, parentId: folder.parentId, revision: folder.revision }; })),
+  onMoveFolder: (id, parentId) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name: folder.name, parentId, revision: folder.revision }; })),
+  onDeleteFolder: id => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'DELETE', () => ({ revision: snapshot.folders.find(f => f.id === id)!.revision, workspaceRevision: snapshot.revision, recursive: true }))),
+  onPersistSettings: patch => navigationCommand(async () => { await flush(); if (Object.entries(patch).every(([k, v]) => snapshot.settings[k] === v)) return; acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, ...patch } })); }),
+  onError: message => toast(message, true),
 });
 
 function toast(message: string, persistent = false) {
@@ -79,7 +104,8 @@ async function currentRuntime() {
 }
 function setSaveStatus(text: string, error = false) { $('save-status').textContent = text; $('save-status').classList.toggle('error', error); }
 function markDraft(markdown = editor.getDocument()) {
-  drafts.set(activeId, { title: ($('note-title') as HTMLInputElement).value, markdown, sequence: ++draftSequence });
+  const baseRevision = drafts.get(activeId)?.baseRevision ?? (editorBase?.workspaceId === snapshot.id && editorBase.noteId === activeId ? editorBase.revision : snapshot.notes.find(n => n.id === activeId)!.revision);
+  drafts.set(activeId, { title: ($('note-title') as HTMLInputElement).value, markdown, sequence: ++draftSequence, baseRevision });
   saveFailure = undefined; setSaveStatus('● 等待儲存'); updateStats();
   clearTimeout(saveTimer); saveTimer = setTimeout(() => void run(flush), 350);
 }
@@ -90,7 +116,7 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   snapshot = next;
   setWorkspaceId(next.id);
   if (changedWorkspace) {
-    runtime = undefined; selectedIdentifier = undefined;
+    runtime = undefined; selectedIdentifier = undefined; valueFilter = ''; ($('note-search') as HTMLInputElement).value = '';
     editor.setRuntime({ revision: next.revision, values: {}, definitions: [], references: [], diagnostics: [], metrics: { elapsedMs: 0, recalculated: 0, total: 0, affected: 0 } }, []);
     mode = next.settings.mode === 'source' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live'));
   }
@@ -98,12 +124,14 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false) {
   $('workspace-name').textContent = snapshot.name;
   document.title = `${snapshot.name} · GraspPortable`;
   renderNotes();
-  if (resetEditor) showActiveNote();
+  const current = snapshot.notes.find(n => n.id === activeId);
+  const clean = !drafts.has(activeId);
+  if (resetEditor || (clean && current && (editor.getDocument() !== current.markdown || ($('note-title') as HTMLInputElement).value !== current.title))) showActiveNote();
+  else if (clean && current) editorBase = { workspaceId: snapshot.id, noteId: current.id, revision: current.revision };
   $('runtime-status').textContent = '背景計算中…';
   runtimeFailure = undefined;
   worker.update(snapshot);
   renderInspector();
-  const current = snapshot.notes.find(n => n.id === activeId);
   if (current) $('note-meta').textContent = `修訂 ${current.revision} · ${new Date(current.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
 }
 async function flush() {
@@ -115,8 +143,9 @@ async function flush() {
       const note = snapshot.notes.find(n => n.id === id);
       if (!note) throw new Error('筆記已不在目前 workspace；請先下載草稿。');
       setSaveStatus('◌ 儲存至 SQLite…');
-      const next = await request<WorkspaceSnapshot>(`/notes/${encodeURIComponent(id)}`, 'PUT', { title: draft.title.trim() || '未命名筆記', markdown: draft.markdown, revision: note.revision });
+      const next = await request<WorkspaceSnapshot>(`/notes/${encodeURIComponent(id)}`, 'PUT', { title: draft.title.trim() || '未命名筆記', markdown: draft.markdown, revision: draft.baseRevision });
       if (drafts.get(id)?.sequence === draft.sequence) drafts.delete(id);
+      else { const pending = drafts.get(id); const committed = next.notes.find(n => n.id === id); if (pending && committed) pending.baseRevision = committed.revision; }
       acceptSnapshot(next);
       saveFailure = undefined;
     }
@@ -128,15 +157,7 @@ async function flush() {
 }
 function renderNotes() {
   if (!snapshot) return;
-  const query = ($('note-search') as HTMLInputElement).value.toLowerCase();
-  const list = $('note-list'); list.replaceChildren();
-  const notes = snapshot.notes.filter(n => `${n.title}\n${n.markdown}`.toLowerCase().includes(query));
-  for (const note of notes) {
-    const item = button('', () => selectNote(note.id), 'note-item' + (note.id === activeId ? ' active' : ''));
-    item.dataset.noteId = note.id; item.append(element('span', 'note-icon', '≡'), element('span', 'note-item-title', drafts.get(note.id)?.title || note.title));
-    list.append(item);
-  }
-  if (!notes.length) list.append(element('p', 'empty', query ? '沒有符合的筆記' : '按 ＋ 開始第一份筆記。'));
+  navigator.setWorkspace(snapshot, activeId);
 }
 function showActiveNote() {
   const note = snapshot.notes.find(n => n.id === activeId);
@@ -144,9 +165,10 @@ function showActiveNote() {
   ($('note-title') as HTMLInputElement).value = draft?.title ?? note?.title ?? '';
   ($('note-title') as HTMLInputElement).disabled = !note;
   $('editor').classList.toggle('no-note', !note);
-  editor.setDocument(draft?.markdown ?? note?.markdown ?? '');
+  editor.setDocument(draft?.markdown ?? note?.markdown ?? '', `${snapshot.id}:${activeId}`);
+  editorBase = note ? { workspaceId: snapshot.id, noteId: note.id, revision: draft?.baseRevision ?? note.revision } : undefined;
   if (runtime) editor.setRuntime(runtime, snapshot.records);
-  $('breadcrumb').textContent = `${snapshot.name} / ${note?.title || '建立筆記'}`;
+  $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || note?.title || '建立筆記'}`;
   $('note-meta').textContent = note ? `修訂 ${note.revision} · ${new Date(note.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '';
   updateStats(); renderNotes();
 }
@@ -158,7 +180,9 @@ async function selectNote(id: string) {
     acceptSnapshot(next);
   });
 }
-async function navigateLocation(location: SourceLocation) {
+async function navigateLocation(location: SourceLocation, expectedMarkdown = snapshot.notes.find(n => n.id === location.noteId)?.markdown) {
+  await flush();
+  if (expectedMarkdown !== snapshot.notes.find(n => n.id === location.noteId)?.markdown) { renderInspector(); throw new Error('文字已變更，位置清單已更新；請重新選取。'); }
   if (location.noteId.startsWith('record:')) { panel = 'records'; renderInspector(); const record = snapshot.records.find(r => r.id === location.noteId.slice(7)); if (record) recordDialog(record); return; }
   await selectNote(location.noteId); editor.focusRange(location.from, location.to);
 }
@@ -184,8 +208,9 @@ async function navigateReference(name: string, noteId: string, kind: 'reference'
 }
 function renderInspector() {
   if (!snapshot) return;
-  for (const name of ['values', 'records', 'issues']) $(`tab-${name}`).setAttribute('aria-selected', String(panel === name));
+  for (const name of ['values', 'records', 'issues', 'links']) $(`tab-${name}`).setAttribute('aria-selected', String(panel === name));
   const content = $('inspector-content');
+  if (panel === 'links') { const displayed = snapshot; linksPanel.render(content, snapshot, activeId, location => void run(() => navigateLocation(location, displayed.notes.find(n => n.id === location.noteId)?.markdown))); return; }
   const focused = document.activeElement?.id;
   const selection = focused === 'value-search' ? ($('value-search') as HTMLInputElement).selectionStart : null;
   content.replaceChildren();
@@ -242,14 +267,14 @@ function closeModal() { ($('modal') as HTMLDialogElement).close(); }
 function labeled(label: string, input: HTMLElement) { const group = element('label', 'field'); group.append(element('span', '', label), input); return group; }
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
-async function createNote(title = '未命名筆記', markdown = '') { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
+async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
 async function createQueryNote(collection: string) { await createNote(`${collection} · 資料檢視`, `# ${collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify({ collection }, null, 2)}\n\`\`\`\n`); }
 
 function workspaceDialog() {
   const body = openModal('開啟或建立 workspace');
   body.append(element('p', 'muted', '每個 workspace 是一個 SQLite 資料庫。輸入本機路徑；新建檔案可使用 .grasp.db 副檔名。'));
   const currentPath = element('p', 'muted', '目前路徑：讀取中…'); body.append(currentPath);
-  void request<{ path: string; warning?: string }>('/host').then(host => { currentPath.textContent = `目前路徑：${host.path}${host.warning ? `\n${host.warning}` : ''}`; }).catch(() => { currentPath.textContent = ''; });
+  void request<{ path: string; warning?: string; migrationBackupPath?: string }>('/host').then(host => { currentPath.textContent = `目前路徑：${host.path}${host.migrationBackupPath ? `\n升級前備份：${host.migrationBackupPath}` : ''}${host.warning ? `\n${host.warning}` : ''}`; }).catch(() => { currentPath.textContent = ''; });
   const path = input('', 'workspaces/MyKnowledge.grasp.db'); path.setAttribute('aria-label', '資料庫路徑');
   const name = input('', '我的知識庫'); name.setAttribute('aria-label', '新 workspace 名稱');
   body.append(labeled('資料庫路徑', path), labeled('新 workspace 名稱（建立時使用）', name));
@@ -288,15 +313,22 @@ function showImportPlan(plan: ImportPlan) {
   const body = openModal('審查匯入計畫');
   const changed = plan.changes.filter(c => c.kind !== 'unchanged');
   body.append(element('p', 'muted', `影響 ${changed.length} 份筆記 · ${plan.records.length} 筆匯入 records · 以 workspace 修訂 ${plan.workspaceRevision} 為基準。套用前會保存可復原版本。`));
+  const folderNames = new Map([...snapshot.folders, ...plan.folders].map(f => [f.id, f.name]));
+  const folderLabel = (id: string | null) => id === null ? '根資料夾' : folderNames.get(id) || id;
+  for (const folder of plan.folders) {
+    const before = snapshot.folders.find(f => f.id === folder.id);
+    if (!before || before.name !== folder.name || before.parentId !== folder.parentId) body.append(element('p', 'diff-card', `資料夾：${before ? `${folderLabel(before.parentId)} / ${before.name}` : '（新增）'} → ${folderLabel(folder.parentId)} / ${folder.name}`));
+  }
   for (const issue of plan.diagnostics) body.append(element('p', 'validation-error', `${issue.kind}: ${issue.message}`));
   for (const change of changed) {
     const details = element('details', 'diff-card'); details.open = true; details.append(element('summary', '', `${change.kind === 'create' ? '新增' : '修改'} · ${change.title}`));
     const oldTitle = snapshot.notes.find(n => n.id === change.id)?.title;
     if (oldTitle && oldTitle !== change.title) details.append(element('p', 'muted', `標題：${oldTitle} → ${change.title}`));
+    if (change.beforeFolderId !== change.afterFolderId) details.append(element('p', 'muted', `位置：${folderLabel(change.beforeFolderId)} → ${folderLabel(change.afterFolderId)}`));
     const diff = element('div', 'diff-columns'); const before = element('div'); before.append(element('h4', '', '資料庫目前內容'), element('pre', 'diff-before', change.before)); const after = element('div'); after.append(element('h4', '', '匯入後內容'), element('pre', 'diff-after', change.after)); diff.append(before, after); details.append(diff); body.append(details);
   }
   if (JSON.stringify(plan.records) !== JSON.stringify(snapshot.records)) { const details = element('details', 'diff-card'); details.append(element('summary', '', '結構化資料差異')); const diff = element('div', 'diff-columns'); diff.append(element('pre', 'diff-before', JSON.stringify(snapshot.records, null, 2)), element('pre', 'diff-after', JSON.stringify(plan.records, null, 2))); details.append(diff); body.append(details); }
-  if (!changed.length) body.append(element('p', 'empty', '沒有筆記文字變更。請同時檢查結構化資料。'));
+  if (!changed.length) body.append(element('p', 'empty', '沒有筆記文字變更。請同時檢查資料夾與結構化資料。'));
   const actions = element('div', 'form-actions'); actions.append(button('返回修改', importDialog)); const apply = button('確認套用至資料庫', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/import/apply', 'POST', { token: plan.token, workspaceRevision: plan.workspaceRevision }); acceptSnapshot(next, true); closeModal(); toast('已套用匯入。原內容可從復原紀錄找回。'); }), 'primary'); apply.disabled = !plan.canApply; actions.append(apply); body.append(actions);
 }
 async function historyDialog() {
@@ -311,15 +343,13 @@ function helpDialog() {
   const body = openModal('開始使用 GraspPortable');
   body.append(element('p', '', '直接寫 Markdown。Live Preview 在同一編輯區呈現內容；游標或選取範圍所在行會顯示原文。可切換 Source 完整查看語法。'), element('pre', 'syntax-example', '@first_name = "Sean"\n@last_name = "Wu"\n@full_name = "{first_name} {last_name}"\n@greeting = "你好，{full_name}！"\n\n今天的名字是 {{full_name}}。\n{{greeting}}'), element('p', '', '修改字串後會自動儲存並重算受影響的值。點擊 value 可前往定義；右側 References 列出引用位置。值的更新只改顯示，不會偷偷覆寫原始 Markdown。'), element('pre', 'syntax-example', '```grasp-query\n{"collection":"aura","where":{"field":"element","equals":"fire"}}\n```'), element('p', '', 'Records 由右側「資料」集中維護。query table 和 collection.name.field 引用都使用同一資料來源。模板中 {{ 和 }} 表示文字大括號。code fence 與 inline code 不解析識別值。'), element('p', '', 'Ctrl/⌘ + S 儲存 · Ctrl/⌘ + Z 復原編輯 · Ctrl/⌘ + F 搜尋。離開前確認左下角「已儲存至 SQLite」。匯出檔不會背景同步，外部修改只能透過匯入審查進入資料庫。'), button('下載目前筆記草稿', () => download(editor.getDocument(), `${($('note-title') as HTMLInputElement).value || 'draft'}.md`)), element('p', 'muted', '第一版在本機瀏覽器執行；關閉伺服器後再攜帶 workspace 的 .grasp.db 檔。Apple mobile host 尚未打包。'));
 }
-$('new-note').onclick = () => void run(async () => { await createNote(); ($('note-title') as HTMLInputElement).focus(); ($('note-title') as HTMLInputElement).select(); });
-$('note-search').oninput = renderNotes;
 $('note-title').oninput = () => markDraft();
 $('save').onclick = () => void run(flush);
 $('workspace-open').onclick = workspaceDialog;
 $('mode').onclick = () => void run(async () => { mode = mode === 'live' ? 'source' : 'live'; editor.setMode(mode); $('mode').textContent = mode === 'live' ? 'Live Preview' : 'Source'; $('mode').setAttribute('aria-pressed', String(mode === 'live')); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); });
 $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-hidden');
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
-for (const name of ['values', 'records', 'issues'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
+for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
 $('export').onclick = () => void run(async () => { await flush(); const response = await fetch('/api/export', { headers: workspaceHeaders() }); if (!response.ok) throw new Error('匯出失敗；workspace 可能已被其他分頁切換，請重新載入。'); download(await response.text(), `${snapshot.name.replace(/[\\/:*?"<>|]/g, '_')}.grasp.md`); toast('Markdown 已下載。外部修改後可透過匯入審查套用。'); });
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);

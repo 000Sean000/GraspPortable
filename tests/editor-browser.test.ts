@@ -145,6 +145,22 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
     expect(errors).toEqual([]);
   });
 
+  it('preserves per-note undo and selection while invalidating externally changed content', async () => {
+    await page.evaluate(() => { const e = (window as any).editor; e.setMode('source'); e.setDocument('note A', 'workspace:A'); e.focusRange(6, 6); });
+    await page.keyboard.insertText(' edited');
+    await page.evaluate(() => { const e = (window as any).editor; e.setDocument('note B', 'workspace:B'); e.focusRange(6, 6); });
+    await page.keyboard.insertText(' changed');
+    await page.evaluate(() => (window as any).editor.setDocument('note A edited', 'workspace:A'));
+    await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+z');
+    expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('note A');
+    await page.evaluate(() => (window as any).editor.setDocument('note B changed', 'workspace:B'));
+    await page.locator('.cm-content').focus(); await page.keyboard.insertText('!');
+    expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('note B changed!');
+    await page.evaluate(() => (window as any).editor.setDocument('external replacement', 'workspace:B'));
+    await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+z');
+    expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('external replacement');
+  });
+
   it('round-trips source through the real clipboard and pastes a 12k-definition note', async () => {
     await page.evaluate(sample => { const e = (window as any).editor; e.setMode('source'); e.setDocument(sample); e.focusRange(0, 0); }, sample);
     await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.press('ControlOrMeta+c');

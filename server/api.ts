@@ -74,7 +74,7 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
           if (req.headers['sec-fetch-site'] === 'cross-site') throw new StoreError('拒絕跨網站的 workspace 修改。', 403);
         }
         const path = url.pathname;
-        if (method === 'GET' && path === '/api/host') { json(res, { path: currentStore.path, warning }); return true; }
+        if (method === 'GET' && path === '/api/host') { json(res, { path: currentStore.path, warning, migrationBackupPath: currentStore.migrationBackupPath }); return true; }
         if (method === 'GET' && path === '/api/workspace') { json(res, currentStore.snapshot()); return true; }
         if (method === 'POST' && path === '/api/workspace/open') {
           const b = await read(req);
@@ -87,11 +87,21 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
           json(res, currentStore.snapshot()); return true;
         }
         if (method === 'POST' && path === '/api/notes') {
-          const b = await read(req); json(res, currentStore.createNote(b.title, b.markdown)); return true;
+          const b = await read(req); json(res, currentStore.createNote(b.title, b.markdown, b.folderId)); return true;
         }
+        const noteMove = /^\/api\/notes\/([^/]+)\/move$/.exec(path);
+        if (noteMove && method === 'PUT') { const b = await read(req); json(res, currentStore.moveNote(decodeURIComponent(noteMove[1]!), b.folderId, requireRevision(b.revision))); return true; }
         const note = /^\/api\/notes\/([^/]+)$/.exec(path);
-        if (note && method === 'PUT') { const b = await read(req); json(res, currentStore.updateNote(decodeURIComponent(note[1]!), b.title, b.markdown, requireRevision(b.revision))); return true; }
+        if (note && method === 'PUT') { const b = await read(req); json(res, currentStore.updateNote(decodeURIComponent(note[1]!), b.title, b.markdown, requireRevision(b.revision), b.folderId)); return true; }
         if (note && method === 'DELETE') { const b = await read(req); json(res, currentStore.deleteNote(decodeURIComponent(note[1]!), requireRevision(b.revision))); return true; }
+        if (method === 'POST' && path === '/api/folders') { const b = await read(req); json(res, currentStore.createFolder(b.name, b.parentId)); return true; }
+        const folder = /^\/api\/folders\/([^/]+)$/.exec(path);
+        if (folder && method === 'PUT') { const b = await read(req); json(res, currentStore.updateFolder(decodeURIComponent(folder[1]!), b.name, b.parentId, requireRevision(b.revision))); return true; }
+        if (folder && method === 'DELETE') {
+          const b = await read(req);
+          if (b.recursive !== undefined && typeof b.recursive !== 'boolean') throw new StoreError('recursive 必須是 boolean。');
+          json(res, currentStore.deleteFolder(decodeURIComponent(folder[1]!), requireRevision(b.revision), requireRevision(b.workspaceRevision), b.recursive === true)); return true;
+        }
         const record = /^\/api\/records\/([^/]+)$/.exec(path);
         if (record && method === 'PUT') {
           const b = await read(req);

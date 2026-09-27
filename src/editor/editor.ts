@@ -10,7 +10,7 @@ import { executeQuery, parseQuery, safeLink } from './query';
 import './editor.css';
 
 export interface EditorAdapter {
-  setDocument(markdown: string): void;
+  setDocument(markdown: string, documentKey?: string): void;
   getDocument(): string;
   setRuntime(result: RuntimeResult, records?: StructuredRecord[]): void;
   focusRange(from: number, to: number): void;
@@ -331,12 +331,24 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
   };
   const view = new EditorView({ state: makeState(''), parent });
   view.dom.classList.add('gp-editor');
+  let documentKey: string | undefined;
+  const recentStates = new Map<string, EditorState>();
   return {
-    setDocument(markdown) { if (view.state.doc.toString() !== markdown) view.setState(makeState(markdown)); },
+    setDocument(markdown, nextKey) {
+      if (documentKey === nextKey && view.state.doc.toString() === markdown) return;
+      if (documentKey && documentKey !== nextKey) {
+        recentStates.delete(documentKey); recentStates.set(documentKey, view.state);
+        while (recentStates.size > 20) recentStates.delete(recentStates.keys().next().value!);
+      }
+      const previous = nextKey && recentStates.get(nextKey);
+      // External import/recovery is a new document version; never resurrect stale undo.
+      const state = previous && previous.doc.toString() === markdown ? previous.update({ effects: [updateRuntime.of(runtime), updateMode.of(mode)], annotations: externalChange.of(true) }).state : makeState(markdown);
+      documentKey = nextKey; view.setState(state);
+    },
     getDocument: () => view.state.doc.toString(),
     setRuntime(result, records = []) { runtime = { result, records }; view.dispatch({ effects: updateRuntime.of(runtime) }); },
     focusRange(from, to) { const length = view.state.doc.length; const start = Math.max(0, Math.min(from, length)); const end = Math.max(start, Math.min(to, length)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
     setMode(next) { mode = next; view.dispatch({ effects: updateMode.of(next) }); },
-    destroy() { view.destroy(); },
+    destroy() { recentStates.clear(); view.destroy(); },
   };
 }

@@ -7,6 +7,7 @@ import type { ImportPlan, WorkspaceSnapshot } from '../src/domain/model.js';
 import { createApi } from '../server/api.js';
 import { WorkspaceStore } from '../server/store.js';
 import { DatabaseSync } from 'node:sqlite';
+import { createV1Workspace } from './fixtures/v1-workspace.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
@@ -30,6 +31,38 @@ function request(base: string, path: string, method: string, value: unknown, hea
 }
 
 describe('HTTP authoritative workflow', () => {
+  it('creates and moves a hierarchy with optimistic revisions, explicit subtree deletion and recovery over HTTP', async () => {
+    const { base } = await host();
+    const first = await (await fetch(base + '/api/workspace')).json() as WorkspaceSnapshot;
+    const headers = { 'x-grasp-workspace': first.id };
+    const created = await (await request(base, '/api/folders', 'POST', { name: '研究', parentId: null }, headers)).json() as WorkspaceSnapshot;
+    const folder = created.folders[0]!; const note = first.notes[0]!;
+    const moved = await (await request(base, `/api/notes/${note.id}/move`, 'PUT', { folderId: folder.id, revision: note.revision }, headers)).json() as WorkspaceSnapshot;
+    expect(moved.notes.find(n => n.id === note.id)?.folderId).toBe(folder.id);
+    expect((await request(base, `/api/notes/${note.id}/move`, 'PUT', { folderId: null, revision: note.revision }, headers)).status).toBe(409);
+    const renamed = await (await request(base, `/api/folders/${folder.id}`, 'PUT', { name: '資料', parentId: null, revision: folder.revision }, headers)).json() as WorkspaceSnapshot;
+    const updatedFolder = renamed.folders[0]!;
+    expect(renamed.notes).toEqual(moved.notes);
+    expect((await request(base, `/api/folders/${folder.id}`, 'DELETE', { revision: updatedFolder.revision, workspaceRevision: renamed.revision }, headers)).status).toBe(409);
+    expect((await request(base, `/api/folders/${folder.id}`, 'DELETE', { revision: updatedFolder.revision, workspaceRevision: renamed.revision, recursive: 'yes' }, headers)).status).toBe(400);
+    const deleted = await (await request(base, `/api/folders/${folder.id}`, 'DELETE', { revision: updatedFolder.revision, workspaceRevision: renamed.revision, recursive: true }, headers)).json() as WorkspaceSnapshot;
+    expect(deleted.folders).toEqual([]); expect(deleted.notes.some(n => n.id === note.id)).toBe(false);
+    const history = await (await fetch(base + '/api/history')).json() as { id: number }[];
+    const restored = await (await request(base, `/api/history/${history[0]!.id}/restore`, 'POST', { workspaceRevision: deleted.revision }, headers)).json() as WorkspaceSnapshot;
+    expect(restored.notes.find(n => n.id === note.id)?.folderId).toBe(folder.id); expect(restored.folders[0]?.name).toBe('資料');
+  });
+
+  it('opens a historical database through the host and exposes its validated upgrade backup', async () => {
+    const { base, dir } = await host(); const path = join(dir, 'historical.db'); const legacy = createV1Workspace(path);
+    const response = await request(base, '/api/workspace/open', 'POST', { path });
+    expect(response.status).toBe(200); const opened = await response.json() as WorkspaceSnapshot;
+    expect(opened.id).toBe(legacy.id); expect(opened.notes[0]?.folderId).toBeNull(); expect(opened.folders).toEqual([]);
+    const info = await (await fetch(base + '/api/host')).json() as { path: string; migrationBackupPath?: string };
+    expect(info.path).toBe(path); expect(info.migrationBackupPath).toContain('schema1-backup'); expect(existsSync(info.migrationBackupPath!)).toBe(true);
+    const backup = new DatabaseSync(info.migrationBackupPath!, { readOnly: true });
+    try { expect(backup.prepare('PRAGMA user_version').get()?.user_version).toBe(1); } finally { backup.close(); }
+  });
+
   it('edits, exports, previews, commits, recovers and opens a portable workspace through real HTTP', async () => {
     const { base, dir } = await host();
     const first = await (await fetch(base + '/api/workspace')).json() as WorkspaceSnapshot;
@@ -74,6 +107,8 @@ describe('HTTP authoritative workflow', () => {
     const write = await request(base, `/api/notes/${first.notes[0]!.id}`, 'PUT', { title: 'stale', markdown: 'wrong DB', revision: first.notes[0]!.revision }, staleHeaders);
     expect(write.status).toBe(409); expect((await write.json() as { error: string }).error).toContain('其他分頁');
     expect((await request(base, '/api/notes', 'POST', { title: 'stale', markdown: '' }, staleHeaders)).status).toBe(409);
+    expect((await request(base, '/api/folders', 'POST', { name: 'stale', parentId: null }, staleHeaders)).status).toBe(409);
+    expect((await request(base, `/api/notes/${first.notes[0]!.id}/move`, 'PUT', { folderId: null, revision: first.notes[0]!.revision }, staleHeaders)).status).toBe(409);
     expect((await fetch(base + '/api/export', { headers: staleHeaders })).status).toBe(409);
     expect((await fetch(base + '/api/workspace', { headers: staleHeaders })).status).toBe(409);
     expect(await (await fetch(base + '/api/workspace')).json()).toEqual(second);

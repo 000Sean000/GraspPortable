@@ -3,7 +3,7 @@ import { buildKnowledge, parseNote } from '../src/domain/knowledge';
 import { parseTemplate } from '../src/domain/template';
 import type { Note, StructuredRecord } from '../src/domain/model';
 
-const note = (markdown: string, id = 'n1'): Note => ({ id, title: id, markdown, revision: 1, updatedAt: '' });
+const note = (markdown: string, id = 'n1'): Note => ({ id, title: id, markdown, revision: 1, updatedAt: '', folderId: null });
 
 describe('knowledge language and source locations', () => {
   it('parses string declarations, escaped braces, nested dependencies and inline references', () => {

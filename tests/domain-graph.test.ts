@@ -4,7 +4,7 @@ import { CalculationCancelledError, ValueGraph } from '../src/domain/graph';
 import type { Note, ParseResult } from '../src/domain/model';
 
 function parse(markdown: string): ParseResult {
-  const note: Note = { id: 'n', title: 'Test', markdown, revision: 1, updatedAt: '' };
+  const note: Note = { id: 'n', title: 'Test', markdown, revision: 1, updatedAt: '', folderId: null };
   return buildKnowledge([note]);
 }
 const chain = (count: number, first: string) => Array.from({ length: count }, (_, i) => `@v${i} = "${i ? `{v${i - 1}}` : first}"`).join('\n');
@@ -125,7 +125,7 @@ describe('incremental value calculation', () => {
   });
 
   it('resolves record fields through the same graph and protects object prototype identifiers', () => {
-    const parsed = buildKnowledge([{ id: 'n', title: 'n', markdown: '@__proto__ = "safe"\n@label = "{aura.flame.label}"', revision: 1, updatedAt: '' }], [{ id: 'r', collection: 'aura', name: 'flame', fields: { label: '{__proto__} fire' }, revision: 1 }]);
+    const parsed = buildKnowledge([{ id: 'n', title: 'n', markdown: '@__proto__ = "safe"\n@label = "{aura.flame.label}"', revision: 1, updatedAt: '', folderId: null }], [{ id: 'r', collection: 'aura', name: 'flame', fields: { label: '{__proto__} fire' }, revision: 1 }]);
     const result = new ValueGraph().update(parsed, 1);
     expect(result.values.label.value).toBe('safe fire');
     expect(result.values.__proto__.value).toBe('safe');

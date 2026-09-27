@@ -10,7 +10,7 @@ import { executeQuery, parseQuery } from '../src/editor/query';
 import { WorkspaceStore } from '../server/store';
 
 const round = (value: number) => Math.round(value * 100) / 100;
-const note = (markdown: string, id = 'benchmark'): Note => ({ id, title: 'Synthetic benchmark', markdown, revision: 1, updatedAt: '' });
+const note = (markdown: string, id = 'benchmark'): Note => ({ id, title: 'Synthetic benchmark', folderId: null, markdown, revision: 1, updatedAt: '' });
 const duration = <T>(run: () => T): { value: T; ms: number } => { const start = performance.now(); const value = run(); return { value, ms: round(performance.now() - start) }; };
 const stats = (samples: number[]) => {
   const sorted = [...samples].sort((a, b) => a - b);

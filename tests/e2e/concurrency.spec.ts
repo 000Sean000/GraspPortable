@@ -233,4 +233,70 @@ test.describe.serial('production concurrency and draft safety', () => {
     expect(readMarkdown(fixture.path, fixture.originalId)).toBe('# Original\n\nBaseline original.');
     expect(readMarkdown(secondPath, secondBefore.notes[0].id)).toBe(secondBefore.notes[0].markdown);
   });
+
+  test('a same-database settings response refreshes a clean editor before its next edit', async ({ page, context }) => {
+    await openSource(page);
+    const received = deferred(), release = deferred(); let intercepted = false;
+    const pattern = '**/api/settings';
+    const handler = async (route: Route) => {
+      if (route.request().method() !== 'PUT' || intercepted) { await route.continue(); return; }
+      intercepted = true; received.resolve(); await release.promise;
+      await route.fulfill({ response: await route.fetch() });
+    };
+    await page.route(pattern, handler);
+    try {
+      await page.locator('#mode').click(); await received.promise;
+      const otherTab = await context.newPage(); await openSource(otherTab);
+      const newer = '# Original\n\nText saved by tab B — 必須保留。';
+      await edit(otherTab, newer); await otherTab.locator('#save').click(); await saved(otherTab);
+      await expect(page.locator('.cm-content')).toContainText('Baseline original.');
+      release.resolve();
+      await expect(page.locator('.cm-content')).toContainText('Text saved by tab B — 必須保留。');
+      await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+End');
+      await page.keyboard.insertText('\nAdded by tab A.'); await page.locator('#save').click(); await saved(page);
+      expect((await snapshot()).notes.find(note => note.id === fixture.originalId)!.markdown).toBe(newer + '\nAdded by tab A.');
+    } finally { release.resolve(); await page.unroute(pattern, handler); }
+  });
+
+  test('a same-database external edit rejects a dirty stale base with 409 and retains its draft', async ({ page, context }) => {
+    await openSource(page);
+    const otherTab = await context.newPage(); await openSource(otherTab);
+    const received = deferred(), release = deferred(); let intercepted = false;
+    const pattern = `**/api/notes/${fixture.originalId}`;
+    const handler = async (route: Route) => {
+      if (route.request().method() !== 'PUT' || intercepted) { await route.continue(); return; }
+      intercepted = true; received.resolve(); await release.promise;
+      await route.fulfill({ response: await route.fetch() });
+    };
+    await page.route(pattern, handler);
+    try {
+      const draft = '# Original\n\nTab A unsaved conflicting draft — 不可丟失。';
+      await edit(page, draft); await received.promise;
+      const newer = '# Original\n\nTab B independently committed text.';
+      await edit(otherTab, newer); await otherTab.locator('#save').click(); await saved(otherTab);
+      const rejected = page.waitForResponse(response => response.url().endsWith(`/api/notes/${fixture.originalId}`) && response.request().method() === 'PUT');
+      release.resolve(); expect((await rejected).status()).toBe(409);
+      await expect(page.locator('#save-status')).toHaveText('儲存失敗 · 草稿仍保留');
+      await expect(page.locator('.cm-content')).toContainText('Tab A unsaved conflicting draft — 不可丟失。');
+      expect((await snapshot()).notes.find(note => note.id === fixture.originalId)!.markdown).toBe(newer);
+      expect(readMarkdown(fixture.path, fixture.originalId)).toBe(newer);
+    } finally { release.resolve(); await page.unroute(pattern, handler); }
+  });
+
+  test('an already-rendered search result rejects an offset invalidated by its pending draft', async ({ page }) => {
+    await openSource(page); await page.locator('#note-search').fill('Baseline');
+    const result = await page.locator(`.note-item[data-note-id="${fixture.originalId}"]`).elementHandle();
+    const held = await holdFirstSaveResponse(page);
+    const prefix = '# Pending inserted heading\n\n';
+    try {
+      await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+Home'); await page.keyboard.insertText(prefix);
+      await result!.click(); await held.received; held.release();
+      await expect(page.locator('#toast')).toContainText('文字已變更，搜尋結果已更新');
+      await saved(page);
+      expect((await snapshot()).notes.find(note => note.id === fixture.originalId)!.markdown).toBe(prefix + '# Original\n\nBaseline original.');
+      expect(await page.evaluate(() => window.getSelection()?.toString())).not.toBe('Baseline');
+      await page.locator(`.note-item[data-note-id="${fixture.originalId}"]`).click();
+      await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('Baseline');
+    } finally { held.release(); await held.remove(); }
+  });
 });
