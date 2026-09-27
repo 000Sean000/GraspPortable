@@ -30,6 +30,15 @@ interface PublicationJournal { version: 1; stage: string; previous: string; reco
 interface TrustedPublication { manifest: GenerationManifest; rendered: RenderedProjection; snapshot: WorkspaceSnapshot }
 type FailurePoint = 'generation-complete' | 'journal-durable' | 'old-renamed' | 'new-renamed';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+const publicationFailureMessage = (error: unknown): string => {
+  const native = error as NodeJS.ErrnoException & { dest?: string };
+  const isMarkdownDirectoryRename = native?.syscall === 'rename'
+    && ['EPERM', 'EACCES', 'EBUSY'].includes(native.code ?? '')
+    && [native.path, native.dest].some(path => typeof path === 'string' && /(?:^|[\\/])Markdown$/i.test(path));
+  return isMarkdownDirectoryRename
+    ? `Windows 無法替換 Markdown 資料夾；可能被其他程式占用或權限不足。關閉使用該資料夾的外部程式後重試 checkpoint；DB 與舊 Markdown 保留。原始錯誤：${message(error)}`
+    : message(error);
+};
 const fingerprint = (capture: Capture) => sourceHash(projectionJson(capture));
 // Only the published reading view may ignore UI settings and saved drafts. Full
 // checkpoints retain the complete capture fingerprint above, including both.
@@ -51,6 +60,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
   private legacy?: GenerationEntry[];
   private lastFingerprint?: string;
   private lastReadingFingerprint?: string;
+  private lastPublicationError?: string;
   private statusValue: ProjectionStatus;
   private readonly reviews = new Map<string, { expires: number; fingerprint: string; strategy: ProjectionStrategy }>();
   private readonly packages = new Map<string, ProjectionPlanningPackage>();
@@ -88,11 +98,12 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     })().catch(error => { this.projectionInitialized = undefined; throw error; });
     return this.projectionInitialized;
   }
-  private acceptCurrent(manifest: GenerationManifest, snapshot?: WorkspaceSnapshot): void {
+  private acceptCurrent(manifest: GenerationManifest, snapshot?: WorkspaceSnapshot, publicationSucceeded = false): void {
+    if (publicationSucceeded) this.lastPublicationError = undefined;
     this.projectionCurrent = manifest;
     if (snapshot) this.lastReadingFingerprint = readingFingerprint(snapshot, manifest.strategyRevision);
-    this.statusValue = { ...this.statusValue, state: 'ready', lastSuccessRevision: manifest.workspaceRevision, lastSuccessAt: manifest.createdAt,
-      lastSuccessFingerprint: manifest.fingerprint, manifestPath: resolve(this.root, 'Markdown', MANIFEST), dirtyPaths: [], error: undefined };
+    this.statusValue = { ...this.statusValue, state: this.lastPublicationError ? 'error' : 'ready', lastSuccessRevision: manifest.workspaceRevision, lastSuccessAt: manifest.createdAt,
+      lastSuccessFingerprint: manifest.fingerprint, manifestPath: resolve(this.root, 'Markdown', MANIFEST), dirtyPaths: [], error: this.lastPublicationError };
   }
   private async inventory(directory: string, includeObsidian = false): Promise<GenerationEntry[]> {
     const entries: GenerationEntry[] = [];
@@ -141,7 +152,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     if (this.projectionClosing) return;
     this.statusValue.workspaceRevision = _snapshot.revision;
     if (this.projectionCurrent?.stamp === this.store.projectionStamp()) return;
-    if (this.statusValue.state !== 'dirty') this.statusValue.state = 'pending';
+    if (this.statusValue.state !== 'dirty') this.statusValue.state = this.lastPublicationError ? 'error' : 'pending';
     if (!this.projectionTimer) { const delay = this.initialScheduled ? this.options.checkpointMs ?? 10 * 60_000 : 0; this.initialScheduled = true; this.projectionTimer = setTimeout(() => { this.projectionTimer = undefined; void this.checkpoint(); }, delay); this.projectionTimer.unref?.(); }
   }
   projectionStatus(): ProjectionStatus { return structuredClone(this.statusValue); }
@@ -222,8 +233,9 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     if (this.projectionTimer) { clearTimeout(this.projectionTimer); this.projectionTimer = undefined; }
     if (this.projectionRunning) { await this.projectionRunning; if (['dirty', 'error'].includes(this.statusValue.state) || this.projectionCurrent?.stamp === this.store.projectionStamp()) return this.projectionStatus(); }
     this.projectionRunning = this.publish().catch(async error => {
-      try { await this.recoverPublication(); this.projectionInitialized = undefined; await this.initializeProjection(); } catch (recoveryError) { this.statusValue.error = `${message(error)} Recovery: ${message(recoveryError)}`; }
-      this.projectionInitialized = undefined; this.statusValue.state = 'error'; this.statusValue.error ??= message(error);
+      this.lastPublicationError = publicationFailureMessage(error);
+      try { await this.recoverPublication(); this.projectionInitialized = undefined; await this.initializeProjection(); } catch (recoveryError) { this.lastPublicationError += ` Recovery: ${message(recoveryError)}`; }
+      this.projectionInitialized = undefined; this.statusValue.state = 'error'; this.statusValue.error = this.lastPublicationError;
     }).finally(() => { this.projectionRunning = undefined; });
     await this.projectionRunning; return this.projectionStatus();
   }
@@ -231,7 +243,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     await this.initializeProjection(); const capture = this.capture(), next = fingerprint(capture);
     this.statusValue.workspaceRevision = capture.snapshot.revision; this.statusValue.fingerprint = next;
     let dirty = await this.dirty();
-    if (next === this.lastFingerprint && !dirty.length) { this.statusValue.state = 'ready'; return; }
+    if (next === this.lastFingerprint && !dirty.length) { this.lastPublicationError = undefined; this.statusValue.state = 'ready'; this.statusValue.error = undefined; return; }
     const id = randomUUID(), recovery = `.grasp/recovery/generation-${id}`;
     const manifest = await this.writeGeneration(recovery, capture, { mode: 'full' });
     this.statusValue.recoveryRevision = capture.snapshot.revision;
@@ -261,7 +273,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     }
     this.store.saveProjectionMetadata('published', trusted); this.store.saveProjectionMetadata('pending', null); this.store.saveProjectionMetadata('externalApprovals', []);
     await this.generations.move(journalPath, `${journalPath}.done`);
-    this.lastFingerprint = next; this.legacy = undefined; this.acceptCurrent(manifest, capture.snapshot);
+    this.lastFingerprint = next; this.legacy = undefined; this.acceptCurrent(manifest, capture.snapshot, true);
     if (journal.hadPrevious && !(await this.compareInventory(previous, previousFiles, true)).length) await this.generations.removeVerified(previous);
     await this.retain();
     if (this.store.projectionStamp() !== manifest.stamp) this.schedule(this.store.snapshot(), sha => this.store.readBlob(sha));
@@ -284,7 +296,8 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
       const capture = this.capture();
       if (!this.projectionCurrent || readingFingerprint(capture.snapshot, capture.strategy.revision) !== this.lastReadingFingerprint) {
         const status = await this.checkpoint();
-        if (['dirty', 'error'].includes(status.state) || !this.projectionCurrent) throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
+        if (status.state === 'error') throw new StoreError(`Projection 尚未成功發布；${status.error ?? '請稍後重試 checkpoint。'}`, 409);
+        if (status.state === 'dirty' || !this.projectionCurrent) throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
         continue;
       }
       const dirty = await this.dirty();

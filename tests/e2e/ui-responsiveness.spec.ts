@@ -298,4 +298,47 @@ test.describe('v0.3 UI responsiveness under a held read request', () => {
     await expect(notice).toContainText('Synthetic semantic conflict');
     await expect(modal.locator('.cm-content')).toHaveCount(1);
   });
+
+  test('a new note title survives the completed create transition and incomplete-draft recovery', async ({ page }) => {
+    const observed = await observe(page);
+    await page.goto(origin);
+    await expect(page.locator('#workspace-name')).toHaveText('UI Synthetic One');
+    await expect(page.locator('#runtime-status')).toContainText('個值');
+
+    const createResponse = page.waitForResponse(response => response.url().endsWith('/api/notes') && response.request().method() === 'POST');
+    const activateResponse = page.waitForResponse(response => {
+      if (!response.url().endsWith('/api/settings') || response.request().method() !== 'PUT') return false;
+      try { return JSON.parse(response.request().postData() ?? '{}').settings?.activeNoteId !== 'note-a'; } catch { return false; }
+    });
+    await page.locator('#new-note').click();
+    expect((await createResponse).ok()).toBe(true);
+    expect((await activateResponse).ok()).toBe(true);
+    await expect(page.locator('#operation-status')).toBeHidden();
+    const title = page.getByLabel('筆記標題', { exact: true });
+    await expect(title).toHaveValue('未命名筆記');
+
+    const syntheticTitle = `UI Recovery Probe ${Date.now()}`;
+    await title.fill(syntheticTitle);
+    await expect(title).toHaveValue(syntheticTitle);
+    const mode = page.locator('#mode');
+    if ((await mode.innerText()).trim() === 'Live Preview') {
+      await mode.click();
+      await expect(mode).toHaveText('Source');
+      await expect(page.locator('#operation-status')).toBeHidden();
+    }
+    const source = '# Synthetic recovery probe\n\n@Incomplete = <|recovered without commit';
+    const editor = page.locator('.cm-content');
+    await editor.click(); await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.insertText(source);
+    await page.locator('#save').click();
+    await expect(page.locator('#save-status')).toContainText('草稿已保存');
+    const drafts = await (await fetch(`${origin}/api/drafts`)).json() as Array<{ title: string; markdown: string }>;
+    expect(drafts).toContainEqual(expect.objectContaining({ title: syntheticTitle, markdown: source }));
+
+    await page.reload();
+    await expect(title).toHaveValue(syntheticTitle);
+    await expect(page.locator('#draft-status')).toContainText('已恢復保存的草稿');
+    await expect(editor).toContainText('recovered without commit');
+    await page.screenshot({ path: join(evidenceRoot, 'new-note-title-draft-recovered.png'), fullPage: false });
+    await writeEvidence('new-note-title-draft-recovery', { syntheticTitle, draftStored: true, titleAfterReload: await title.inputValue(), observed, clicks: await observed.clicks() });
+  });
 });

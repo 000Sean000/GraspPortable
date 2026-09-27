@@ -1,62 +1,61 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28。本輪是 **v0.3 UI 操作修復 Goal**，不是重新實作 M1–M4。目標為恢復主要流程，讓 Human 重新驗收；不宣告 Human 驗收通過。
+更新：2026-09-28 05:36（Asia/Taipei）。本輪為 **v0.3 UI 操作修復 Goal**。產品修正與新版入口已完成，**Goal 尚未完成：原 Acceptance 的 Markdown 目錄替換仍遭 Windows EPERM 拒絕，等待 Human 解除占用／確認權限後驗最後發布與定位**。這不是額度停工，也不是 Human 驗收通過。
 
-## 現行授權與來源
+## 授權與 authority
 
-使用者已授權自主診斷、coding、tests、build、封裝／驗收入口更新、coherent checkpoint commit/push。普通 bug 不設人工 gate；只有改變已接受語義、資料权限或重大流程才提問。修改測試只在完整 Acceptance workspace 的 Scratch 獨立副本；MainVault-Source 與原始 MainVault 唯讀、私人資料不入 Git。
+沿用 SandboxRoot/AGENTS.md、[Seed](Project_Seed/README.md) 的 Requirements rc.3／Development Method rc.3、[Goal Plan](GOAL-PLAN.md)、[Binding](BINDING-EDITING-CONTRACT.md)、[Shared Value](SHARED-VALUE-CONTRACT.md)、[Projection](PROJECTION-CONTRACT.md)。當前授權自主修復、測試、封裝、更新既有入口及coherent checkpoint commit/push；不需例行批准。真正改變已接受語義、資料權限或重大流程才回Human。
 
-依序承接 [Seed](Project_Seed/README.md) 指定 Requirements rc.3／Development Method rc.3、[Goal Plan](GOAL-PLAN.md)、[Binding contract](BINDING-EDITING-CONTRACT.md)、[Shared contract](SHARED-VALUE-CONTRACT.md)、[Projection contract](PROJECTION-CONTRACT.md)。舊 candidate／pending 政策不升格為已接受需求。現行實作接面見 [Implementation](IMPLEMENTATION-CONTRACT.md)／[Architecture](../ARCHITECTURE.md)。
+已接受且不變：DB runtime authority；自由binding／raw literal／串接、兩種reference、語意優先；共享交易及獨立共享撤銷；未完成草稿持久保存；missing/cycle可保存且標錯；單一readable projection；外部修改必須Review／Import。修改測試全部在Scratch；原MainVault及MainVault-Source唯讀。不要用測試clone覆蓋Human資料，也不要另造persistent AI projection。
 
-已接受且本輪不改：DB runtime authority；自由放置 binding／raw literal／串接；兩種 managed reference；语意结构優先於隱藏連結；共享交易＋獨立共享撤銷；未完成草稿保存而不冒充 committed values；missing/cycle 可保存並標錯；單一 readable projection；外部 Markdown 必須 Review／Import；完整 fallback 保留語意與重建資料。
+## 已修正與證據
 
-## 起點與本輪實作
+- 慢Files／Projection讀取脫離全域mutation queue，關閉即取消view等待；一般GET30秒，檔案狀態／定位5分鐘。background定位顯示進度，workspace切換後拒絕舊reveal。
+- native dialog內顯示錯誤並保留表單；Files checkpoint不鎖導航；壞DB恢復後重新啟用分組按鈕。
+- 定位以reading fingerprint分辨metadata-only更新，避免settings／draft並發誤報dirty，內容真的變更仍拒絕過期結果。
+- 發布失敗在inspect、apiState、settings/schedule及定位中持續顯示；Windows rename拒絕有可操作提示及原始error，成功checkpoint才清除。不削弱dirty檢查。
+- 0.3.2 build **4102f62d-bfca-4a69-90d5-3c7027963cdc**：build通過；42files／541unit+integration tests通過7.75s；**45production Edge E2E全通過74.009s，0skip／0flaky**。package smoke通過：獨立temp啟動、DB／export／附件／projection／重啟。
+- 原0.3.0四個UI故障held-network browser回歸全紅，修正版全綠。EPERM regression注入真實檔案fixture的rename失敗，先RED後GREEN；不等於原Windows資料夾已解鎖。
+- MainVault全量Scratch流程已驗搜尋、三模式、references、共享修改／nested／undo、分組檢視、Files、實體檔案定位及草稿恢復。B流程首讀含checkpoint124.384s、Files4.928s、定位3.536s。Explorer stub／實體stat分開陳述。1440×1000及1024×768已看。完整明細：[UI repair evidence](UI-REPAIR-VERIFICATION.md)、benchmarks/ui-repair-full-corpus.json。
+- 草稿runner兩個錯誤假設已更正：新client要手動恢復；建立transition未完不可提前填title。新增正常title/source保存及reload回歸通過。失敗runner證據保留，不以新結果抹去。
 
-Git preflight 20:14 UTC 工作樹乾淨、fetch 成功，HEAD=origin/master=8e3d3f0c4270303b74d4b531bd6b31e233e61473；20:33及21:05 UTC fetch 仍0/0，保留本機變更。既有一鍵入口指向0.3.0 package、43861、Acceptance/MainVault-Grasp-v0.3/.grasp/workspace.grasp.db；GET /host 確認 build 5f008760-bd1b-4906-90cc-86a52177616d，與套件一致。開始 listener PID25248，43821無host；目前仍保留舊host，沒有對原Acceptance做測試寫入。
+## 實際啟動與未解除的 Windows 障礙
 
-已實作：Files／Projection GET 不占全域 mutation queue，關閉時取消 view-owned 讀取；一般 GET 30秒 timeout、files/projection狀態檢查5分鐘（先等checkpoint）；背景檔案定位＋進度＋5分鐘等待上限（不宣稱 server checkpoint 取消）；workspace 切換後拒絕舊定位結果；native dialog 內呈現錯誤、保留表單；Files checkpoint 不阻擋全域導航。策略晚回應有 workspace/revision guard，但原先猜測「策略使 snapshot revision 過期」已被 store 實作排除，不能當已證實根因。
+原一鍵cmd已指向0.3.2，同一port43861、同一Acceptance/MainVault-Grasp-v0.3/.grasp/workspace.grasp.db；21:35:49UTC GET/host核對build、DB、2,821notes、revision53及2個靜態assets。當時host PID20676／launcher32204；恢復工作時須重查，不能沿用PID直接終止。
 
-完整根因／失敗樣本／驗證界線見 [UI repair evidence](UI-REPAIR-VERIFICATION.md)。最終0.3.1 build=bcab7a56-8871-45b9-bd04-4430de960c4f。定位改以可讀內容 fingerprint 判斷並發變化，settings／draft-only 更新不再誤報dirty；真正內容變動仍fail closed。另修復啟動DB失敗後建立新workspace，分組按鈕未重新啟用。
+原projection仍在revision13。直接checkpoint明確回傳EPERM：rename Markdown到.grasp/internal/projection/old-UUID被拒絕；原資料夾ACL與Scratch相同、非readonly，尚未指認占用程序。固定journal inventory與目前Markdown3,333/3,333files、615,863,057bytes完全一致，無missing／extra／hash／size／unreadable／unstable；70條長路徑均可讀，沒有.obsidian。不能僅因Obsidian程序存在就認定它是原因。
 
-## 實際證據與待完成
+0.3.2於21:36:07及21:36:13UTC兩次GET projection/state仍正確保留error與Windows提示，dirtyPaths空；DB53／public13未變。未修改ACL、未關閉外部App、未手動刪stage／journal。已向Human提出：關閉使用此Markdown資料夾的Explorer／Obsidian／terminal視窗，然後回覆。尚未收到答覆。
 
-- 最終 production build 通過，42 files／540 unit + integration tests 通過，7.07s；全部44 production Edge E2E通過，1.2m。
-- 原0.3.0四項故障 held-network browser tests全紅；0.3.1六項 focused browser tests全綠，5.1s。
-- 完整44 E2E：首輪43pass／1fixture斷言錯誤，已修；第二輪43pass／1真實定位競爭失敗（1.5m），已保留失敗證據。新增3個確定性host regression，涵蓋發布期間metadata-only更新、dirty掃描期間metadata-only更新、真正內容更新；最終整合全綠。
-- 完整Corpus browser已通過啟動1.334s、search47ms、三模式797ms、References210ms、shared edit+nested+undo3.308s；5min檔案狀態與定位／draft尚待最終B階段驗證。中間腳本超時／未處理listener拒絕未當成產品成功。Scratch clone使用SQLite online backup、quick_check=ok、2,821 notes；36,676其他files／6,778,948,363bytes逐檔source-before／target／source-after hash一致，7空目錄保留。這是隔離測試副本，不把在線DB＋tree分別複製當成新的離線備份保證。
-- 本段為已通過build／完整回歸的核心修復checkpoint，提交主旨 `fix: keep UI responsive during file and projection operations`。diagnose-ui.mjs仍在獨立全量驗證中，留待下個checkpoint。尚未打包0.3.1、尚未切換Human入口；整個修復Goal尚未完成。
+**精確下一步**：取得Human解除占用／權限的回覆後，先核對43861的build4102...及DB，從App「分組策略與Fallback」建立checkpoint（或使用同等既有POST /api/projection/checkpoint，帶目前workspace header）。確認state=ready、manifest對齊當時DB revision，再驗原驗收筆記／folder定位、可讀檔內容與dirty保護。不要未有新資訊便反覆耗時重試；若仍EPERM，需定位實際Windows占用／權限，不以force move、關未知process或複製另一份DB掩蓋問題。完成最後原路徑驗證後更新此文件、commit/push，才能標此Goal完成。
 
-**精確下一步**：核心修復checkpoint commit／push並核對origin/master；ui_route_audit以UI_DIAG_PHASE=files-draft完成全量檔案／定位／草稿驗證（每step落盤），保留早先A流程證據。打包0.3.1並package smoke。核對舊host與保存狀態，避免兩個host開同一DB；停止已辨識舊host，逐檔hash核對完整離線備份後沿用同一Acceptance資料及一鍵入口，確認實際build／path。更新交付文件、最後commit／push，回報Human重驗。
+## 資料保存與 locator
 
-## 本機 locator
+SandboxRoot為實際Git repository的上一層（本機資料夾名GraspPortableWorkspace），repo為其下GraspPortable。以 git rev-parse --show-toplevel 核對；舊cwd .../GraspProject/GraspPortable 已不存在，命令必須指定實際workdir。完整本機位置保存在repo外的README-驗收.md及本thread，public文件只使用相對locator。
 
-SandboxRoot為 C:/Users/ASUS/MyData/AgentWorkspace/All-of-Me/GraspProject/GraspPortableWorkspace；repo為其下GraspPortable。舊cwd .../GraspProject/GraspPortable 已移走，所有命令指定實際workdir。
-
-| 位置（相對SandboxRoot） | 用途 |
+| 相對SandboxRoot位置 | 用途 |
 | --- | --- |
-| Acceptance/MainVault-Source/ | 唯讀原始snapshot，未修改／移動 |
-| Acceptance/MainVault-Grasp-v0.3/ | 目前Human全量驗收workspace，DB在.grasp/workspace.grasp.db |
-| Acceptance/MainVault-Grasp-v0.3/Markdown/ | 唯一可讀projection；hidden .grasp-export為完整重建metadata |
-| Scratch/UI-Repair-20260928-0423/Workspace/ | 本輪完整操作測試副本，不能當無測試修改的交付資料 |
-| Scratch/UI-Repair-20260928-0423/copy-private.json | 本輪私有複製inventory／hash證據 |
-| Scratch/UI-Repair-Synthetic/ | 本輪合成回歸、原版red與修復green traces／時序JSON |
-| GraspPortable/artifacts/GraspPortable-0.3.0/ | 舊套件保留；0.3.1尚待封裝 |
-| README-驗收.md、開啟 MainVault 驗收.cmd | Human入口，交付前必須更新及核實 |
+| 開啟 MainVault 驗收.cmd、README-驗收.md | 已更新0.3.2；原資料位置不變 |
+| GraspPortable/artifacts/GraspPortable-0.3.2/ | 新套件；需獨立Node24+，不是native installer |
+| Acceptance/MainVault-Source/ | 未修改／移動的原snapshot |
+| Acceptance/MainVault-Grasp-v0.3/ | Human資料；DB在.grasp/workspace.grasp.db |
+| Acceptance/MainVault-Grasp-v0.3/Markdown/ | 唯一projection，目前因Windows阻擋落後；不要當作最新DB |
+| Scratch/UI-Repair-Deployment/MainVault-Grasp-v0.3-before-0.3.1/ | 更新前完整離線備份，包含DB、舊Markdown及所有recovery／stage／journal |
+| Scratch/UI-Repair-Deployment/ | backup-private.json、原始入口備份、啟停／HTTP／EPERM private證據 |
+| Scratch/UI-Repair-20260928-0423/Workspace/ | 全量測試副本，含synthetic修改，不是交付DB |
+| Scratch/UI-Repair-20260928-0423/Evidence/ | A／B／草稿結果及失敗run，private不入Git |
+| Scratch/UI-Repair-Synthetic/ | 原版red／修版green traces及title-recovery證據 |
 
-MainVault原始2,820notes／244folders／506assets及1篇synthetic acceptance note。優先操作 Grasp acceptance shared workflow，從M4.Root reference修改，檢查M4.Nested、獨立共享撤銷、Reading、策略與檔案定位。私人內容不需要重新分類。原v0.2 rehearsal Acceptance/MainVault-Grasp 保留。
+離線備份21:17:59–21:18:56UTC：36,677files／2,881directories／7,408,155,403bytes，逐檔source-before／target／source-after SHA256一致、SQLite quick_check=ok、2,821notes。舊host已核對身份及無active journal後用Windows定向終止，非graceful證據；完整backup保留既有pending/stages。後續只更換程式host，未改筆記。前輪v0.2 rehearsal、0.3.0／0.3.1套件均保留，未破壞性清理。
 
-## 工具、模型與額度
+## Git、工具、模型與額度
 
-Computer Use SKILL已完整讀取，但當前沒有node_repl／@oai/sky／Windows GUI callable入口；不反覆初始化或繞過核准。Playwright Edge實際browser操作可用；Explorer／Obsidian桌面與實體IME無本輪GUI證據，不用API／spawn取代。歷史Notepad核准不推及新executable。
+master → origin/master，https://github.com/000Sean000/GraspPortable.git；21:35fetch成功0/0，root統一Git。原M1–M4基線8e3d3f0已發布；本輪第一修復checkpoint **fd8a8a776745f6fefca47d26f67cb24644d64305** 已push並核對。當前0.3.2修正、診斷runner、匿名證據與本文隨本段checkpoint發布，主旨「fix: retain publication failures and deliver v0.3.2 repair」；最新SHA查Git history。私人Acceptance／Scratch／generated files均不納Git，package在ignored artifacts。
 
-使用者本輪明確允許正常額度Luna subagents，取代先前全面禁用解讀；已透過model=gpt-6-luna selector啟動ui_route_audit與host_wait_audit，fork_turns=none。宿主不另提供實際serving-model核對資料；沒有把worker名稱當證據，沒有開Ultra替代子代理。root負責整合/Git。所有代理在正常額度耗盡時停實質工作，不用Reserve／reset信用。
+Computer Use SKILL先前已讀，但本輪無node_repl／Windows GUI callable入口。Playwright Edge真browser可用；Explorer reveal是stub＋檔案stat，不能冒稱桌面驗收。Explorer／Obsidian／實體IME及Human最終操作仍未驗。沒有以API或spawn當畫面證据。
 
-最新額度觀測21:05:55 UTC：84%used，ordinaryUsageAllowed=true，正常10080分鐘／reset1791128122。同窗口起點73%；是帳戶觀測，不是本task精確扣額。使用者通知重置，但宿主仍回報以上數值，依實際資料控管。細節在 [Usage](USAGE-LOG.md)。
+本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。最新21:32:58UTC正常額度88%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
 
-## Git 與歷史
+停止原因是待解除原資料夾Windows阻擋，**不是因額度停止，也不宣稱Goal完成**。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
 
-master → origin/master，https://github.com/000Sean000/GraspPortable.git。Root統一stage／commit／push，不reset/stash/force/newbranch；每個coherent milestone先合理測試、更新state、檢查staging，再push及遠端核對。只纳source/tests/docs／匿名證據，不納私人資料或dist/artifacts。必要時command-local safe.directory及http.sslBackend=openssl，不改global設定。
-
-M1–M4前輪已交付並推送8e3d3f0；詳細 [M1](M1-VERIFICATION.md)、[M2](M2-VERIFICATION.md)、[M3](M3-VERIFICATION.md)、[M4](M4-VERIFICATION.md)。前輪528tests／36E2E與MainVault往返證據不能抵銷本輪Human回報故障。本輪修正不重做新產品功能。
-
-既有限制：browser host＋獨立Node24+，非native installer；大型定位全樹檢查約數秒、完整checkpoint曾93–190s；100ms編輯目標未全面達成。Full fallback不含DB operation receipts／共享撤銷history；完整workspace備份須保留DB與全樹。這些限制仍有效，不能因UI回應修復宣稱全部解除。
+發布payload審查：自動核准曾因可能含私人絕對路徑而拒絕commit/push，尚未執行Git mutation。逐檔檢查後，package-smoke.json原本僅含套件basename／數字；E2E報告中的機器source paths已轉成repo-relative，原始完整報告另存Scratch，測試stats完全不變。本文移除機器使用者根目錄。重新暫存後再依既有明確checkpoint push授權申請核准；若仍拒絕不得繞過。

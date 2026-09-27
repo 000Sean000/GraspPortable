@@ -1,4 +1,4 @@
-# v0.3 驗收入口
+# v0.3.2 UI 修正版驗收入口
 
 SandboxRoot 是 repository 的上一層；本機絕對位置見 EXECUTION-STATE。私人資料與 generated Markdown 不在 Git。
 
@@ -8,7 +8,7 @@ SandboxRoot/
 ├─ 開啟 MainVault 驗收.cmd
 ├─ 開啟驗收資料夾.cmd
 ├─ GraspPortable/                       # source / tests / docs
-│  └─ artifacts/GraspPortable-0.3.0/     # ignored packaged application
+│  └─ artifacts/GraspPortable-0.3.2/     # ignored packaged application
 ├─ Acceptance/
 │  ├─ MainVault-Source/                 # read-only original snapshot
 │  ├─ MainVault-Grasp/                  # preserved v0.2 rehearsal
@@ -20,7 +20,7 @@ SandboxRoot/
 └─ Scratch/                            # private migration / benchmarks / tests
 ```
 
-新版入口指定 packaged v0.3 與 port43861，避免沿用43821上可能存在的舊host。Node.js24+必須已安裝；保留啟動主控台，停止用Ctrl+C。Launcher核對build identity與DB路徑，不自動終止未知程序。
+修正版入口指定 packaged v0.3.2，沿用相同 MainVault-Grasp-v0.3 資料及 port43861，避免沿用43821上可能存在的舊host。Node.js24+必須已安裝；保留啟動主控台，停止用Ctrl+C。Launcher核對build identity與DB路徑，不自動終止未知程序。
 
 MainVault原始2,820篇筆記、244個資料夾、506個附件保持內容與階層。另有明示synthetic的「Grasp acceptance shared workflow」，用於試驗M4.Root／M4.Nested；不是自動重分類私人資料。全量roundtrip實際證據見M4 verification；歷史160-note rehearsal保留，不能當新版全量workspace。
 
@@ -31,3 +31,7 @@ MainVault原始2,820篇筆記、244個資料夾、506個附件保持內容與階
 Obsidian使用「Open folder as vault」開啟MainVault-Grasp-v0.3/Markdown。完整fallback要連同hidden .grasp-export與全部附件保存；以manifest.json重建新的DB。外部修改經Review／Import；不要直接編輯DB、metadata、recovery或原始snapshot。出現dirty時不覆蓋外部內容。
 
 桌面Obsidian／Explorer／原生IME尚缺本輪GUI操作證據；Playwright browser與實際檔案hash證據另外陳述。正式交付是否完成以EXECUTION-STATE／M4-VERIFICATION為準，不由目錄範例推定。
+
+本輪 UI 修正與實測見 [UI-REPAIR-VERIFICATION](UI-REPAIR-VERIFICATION.md)。Files／分組面板首次可能先等待全庫 checkpoint，面板會顯示說明；可關閉後继续閱讀及選筆記。檔案定位有畫面下方進度，最多等待5分鐘；逾時不代表host已取消。原驗收workspace更新前會停host並做完整離線hash備份，Scratch測試資料不覆蓋Human資料。
+
+若顯示「Windows 無法替換 Markdown 資料夾」：資料庫寫入與舊 Markdown 保留；先關閉使用該 Markdown 資料夾的外部程式／視窗，再按建立 checkpoint。若仍失敗，保留畫面錯誤供診斷。不要手動刪除 `.grasp`、stage、journal 或舊 Markdown 來解鎖。完整 backup 位置見 EXECUTION-STATE。

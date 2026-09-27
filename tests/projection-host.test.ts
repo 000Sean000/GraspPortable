@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkspaceStore } from '../server/store';
 import { ProjectionWorkspaceFiles } from '../server/projection';
-import { readFullGeneration, byteHash } from '../server/projection-generation';
+import { GenerationTree, readFullGeneration, byteHash } from '../server/projection-generation';
 import { sourceHash } from '../server/semantic';
 import type { ProjectionProposal, ProjectionUnitId } from '../src/domain/projection';
 
@@ -167,6 +167,46 @@ describe('complete semantic projection host', () => {
     await failing.close(); const reopened = new ProjectionWorkspaceFiles(store); files.push(reopened); const after = await reopened.checkpoint(); expect(after.state, after.error).toBe('ready');
     expect((await readFullGeneration(after.manifestPath!)).snapshot.notes[0].markdown.endsWith('next')).toBe(true);
     expect(readdirSync(join(root, '.grasp/internal/projection')).some(name => name.endsWith('.json.done'))).toBe(true);
+  });
+  it('retains actionable Windows rename errors through inspection and clears them after retry succeeds', async () => {
+    const { root, store, service } = fixture(); await service.checkpoint();
+    const note = store.snapshot().notes[0]!;
+    store.updateNote(note.id, note.title, note.markdown + '\nRetry publication after folder unlock', note.revision);
+    const originalMove = GenerationTree.prototype.move;
+    const move = vi.spyOn(GenerationTree.prototype, 'move').mockImplementation(async function (this: GenerationTree, source, target) {
+      if (source === 'Markdown' && /^\.grasp\/internal\/projection\/old-/.test(target)) {
+        throw Object.assign(new Error("EPERM: operation not permitted, rename 'Markdown' -> previous generation"), {
+          code: 'EPERM', syscall: 'rename', path: join(root, 'Markdown'), dest: join(root, target),
+        });
+      }
+      return originalMove.call(this, source, target);
+    });
+
+    try {
+      const failed = await service.checkpoint();
+      expect(failed.state).toBe('error');
+      const inspected = await service.inspect();
+      expect(inspected.mirror.state).toBe('error');
+      expect(failed.error).toContain('Windows 無法替換 Markdown 資料夾');
+      expect(failed.error).toContain('EPERM');
+      expect(inspected.mirror.error).toContain('Windows 無法替換 Markdown 資料夾');
+      const apiState = await service.apiState();
+      expect(apiState.status.state).toBe('error');
+      expect(apiState.status.error).toContain('EPERM');
+      store.updateSettings({ editorMode: 'source', activeNote: note.id });
+      service.schedule(store.snapshot(), sha => store.readBlob(sha));
+      expect((await service.inspect()).mirror.state).toBe('error');
+      const afterSettings = await service.apiState();
+      expect(afterSettings.status.state).toBe('error');
+      expect(afterSettings.status.error).toContain('Windows 無法替換 Markdown 資料夾');
+      await expect(service.locate('note', note.id)).rejects.toThrow(/Windows 無法替換 Markdown 資料夾/);
+
+      move.mockRestore();
+      const retried = await service.checkpoint();
+      expect(retried.state).toBe('ready');
+      expect(retried.error).toBeUndefined();
+      expect((await service.inspect()).mirror.state).toBe('ready');
+    } finally { move.mockRestore(); }
   });
   it('draft-only changes produce a new checkpoint and retain two independent verified ordinary-file generations', async () => {
     const { root, store, service } = fixture(); await service.checkpoint(); const note = store.snapshot().notes[0];

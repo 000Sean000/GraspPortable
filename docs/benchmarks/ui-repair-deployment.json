@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-09-27T21:38:58.601Z",
+  "version": "0.3.2",
+  "buildId": "4102f62d-bfca-4a69-90d5-3c7027963cdc",
+  "sameAcceptanceDatabase": true,
+  "actualLauncherStarted": true,
+  "staticAssetsLoaded": 2,
+  "notes": 2821,
+  "databaseRevision": 53,
+  "publicProjectionRevision": 13,
+  "projectionState": "error",
+  "publicationError": "Windows EPERM directory rename",
+  "errorPreservedAcrossTwoInspections": true,
+  "originalFolderUnlockVerified": false,
+  "offlineBackup": {
+    "files": 36677,
+    "directories": 2881,
+    "bytes": 7408155403,
+    "threeWaySha256Matched": true,
+    "sqliteQuickCheck": "ok"
+  },
+  "goalComplete": false,
+  "stopReason": "Await original Windows directory access/unlock; normal quota remains"
+}

@@ -123,3 +123,9 @@ Normal bucket82%used, ordinaryUsageAllowed=true, same10080-minute/reset179112812
 ## UI repair core checkpoint — 2026-09-27 21:05:55 UTC
 
 Normal bucket84%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Start73%→84% is shared-account observation, not exclusive billing. User reset report has not appeared in host readings. Final0.3.1 build bcab7a56-8871-45b9-bd04-4430de960c4f passes42files/540tests (7.07s) and44productionEdgeE2E (1.2m). Metadata-only locate race has deterministic regressions; real content/dirty safeguards remain. Core fix is ready for checkpoint/push; private B/draft, package and actual launch update remain. No Reserve/reset invoked.
+
+## UI repair original-workspace deployment follow-up — 2026-09-27 21:32:58 UTC
+
+Normal bucket88%used, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. Core checkpoint84%→88% is account observation, not exclusive task billing. Private B/draft and title-recovery checks passed;0.3.1 package/real entry verified and original whole-workspace offline backup hash/integrity passed. Original Acceptance directory rename returns Windows EPERM, leaving DB53/public13; exact bytes comparison3333/3333 matches. No unknown process terminated or ACL changed.0.3.2 error-preservation fix+focused RED/GREEN complete;build+541tests pass7.75s and45E2E stillrunning atthissnapshot. Human directory-release questionpending; Goalnotcomplete, notquota-stop. No Reserve/reset invoked.
+
+Subsequent validation completed in the same segment: all45production Edge E2E passed1.2m, no skipped/flaky; no product changes after build4102f62d-bfca-4a69-90d5-3c7027963cdc.

@@ -4,7 +4,7 @@
 
 ## 啟動
 
-**Windows：雙擊 `Start-GraspPortable.cmd`，瀏覽器會開啟 `http://127.0.0.1:43821`。** 需要 **Node.js 24+**。`GraspPortable-0.3.1` 套件已包含成品，無須安裝 npm dependencies。其他桌面平台可執行 `node scripts/launch.mjs`；目前正式驗證環境是 Windows／Edge。若同一 port 已有不同版本或 workspace，launcher 會明確拒絕沿用；請關閉自己原先啟動的 host 或使用另一個 PORT。
+**Windows：雙擊 `Start-GraspPortable.cmd`，瀏覽器會開啟 `http://127.0.0.1:43821`。** 需要 **Node.js 24+**。`GraspPortable-0.3.2` 套件已包含成品，無須安裝 npm dependencies。其他桌面平台可執行 `node scripts/launch.mjs`；目前正式驗證環境是 Windows／Edge。若同一 port 已有不同版本或 workspace，launcher 會明確拒絕沿用；請關閉自己原先啟動的 host 或使用另一個 PORT。
 
 從原始碼 checkout 建置：
 
@@ -126,7 +126,7 @@ npm run package
 node scripts/smoke-package.mjs
 ```
 
-`npm run package` 產生 `artifacts/GraspPortable-0.3.1`；不包含 workspace、私人遷移內容、npm dependencies 或 Node runtime。既有版本目錄拒絕覆寫。Package smoke 在 repository 外的隔離目錄驗證 launcher、build identity、靜態資產、保存／匯出／重啟，以及封裝後的附件與完整 Markdown 路徑。新版語義 benchmark 使用 `node --expose-gc --import tsx scripts/benchmark-shared.ts`；歷史 benchmark 的語法版本與結果另列。
+`npm run package` 產生 `artifacts/GraspPortable-0.3.2`；不包含 workspace、私人遷移內容、npm dependencies 或 Node runtime。既有版本目錄拒絕覆寫。Package smoke 在 repository 外的隔離目錄驗證 launcher、build identity、靜態資產、保存／匯出／重啟，以及封裝後的附件與完整 Markdown 路徑。新版語義 benchmark 使用 `node --expose-gc --import tsx scripts/benchmark-shared.ts`；歷史 benchmark 的語法版本與結果另列。
 
 E2E 在 Windows 優先使用已安裝 Edge，其他環境須先 `npx playwright install chromium`。測試 workspace 在 repo 外的 `SandboxRoot/Scratch/AutomatedTests/`；效能驗證應避開並行 benchmark。原生中文 IME、Obsidian／Explorer 桌面操作與 browser automation 證據分開記錄。
 
