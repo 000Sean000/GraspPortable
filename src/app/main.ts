@@ -2,6 +2,11 @@ import { createEditor } from '../editor/editor';
 import { RuntimeClient } from '../runtime/client';
 import { LinksPanel } from './links-panel';
 import { createNavigator } from './navigation';
+import { KnowledgePanel } from './knowledge-panel';
+import { RecordsPanel } from './records-panel';
+import type { RecordQuery } from '../editor/query';
+import type { RenamePlan } from '../domain/rename';
+import type { RecoveryPreview } from '../../server/store';
 import { request, setWorkspaceId, workspaceHeaders } from './api';
 import type { WorkspaceSnapshot, RuntimeResult, ImportPlan, StructuredRecord, SourceLocation } from '../domain/model';
 import './style.css';
@@ -33,6 +38,8 @@ let activeId = '';
 let mode: 'live' | 'source' = 'live';
 let panel: 'values' | 'records' | 'issues' | 'links' = 'values';
 const linksPanel = new LinksPanel();
+const knowledgePanel = new KnowledgePanel();
+const recordsPanel = new RecordsPanel();
 let valueFilter = '';
 let selectedIdentifier: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -41,6 +48,7 @@ let saveFailure: Error | undefined;
 let draftSequence = 0;
 const drafts = new Map<string, { title: string; markdown: string; sequence: number; baseRevision: number }>();
 let editorBase: { workspaceId: string; noteId: string; revision: number } | undefined;
+let pendingNavigation: { workspaceId: string; patch: Record<string, string> } | undefined;
 let actionTail: Promise<unknown> = Promise.resolve();
 const runtimeWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
 const worker = new RuntimeClient(result => {
@@ -57,6 +65,8 @@ const editor = createEditor($('editor'), {
   onChange: markdown => { if (snapshot && activeId) markDraft(markdown); },
   onNavigate: name => void run(() => navigateIdentifier(name)),
   onFindReferences: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
+  onOpenRecord: id => { recordsPanel.revealRecord(id); panel = 'records'; renderInspector(); const record = snapshot.records.find(r => r.id === id); if (record) recordDialog(record); },
+  onOpenQuery: query => { recordsPanel.setQuery(query); panel = 'records'; renderInspector(); },
 });
 // The Navigator owns presentation and derived search state; all mutations still
 // pass through this application's ordered save/command queue.
@@ -68,6 +78,14 @@ function navigationCommand<T>(action: () => Promise<T>): Promise<T> {
 async function navigationMutation(path: string, method: 'POST' | 'PUT' | 'DELETE', payload: () => unknown) {
   await transition(async () => { await flush(); acceptSnapshot(await request<WorkspaceSnapshot>(path, method, payload()), true); setSaveStatus('✓ 已儲存至 SQLite'); });
 }
+function saveNavigationSettings(patch: Record<string, string>) {
+  return navigationCommand(async () => {
+    // Cosmetic recents must not invalidate a revision-bound review that is open.
+    if (document.querySelector('dialog[open]')) { pendingNavigation = { workspaceId: snapshot.id, patch }; return; }
+    await flush(); if (Object.entries(patch).every(([k, v]) => snapshot.settings[k] === v)) return;
+    acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, ...patch } }));
+  });
+}
 const navigator = createNavigator($('navigation'), {
   onSelect: (id, range) => { const source = snapshot.notes.find(n => n.id === id)?.markdown; return navigationCommand(async () => { await flush(); await selectNote(id); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); editor.focusRange(range.from, range.to); } }); },
   onCreateNote: folderId => navigationCommand(async () => { await createNote('未命名筆記', '', folderId); ($('note-title') as HTMLInputElement).focus(); ($('note-title') as HTMLInputElement).select(); }),
@@ -78,7 +96,7 @@ const navigator = createNavigator($('navigation'), {
   onRenameFolder: (id, name) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name, parentId: folder.parentId, revision: folder.revision }; })),
   onMoveFolder: (id, parentId) => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'PUT', () => { const folder = snapshot.folders.find(f => f.id === id)!; return { name: folder.name, parentId, revision: folder.revision }; })),
   onDeleteFolder: id => navigationCommand(() => navigationMutation(`/folders/${encodeURIComponent(id)}`, 'DELETE', () => ({ revision: snapshot.folders.find(f => f.id === id)!.revision, workspaceRevision: snapshot.revision, recursive: true }))),
-  onPersistSettings: patch => navigationCommand(async () => { await flush(); if (Object.entries(patch).every(([k, v]) => snapshot.settings[k] === v)) return; acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, ...patch } })); }),
+  onPersistSettings: saveNavigationSettings,
   onError: message => toast(message, true),
 });
 
@@ -210,57 +228,27 @@ function renderInspector() {
   if (!snapshot) return;
   for (const name of ['values', 'records', 'issues', 'links']) $(`tab-${name}`).setAttribute('aria-selected', String(panel === name));
   const content = $('inspector-content');
-  if (panel === 'links') { const displayed = snapshot; linksPanel.render(content, snapshot, activeId, location => void run(() => navigateLocation(location, displayed.notes.find(n => n.id === location.noteId)?.markdown))); return; }
-  const focused = document.activeElement?.id;
-  const selection = focused === 'value-search' ? ($('value-search') as HTMLInputElement).selectionStart : null;
-  content.replaceChildren();
-  if (panel === 'values') {
-    const input = element('input', 'search'); input.id = 'value-search'; input.type = 'search'; input.placeholder = '搜尋 identifier…'; input.setAttribute('aria-label', '搜尋 identifier'); input.value = valueFilter;
-    input.oninput = () => { valueFilter = input.value; renderInspector(); };
-    content.append(input);
-    if (selectedIdentifier) {
-      const card = element('section', 'reference-detail');
-      card.append(button('← 所有識別值', () => { selectedIdentifier = undefined; renderInspector(); }, 'text-button'), element('h3', '', selectedIdentifier));
-      const value = runtime?.values[selectedIdentifier]; card.append(element('p', 'current-value', value?.value || value?.message || '未定義'));
-      card.append(button('前往定義 ↗', () => navigateIdentifier(selectedIdentifier!)));
-      const refs = runtime?.references.filter(r => r.name === selectedIdentifier) || [];
-      card.append(element('h4', '', `References · ${refs.length}`));
-      for (const ref of refs.slice(0, 150)) {
-        const note = snapshot.notes.find(n => n.id === ref.location.noteId);
-        const occurrence = refs.filter(r => r.location.noteId === ref.location.noteId && r.kind === ref.kind).indexOf(ref);
-        card.append(button(`${note?.title || '結構化資料'} · 第 ${ref.location.line} 行${ref.kind === 'dependency' ? ' · 依賴' : ''}`, () => navigateReference(ref.name, ref.location.noteId, ref.kind, occurrence), 'reference-link'));
-      }
-      if (!refs.length) card.append(element('p', 'empty', '目前沒有其他引用。'));
-      if (refs.length > 150) card.append(element('p', 'empty', '顯示前 150 個位置。'));
-      content.append(card);
-    }
-    const entries = Object.entries(runtime?.values || {}).filter(([name]) => name.toLowerCase().includes(valueFilter.toLowerCase()));
-    content.append(element('div', 'section-caption', `${entries.length} 個識別值`));
-    for (const [name, value] of entries.slice(0, 120)) {
-      const card = element('div', 'value-card');
-      const row = element('div', 'value-card-header'); row.append(button(name, () => navigateIdentifier(name), 'identifier-name'), element('span', `value-state ${value.status}`, value.status === 'ok' ? '●' : value.status));
-      card.append(row, element('div', 'value-text', value.value || (value.status === 'ok' ? '（空字串）' : value.message || '')));
-      const actions = element('div', 'value-actions'); actions.append(button('定義 ↗', () => navigateIdentifier(name)), button('References', () => { selectedIdentifier = name; renderInspector(); })); card.append(actions); content.append(card);
-    }
-    if (!entries.length) content.append(element('p', 'empty', '寫下 @name = "Hello"，再用 {{name}} 引用。'));
-    if (entries.length > 120) content.append(element('p', 'empty', '顯示前 120 個；輸入名稱縮小範圍。'));
-    if (focused === 'value-search') { input.focus(); if (selection !== null) input.setSelectionRange(selection, selection); }
-  } else if (panel === 'records') {
-    content.append(element('p', 'panel-intro', '一組資料，一份來源。欄位可直接由 identifier 引用，也能在筆記顯示 table。'), button('＋ 新增 record', () => recordDialog(), 'primary wide'));
-    for (const record of snapshot.records.slice(0, 150)) {
-      const card = element('div', 'record-card'); card.append(element('span', 'section-caption', record.collection), element('h3', '', record.name));
-      for (const [key, raw] of Object.entries(record.fields)) { const value = runtime?.values[`${record.collection}.${record.name}.${key}`]; card.append(element('p', 'record-field', `${key}  ${value?.value ?? raw}`)); }
-      card.append(button('編輯', () => recordDialog(record)), button('建立 table 筆記', () => createQueryNote(record.collection), 'text-button')); content.append(card);
-    }
-    if (!snapshot.records.length) content.append(element('p', 'empty', '集中保存人物、物品或其他資料，不必一筆一個檔案。'));
-    if (snapshot.records.length > 150) content.append(element('p', 'empty', '側欄顯示前 150 筆；使用筆記 query 篩選更多資料。'));
-  } else {
-    content.append(button('重新計算', () => worker.retry(), 'wide'));
-    const diagnostics = runtime?.diagnostics || [];
-    if (!diagnostics.length) content.append(element('div', 'healthy', '✓ 目前沒有診斷問題'), element('p', 'panel-intro', '缺少定義、重複名稱與循環依賴會顯示在這裡。錯誤不會阻止正常筆記儲存。'));
-    for (const issue of diagnostics.slice(0, 200)) { const card = element('div', 'issue-card'); card.append(element('strong', '', issue.kind), element('p', '', issue.message)); if (issue.location) card.append(button('查看位置 ↗', () => navigateLocation(issue.location!))); content.append(card); }
-    if (diagnostics.length > 200) content.append(element('p', 'empty', `共 ${diagnostics.length} 個問題，顯示前 200 個。`));
+  if (panel !== 'records') content.classList.remove('gp-records-panel');
+  const displayed = snapshot;
+  if (panel === 'links') { linksPanel.render(content, snapshot, activeId, location => void run(() => navigateLocation(location, displayed.notes.find(n => n.id === location.noteId)?.markdown))); return; }
+  if (panel === 'records') {
+    recordsPanel.render(content, snapshot, runtime, {
+      onEdit: record => recordDialog(record),
+      onCreateQuery: query => void run(() => createQueryNote(query)),
+      onReferences: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
+      onInsertReference: name => editor.insertText(`{{${name}}}`),
+      onRename: record => renameDialog(`${record.collection}.${record.name}`, 'namespace'),
+      onError: message => toast(message, true),
+    }); return;
   }
+  knowledgePanel.render(content, snapshot, runtime, selectedIdentifier, panel, {
+    select: name => { selectedIdentifier = name; panel = 'values'; renderInspector(); },
+    definition: name => void run(() => navigateIdentifier(name)),
+    location: location => void run(() => navigateLocation(location, displayed.notes.find(n => n.id === location.noteId)?.markdown)),
+    reference: (reference, occurrence) => void run(() => navigateReference(reference.name, reference.location.noteId, reference.kind, occurrence)),
+    rename: name => renameDialog(name),
+    retry: () => worker.retry(),
+  });
 }
 function openModal(title: string) { $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
 function closeModal() { ($('modal') as HTMLDialogElement).close(); }
@@ -268,7 +256,49 @@ function labeled(label: string, input: HTMLElement) { const group = element('lab
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
 async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
-async function createQueryNote(collection: string) { await createNote(`${collection} · 資料檢視`, `# ${collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify({ collection }, null, 2)}\n\`\`\`\n`); }
+async function createQueryNote(input: string | RecordQuery) { const query = typeof input === 'string' ? { collection: input } : input; await createNote(`${query.collection} · 資料檢視`, `# ${query.collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify(query, null, 2)}\n\`\`\`\n`); }
+
+function paged<T>(parent: HTMLElement, entries: T[], render: (entry: T) => HTMLElement, size = 30) {
+  let page = 0; const list = element('div'); const controls = element('div', 'gp-nav-pager'); parent.append(list, controls);
+  const draw = () => {
+    list.replaceChildren(...entries.slice(page * size, (page + 1) * size).map(render));
+    const previous = button('上一頁', () => { page--; draw(); }); previous.disabled = page === 0;
+    const next = button('下一頁', () => { page++; draw(); }); next.disabled = (page + 1) * size >= entries.length;
+    controls.replaceChildren(previous, element('span', '', `${entries.length ? page * size + 1 : 0}–${Math.min(entries.length, (page + 1) * size)} / ${entries.length}`), next);
+  }; draw();
+}
+function diffCard(title: string, before: string, after: string) {
+  const details = element('details', 'diff-card'); details.append(element('summary', '', title));
+  const columns = element('div', 'diff-columns'); columns.append(element('pre', 'diff-before', before), element('pre', 'diff-after', after)); details.append(columns); return details;
+}
+function renameDialog(from: string, mode: 'identifier' | 'namespace' = 'identifier') {
+  const body = openModal('重新命名與影響預覽');
+  body.append(element('p', 'muted', '同步修改 definition 與真正的引用。程式碼和普通文字會保留；先檢查差異，再一次套用並保存復原點。'));
+  const source = input(from); source.setAttribute('aria-label', '原 identifier 或 Namespace');
+  const target = input('', '新的名稱'); target.setAttribute('aria-label', '新 identifier 或 Namespace');
+  const scope = element('select'); scope.setAttribute('aria-label', '重新命名範圍');
+  for (const [value, label] of [['identifier', '單一 identifier'], ['namespace', 'Namespace 前綴（含子項目）']]) { const option = element('option', '', label); option.value = value; scope.append(option); }
+  scope.value = mode; body.append(labeled('原名稱', source), labeled('新名稱', target), labeled('範圍', scope));
+  body.append(button('預覽重新命名', async () => { await flush(); const preview = await request<Omit<RenamePlan, 'notes' | 'records'> & { token: string }>('/rename/plan', 'POST', { from: source.value.trim(), to: target.value.trim(), mode: scope.value }); showRenamePlan(preview); }, 'primary'));
+}
+function showRenamePlan(plan: Omit<RenamePlan, 'notes' | 'records'> & { token: string }) {
+  const body = openModal('審查重新命名');
+  body.append(element('p', '', `${plan.request.from} → ${plan.request.to}`), element('p', 'muted', `${plan.renames.length} 個名稱 · 修改 ${plan.changes.length} 份筆記與 ${plan.recordChanges.length} 筆 records · 影響 ${plan.impact.transitive.length} 個後續識別值。基準修訂 ${plan.workspaceRevision}。`));
+  for (const issue of plan.diagnostics) body.append(element('p', issue.severity === 'error' ? 'validation-error' : 'muted', issue.message));
+  const names = element('details', 'diff-card'); names.append(element('summary', '', `名稱對應與引用數 · ${plan.renames.length}`));
+  paged(names, plan.renames, rename => element('p', '', `${rename.from} → ${rename.to} · ${rename.definitions} 個定義 / ${rename.references} 個引用`)); body.append(names);
+  const changes: Array<{ title: string; before: string; after: string }> = [
+    ...plan.changes.map(change => ({ title: change.title, before: change.before, after: change.after })),
+    ...plan.recordChanges.map(change => ({ title: `Record · ${change.before.collection}.${change.before.name}`, before: JSON.stringify(change.before, null, 2), after: JSON.stringify(change.after, null, 2) })),
+  ];
+  paged(body, changes, change => diffCard(change.title, change.before, change.after), 20);
+  const affected = element('details', 'diff-card'); affected.append(element('summary', '', '依賴、缺少定義與循環的變化'), element('pre', 'syntax-example', `直接影響：${plan.impact.direct.join(', ') || '無'}\n後續影響：${plan.impact.transitive.join(', ') || '無'}\n缺少定義：${plan.impact.missingBefore.length} → ${plan.impact.missingAfter.length}\n循環識別值：${plan.impact.cyclesBefore.length} → ${plan.impact.cyclesAfter.length}`)); body.append(affected);
+  const apply = button('確認重新命名', async () => transition(async () => {
+    await flush(); const next = await request<WorkspaceSnapshot>('/rename/apply', 'POST', { token: plan.token, workspaceRevision: plan.workspaceRevision });
+    selectedIdentifier = plan.request.mode === 'identifier' ? plan.request.to : undefined; panel = 'values'; acceptSnapshot(next, true); closeModal(); toast('已更新定義與引用；可從復原紀錄回復。');
+  }), 'primary'); apply.disabled = !plan.canApply;
+  body.append(button('返回修改', () => renameDialog(plan.request.from, plan.request.mode)), apply);
+}
 
 function workspaceDialog() {
   const body = openModal('開啟或建立 workspace');
@@ -286,9 +316,17 @@ function recordDialog(record?: StructuredRecord) {
   body.append(element('p', 'muted', '以 collection.name.field 引用欄位；值中可用 {identifier} 組合文字。名稱使用英數字、底線、點或連字號。'));
   const collection = input(record?.collection || 'aura'); collection.setAttribute('aria-label', 'Collection');
   const name = input(record?.name || ''); name.setAttribute('aria-label', 'Record 名稱');
+  if (record) { collection.readOnly = true; name.readOnly = true; body.append(element('p', 'muted', '名稱會影響引用。請使用「重新命名」先審查所有依賴。移除欄位後，其引用會顯示缺少定義。'), button('重新命名 record／collection', () => { if (recordHasEdits()) throw new Error('請先儲存欄位修改，再重新命名。'); renameDialog(`${record.collection}.${record.name}`, 'namespace'); })); }
   body.append(labeled('Collection', collection), labeled('Record 名稱', name));
   const fields = element('div', 'record-fields');
-  function addField(key = '', value = '') { const row = element('div', 'record-field-row'); const k = input(key, '欄位名稱'); k.setAttribute('aria-label', '欄位名稱'); const v = input(value, '字串值 / {identifier}'); v.setAttribute('aria-label', '欄位值'); row.append(k, v, button('×', () => row.remove(), 'icon-button')); fields.append(row); }
+  function recordHasEdits() { const rows = Array.from(fields.children).map(row => Array.from(row.querySelectorAll('input')).map(i => i.value)); return rows.length !== Object.keys(record?.fields ?? {}).length || rows.some(([key, value]) => !Object.hasOwn(record!.fields, key) || record!.fields[key] !== value); }
+  function addField(key = '', value = '') {
+    const row = element('div', 'record-field-row'); const k = input(key, '欄位名稱'); k.setAttribute('aria-label', '欄位名稱'); const v = input(value, '字串值 / {identifier}'); v.setAttribute('aria-label', '欄位值');
+    const existing = Boolean(record && Object.hasOwn(record.fields, key)); k.readOnly = existing;
+    const rename = existing ? button('名稱↗', () => { if (recordHasEdits()) throw new Error('請先儲存欄位修改，再重新命名。'); renameDialog(`${record!.collection}.${record!.name}.${key}`); }) : element('span');
+    if (existing) rename.setAttribute('aria-label', `重新命名欄位 ${key}`);
+    row.append(k, v, rename, button('×', () => row.remove(), 'icon-button')); fields.append(row);
+  }
   for (const [key, value] of Object.entries(record?.fields || { name: '', element: '' })) addField(key, value);
   body.append(fields, button('＋ 新增欄位', () => addField(), 'text-button'));
   const actions = element('div', 'form-actions');
@@ -335,8 +373,17 @@ async function historyDialog() {
   await flush(); const records = await request<Array<{ id: string; createdAt: string; reason: string; workspaceRevision: number }>>('/history');
   const body = openModal('復原紀錄'); body.append(element('p', 'muted', '刪除、匯入與復原前均保存 workspace 快照。復原會取代目前內容，並保留復原前的版本。'));
   if (!records.length) body.append(element('p', 'empty', '還沒有需要復原的操作。'));
-  for (const record of records) { const row = element('div', 'history-row'); row.append(element('div', '', `${new Date(record.createdAt).toLocaleString('zh-TW')} · ${record.reason} · r${record.workspaceRevision}`), button('檢查復原', () => {
-    const confirm = openModal('確認復原 workspace'); confirm.append(element('p', '', `將復原至 ${new Date(record.createdAt).toLocaleString('zh-TW')} 的快照。整個 workspace 的筆記與 records 都會替換；目前版本會另存於復原紀錄。`), button('取消', closeModal), button('確認復原', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/history/${encodeURIComponent(record.id)}/restore`, 'POST', { workspaceRevision: snapshot.revision }); acceptSnapshot(next, true); closeModal(); toast('已復原 workspace。'); }), 'primary'));
+  for (const record of records) { const row = element('div', 'history-row'); row.append(element('div', '', `${new Date(record.createdAt).toLocaleString('zh-TW')} · ${record.reason} · r${record.workspaceRevision}`), button('檢查復原', async () => {
+    await flush(); const preview = await request<RecoveryPreview>(`/history/${encodeURIComponent(record.id)}/preview`);
+    const confirm = openModal('確認復原 workspace'); confirm.append(element('p', '', `將復原至 ${new Date(record.createdAt).toLocaleString('zh-TW')} 的快照。整個 workspace 的筆記、資料夾與 records 都會替換；目前版本會另存於復原紀錄。`));
+    confirm.append(element('p', 'muted', `筆記 ${preview.current.notes} → ${preview.target.notes} · 資料夾 ${preview.current.folders} → ${preview.target.folders} · records ${preview.current.records} → ${preview.target.records}${preview.settingsChanged ? ' · Workspace 設定也會回復' : ''}`));
+    const changes = [
+      ...preview.changes.notes.map(c => `筆記 · ${c.kind} · ${c.before?.title || '（無）'} → ${c.after?.title || '（無）'}${c.contentChanged ? ' · 內容變更' : ''}`),
+      ...preview.changes.folders.map(c => `資料夾 · ${c.kind} · ${c.before?.name || '（無）'} → ${c.after?.name || '（無）'}`),
+      ...preview.changes.records.map(c => `Record · ${c.kind} · ${c.before ? `${c.before.collection}.${c.before.name}` : '（無）'} → ${c.after ? `${c.after.collection}.${c.after.name}` : '（無）'} · 欄位：${c.changedFields.join(', ')}`),
+    ];
+    paged(confirm, changes, text => element('p', 'diff-card', text));
+    confirm.append(button('取消', closeModal), button('確認復原', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/history/${encodeURIComponent(record.id)}/restore`, 'POST', { workspaceRevision: preview.workspaceRevision }); acceptSnapshot(next, true); closeModal(); toast('已復原 workspace。'); }), 'primary'));
   })); body.append(row); }
 }
 function helpDialog() {
@@ -355,6 +402,11 @@ $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
 $('help').onclick = helpDialog;
 $('modal-close').onclick = closeModal;
+document.addEventListener('close', () => {
+  if (!pendingNavigation || document.querySelector('dialog[open]')) return;
+  const pending = pendingNavigation; pendingNavigation = undefined;
+  if (pending.workspaceId === snapshot?.id) void saveNavigationSettings(pending.patch).catch(error => toast(String(error), true));
+}, true);
 document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void run(flush); } });
 window.addEventListener('beforeunload', event => { if (drafts.size || saving || saveFailure) { event.preventDefault(); event.returnValue = ''; } });
 void run(async () => {

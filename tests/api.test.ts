@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ImportPlan, WorkspaceSnapshot } from '../src/domain/model.js';
 import { createApi } from '../server/api.js';
-import { WorkspaceStore } from '../server/store.js';
+import { WorkspaceStore, type RecoveryPreview } from '../server/store.js';
+import type { RenamePreview } from '../server/rename.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createV1Workspace } from './fixtures/v1-workspace.js';
 
@@ -31,6 +32,41 @@ function request(base: string, path: string, method: string, value: unknown, hea
 }
 
 describe('HTTP authoritative workflow', () => {
+  it('previews semantic rename, applies only the reviewed payload, and reviews full recovery scope through HTTP', async () => {
+    const { base } = await host(); const before = await (await fetch(base + '/api/workspace')).json() as WorkspaceSnapshot;
+    const headers = { 'x-grasp-workspace': before.id };
+    const response = await request(base, '/api/rename/plan', 'POST', { from: 'first_name', to: 'given_name', mode: 'identifier' }, headers);
+    expect(response.status).toBe(200); const plan = await response.json() as RenamePreview;
+    expect(plan.canApply).toBe(true); expect(plan.recordChanges.length).toBeGreaterThan(0);
+    expect(await (await fetch(base + '/api/workspace')).json()).toEqual(before);
+    const applied = await request(base, '/api/rename/apply', 'POST', { token: plan.token, workspaceRevision: plan.workspaceRevision, notes: [{ id: 'malicious', markdown: 'unreviewed' }], records: [] }, headers);
+    expect(applied.status).toBe(200); const changed = await applied.json() as WorkspaceSnapshot;
+    expect(changed.notes.some(n => n.id === 'malicious')).toBe(false); expect(changed.records).toHaveLength(before.records.length);
+    expect(changed.notes[0]?.markdown).toContain('@given_name = "Sean"');
+    expect((await request(base, '/api/rename/apply', 'POST', { token: plan.token, workspaceRevision: changed.revision }, headers)).status).toBe(409);
+    const history = await (await fetch(base + '/api/history')).json() as { id: number; reason: string }[];
+    expect(history[0]?.reason).toContain('重新命名 Identifier');
+    const preview = await (await fetch(base + `/api/history/${history[0]!.id}/preview`, { headers })).json() as RecoveryPreview;
+    expect(preview.scope).toBe('workspace'); expect(preview.workspaceRevision).toBe(changed.revision);
+    expect(preview.changes.records.find(r => r.id === 'record-flame')?.changedFields).toContain('description');
+    const restored = await (await request(base, `/api/history/${preview.id}/restore`, 'POST', { workspaceRevision: preview.workspaceRevision }, headers)).json() as WorkspaceSnapshot;
+    expect(restored.notes.map(n => n.markdown)).toEqual(before.notes.map(n => n.markdown));
+  });
+
+  it('refuses collision approval, stale rename plans and plans carried across a workspace switch', async () => {
+    const { base, dir } = await host();
+    const collision = await (await request(base, '/api/rename/plan', 'POST', { from: 'first_name', to: 'last_name', mode: 'identifier' })).json() as RenamePreview;
+    expect(collision.canApply).toBe(false);
+    expect((await request(base, '/api/rename/apply', 'POST', { token: collision.token, workspaceRevision: collision.workspaceRevision })).status).toBe(409);
+    expect((await request(base, '/api/rename/plan', 'POST', { from: 'first_name', to: 'x', mode: 'replace' })).status).toBe(400);
+    const plan = await (await request(base, '/api/rename/plan', 'POST', { from: 'first_name', to: 'given_name', mode: 'identifier' })).json() as RenamePreview;
+    await request(base, '/api/settings', 'PUT', { settings: { mode: 'source' } });
+    expect((await request(base, '/api/rename/apply', 'POST', { token: plan.token, workspaceRevision: plan.workspaceRevision })).status).toBe(409);
+    const next = await (await request(base, '/api/rename/plan', 'POST', { from: 'first_name', to: 'given_name', mode: 'identifier' })).json() as RenamePreview;
+    const other = await (await request(base, '/api/workspace/open', 'POST', { path: join(dir, 'rename-other.db'), create: true })).json() as WorkspaceSnapshot;
+    expect((await request(base, '/api/rename/apply', 'POST', { token: next.token, workspaceRevision: other.revision }, { 'x-grasp-workspace': other.id })).status).toBe(409);
+  });
+
   it('creates and moves a hierarchy with optimistic revisions, explicit subtree deletion and recovery over HTTP', async () => {
     const { base } = await host();
     const first = await (await fetch(base + '/api/workspace')).json() as WorkspaceSnapshot;

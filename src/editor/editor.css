@@ -37,6 +37,8 @@
 .gp-empty-value { color: #7d8a7f !important; font-style: italic !important; }
 .gp-query { border: 1px solid #dbe3d9; border-radius: 9px; padding: 12px 14px; background: #fbfcf9; margin: 6px 0; font: 13px/1.6 'Segoe UI', system-ui, sans-serif; }
 .gp-query-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.gp-query-header { flex-wrap: wrap; }
+.gp-query-record { border: 0; background: transparent; font: inherit; padding: 0; color: #426d59; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .gp-query-edit { background: white; border: 1px solid #d1ded3; padding: 3px 8px; border-radius: 5px; cursor: pointer; color: #426d59; }
 .gp-query-scroll { overflow: auto; max-height: 440px; }
 .gp-query table { width: 100%; border-collapse: collapse; }

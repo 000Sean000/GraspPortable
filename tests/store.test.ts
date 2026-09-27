@@ -101,4 +101,20 @@ describe('authoritative SQLite workspace', () => {
     expect(() => new WorkspaceStore(file)).toThrow(/無法辨識或讀取/);
     expect(readFileSync(file)).toEqual(bytes);
   });
+
+  it('previews the complete recovery scope without source dumps or mutations and rejects stale restore', () => {
+    const s = open(':memory:', true); const folder = s.createFolder('Saved folder', null).folders[0]!;
+    const originalNote = s.snapshot().notes[0]!; const before = s.moveNote(originalNote.id, folder.id, originalNote.revision);
+    const removed = s.deleteFolder(folder.id, folder.revision, before.revision, true);
+    const history = s.history(); const preview = s.historyPreview(history[0]!.id);
+    expect(preview).toMatchObject({ scope: 'workspace', workspaceRevision: removed.revision, snapshotRevision: before.revision, current: { notes: 1, folders: 0, records: 2 }, target: { notes: 2, folders: 1, records: 2 }, settingsChanged: false });
+    expect(preview.changes.notes).toEqual([{ id: originalNote.id, kind: 'create', before: null, after: { title: originalNote.title, folderId: folder.id }, contentChanged: true }]);
+    expect(preview.changes.folders).toEqual([{ id: folder.id, kind: 'create', before: null, after: { name: folder.name, parentId: null } }]);
+    expect(preview.changes.records).toEqual([]); expect(JSON.stringify(preview)).not.toContain(originalNote.markdown);
+    expect(s.snapshot()).toEqual(removed); expect(s.history()).toEqual(history);
+    const changed = s.updateSettings({ mode: 'source' });
+    expect(() => s.restore(preview.id, preview.workspaceRevision)).toThrow(/已變更/);
+    expect(s.historyPreview(preview.id).settingsChanged).toBe(true); expect(s.snapshot()).toEqual(changed);
+    expect(() => s.historyPreview(999999)).toThrow(/找不到/);
+  });
 });

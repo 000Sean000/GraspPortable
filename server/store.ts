@@ -13,6 +13,17 @@ export class StoreError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 export interface RecoveryEntry { id: number; createdAt: string; reason: string; workspaceRevision: number }
+type RecoveryChange<T> = { id: string; kind: 'create' | 'update' | 'delete'; before: T | null; after: T | null };
+export interface RecoveryPreview {
+  id: number; createdAt: string; reason: string; scope: 'workspace'; workspaceRevision: number; snapshotRevision: number;
+  current: { notes: number; folders: number; records: number }; target: { notes: number; folders: number; records: number };
+  changes: {
+    notes: (RecoveryChange<{ title: string; folderId: string | null }> & { contentChanged: boolean })[];
+    folders: RecoveryChange<{ name: string; parentId: string | null }>[];
+    records: (RecoveryChange<{ collection: string; name: string; fieldCount: number }> & { changedFields: string[] })[];
+  };
+  settingsChanged: boolean; nameBefore: string; nameAfter: string;
+}
 export type ImportNote = Pick<Note, 'id' | 'title' | 'markdown'> & { folderId?: string | null };
 export interface ImportPayload { notes: ImportNote[]; records?: StructuredRecord[]; folders?: Folder[] }
 type Row = Record<string, unknown>;
@@ -357,7 +368,8 @@ export class WorkspaceStore {
     const settings = validateSettings(input);
     return this.transaction(() => this.db.prepare('UPDATE workspace SET settings_json=?').run(JSON.stringify(settings)));
   }
-  applyImport(payload: ImportPayload, workspaceRevision: number): WorkspaceSnapshot {
+  applyImport(payload: ImportPayload, workspaceRevision: number, recoveryReason = '匯入 Markdown'): WorkspaceSnapshot {
+    requireString(recoveryReason, 'Recovery reason', 1500);
     const notes = payload.notes.map(validateNote);
     const folders = payload.folders?.map(validateFolder);
     const records = payload.records?.map(validateRecord);
@@ -376,7 +388,7 @@ export class WorkspaceStore {
       for (const n of incomingNotes) combinedNotes.set(n.id, { ...n, revision: 0, updatedAt: '' });
       validateHierarchy([...combinedFolders.values()], [...combinedNotes.values()]);
       const mutationRevision = this.nextRevision();
-      this.recover('匯入 Markdown');
+      this.recover(recoveryReason);
       const changedFolders = (folders ?? []).filter(f => { const old = existingFolders.get(f.id); return !old || old.name !== f.name || old.parentId !== f.parentId; });
       // Release old unique name keys first so a validated batch can swap siblings.
       for (const f of changedFolders) this.db.prepare('UPDATE folders SET name_key=? WHERE id=?').run(`\0import-${randomUUID()}`, f.id);
@@ -395,6 +407,45 @@ export class WorkspaceStore {
   }
   history(): RecoveryEntry[] {
     return this.db.prepare('SELECT id, created_at, reason, workspace_revision FROM history ORDER BY id DESC LIMIT 100').all().map((r: Row) => ({ id: Number(r.id), createdAt: String(r.created_at), reason: String(r.reason), workspaceRevision: Number(r.workspace_revision) }));
+  }
+  historyPreview(id: number): RecoveryPreview {
+    this.db.exec('BEGIN');
+    try {
+      const entry = this.db.prepare('SELECT created_at, reason, snapshot_json FROM history WHERE id=?').get(id);
+      if (!entry) throw new StoreError('找不到 recovery snapshot。', 404);
+      const snapshot = validateSnapshot(JSON.parse(String(entry.snapshot_json)));
+      const current = this.snapshot();
+      if (snapshot.id !== current.id) throw new StoreError('Recovery snapshot 與目前 workspace 不符，未變更資料。');
+      const notes: RecoveryPreview['changes']['notes'] = [];
+      const folders: RecoveryPreview['changes']['folders'] = [];
+      const records: RecoveryPreview['changes']['records'] = [];
+      const targetNotes = new Map(snapshot.notes.map(n => [n.id, n]));
+      const currentNotes = new Map(current.notes.map(n => [n.id, n]));
+      for (const noteId of new Set([...currentNotes.keys(), ...targetNotes.keys()])) {
+        const before = currentNotes.get(noteId); const after = targetNotes.get(noteId);
+        if (before && after && before.title === after.title && before.markdown === after.markdown && before.folderId === after.folderId) continue;
+        notes.push({ id: noteId, kind: !before ? 'create' : !after ? 'delete' : 'update', before: before ? { title: before.title, folderId: before.folderId } : null, after: after ? { title: after.title, folderId: after.folderId } : null, contentChanged: before?.markdown !== after?.markdown });
+      }
+      const targetFolders = new Map(snapshot.folders.map(f => [f.id, f]));
+      const currentFolders = new Map(current.folders.map(f => [f.id, f]));
+      for (const folderId of new Set([...currentFolders.keys(), ...targetFolders.keys()])) {
+        const before = currentFolders.get(folderId); const after = targetFolders.get(folderId);
+        if (before && after && before.name === after.name && before.parentId === after.parentId) continue;
+        folders.push({ id: folderId, kind: !before ? 'create' : !after ? 'delete' : 'update', before: before ? { name: before.name, parentId: before.parentId } : null, after: after ? { name: after.name, parentId: after.parentId } : null });
+      }
+      const targetRecords = new Map(snapshot.records.map(r => [r.id, r]));
+      const currentRecords = new Map(current.records.map(r => [r.id, r]));
+      for (const recordId of new Set([...currentRecords.keys(), ...targetRecords.keys()])) {
+        const before = currentRecords.get(recordId); const after = targetRecords.get(recordId);
+        const changedFields = [...new Set([...Object.keys(before?.fields ?? {}), ...Object.keys(after?.fields ?? {})])].filter(key => before?.fields[key] !== after?.fields[key]);
+        if (before && after && before.collection === after.collection && before.name === after.name && changedFields.length === 0) continue;
+        records.push({ id: recordId, kind: !before ? 'create' : !after ? 'delete' : 'update', before: before ? { collection: before.collection, name: before.name, fieldCount: Object.keys(before.fields).length } : null, after: after ? { collection: after.collection, name: after.name, fieldCount: Object.keys(after.fields).length } : null, changedFields });
+      }
+      const counts = (s: WorkspaceSnapshot) => ({ notes: s.notes.length, folders: s.folders.length, records: s.records.length });
+      const result: RecoveryPreview = { id, createdAt: String(entry.created_at), reason: String(entry.reason), scope: 'workspace', workspaceRevision: current.revision, snapshotRevision: snapshot.revision, current: counts(current), target: counts(snapshot), changes: { notes, folders, records }, settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(snapshot.settings), nameBefore: current.name, nameAfter: snapshot.name };
+      this.db.exec('COMMIT');
+      return result;
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   restore(id: number, workspaceRevision: number): WorkspaceSnapshot {
     return this.transaction(() => {

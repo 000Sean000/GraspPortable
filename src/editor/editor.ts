@@ -1,17 +1,18 @@
-import { Annotation, EditorSelection, EditorState, Prec, StateEffect, StateField, type Range, type Transaction } from '@codemirror/state';
+import { Annotation, EditorSelection, EditorState, Facet, Prec, StateEffect, StateField, type Range, type Transaction } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, drawSelection, dropCursor, highlightActiveLine, keymap, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab, redo } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory, redo } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { syntaxTree, syntaxHighlighting, defaultHighlightStyle, indentOnInput, bracketMatching } from '@codemirror/language';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import type { RuntimeResult, StructuredRecord, ValueResult } from '../domain/model';
-import { executeQuery, parseQuery, safeLink } from './query';
+import { executeQuery, parseQuery, safeLink, type RecordQuery } from './query';
 import './editor.css';
 
 export interface EditorAdapter {
   setDocument(markdown: string, documentKey?: string): void;
   getDocument(): string;
+  insertText(text: string): void;
   setRuntime(result: RuntimeResult, records?: StructuredRecord[]): void;
   focusRange(from: number, to: number): void;
   setMode(mode: 'live' | 'source'): void;
@@ -21,7 +22,10 @@ interface EditorOptions {
   onChange(markdown: string): void;
   onNavigate(name: string): void;
   onFindReferences(name: string): void;
+  onOpenRecord?(id: string): void;
+  onOpenQuery?(query: RecordQuery): void;
 }
+const editorOptions = Facet.define<EditorOptions, EditorOptions>({ combine: values => values[0] });
 interface RuntimeState { result: RuntimeResult; records: StructuredRecord[] }
 const emptyRuntime: RuntimeResult = { revision: 0, values: {}, definitions: [], references: [], diagnostics: [], metrics: { elapsedMs: 0, recalculated: 0, total: 0, affected: 0 } };
 const updateRuntime = StateEffect.define<RuntimeState>();
@@ -133,7 +137,7 @@ class TaskWidget extends WidgetType {
 interface QueryBlock { from: number; to: number; source: string }
 const queryFence = /^(?:`{3,}|~{3,})[ \t]*grasp-query[ \t]*\n([\s\S]*?)\n(?:`{3,}|~{3,})[ \t]*$/;
 class QueryWidget extends WidgetType {
-  constructor(readonly block: QueryBlock, readonly runtime: RuntimeState) { super(); }
+  constructor(readonly block: QueryBlock, readonly runtime: RuntimeState, readonly options: EditorOptions) { super(); }
   eq(other: QueryWidget): boolean { return this.block.from === other.block.from && this.block.source === other.block.source && this.runtime === other.runtime; }
   toDOM(view: EditorView): HTMLElement {
     const el = document.createElement('section'); el.className = 'gp-query'; el.setAttribute('aria-label', '資料查詢結果');
@@ -145,15 +149,20 @@ class QueryWidget extends WidgetType {
       const query = parseQuery(this.block.source);
       const result = executeQuery(query, this.runtime.records, this.runtime.result);
       label.textContent = `${query.collection} · ${result.total} 筆`;
+      if (this.options.onOpenQuery) { const all = button('開啟全部查詢結果', 'gp-query-edit', () => this.options.onOpenQuery!(query)); all.textContent = '開啟全部結果 ↗'; header.append(all); }
       if (!result.rows.length) { const empty = document.createElement('p'); empty.textContent = '沒有符合條件的資料。'; el.append(empty); }
       else {
         const wrapper = document.createElement('div'); wrapper.className = 'gp-query-scroll';
         const table = document.createElement('table'); const head = table.createTHead().insertRow();
         for (const name of ['名稱', ...result.columns]) { const th = document.createElement('th'); th.textContent = name; head.append(th); }
         const body = table.createTBody();
-        for (const record of result.rows) { const row = body.insertRow(); row.insertCell().textContent = record.name; for (const value of record.cells) { const cell = row.insertCell(); cell.textContent = value.status === 'ok' ? value.value : `⟦${value.status}⟧`; if (value.status !== 'ok') { cell.className = 'gp-query-error'; cell.title = value.message ?? value.status; } } }
+        for (const record of result.rows) {
+          const row = body.insertRow(); row.dataset.recordId = record.id; const name = row.insertCell();
+          if (this.options.onOpenRecord) { const open = button(`開啟資料 ${record.name}`, 'gp-query-record', () => this.options.onOpenRecord!(record.id)); open.textContent = record.name; name.append(open); } else name.textContent = record.name;
+          for (const value of record.cells) { const cell = row.insertCell(); cell.textContent = value.status === 'ok' ? value.value : `⟦${value.status}⟧`; if (value.status !== 'ok') { cell.className = 'gp-query-error'; cell.title = value.message ?? value.status; } }
+        }
         wrapper.append(table); el.append(wrapper);
-        if (result.truncated) { const hint = document.createElement('p'); hint.textContent = `顯示前 ${result.rows.length} 筆；請加入 where 縮小範圍。`; el.append(hint); }
+        if (result.truncated) { const hint = document.createElement('p'); hint.textContent = `表格顯示前 ${result.rows.length} 筆；${this.options.onOpenQuery ? '開啟全部結果即可分頁瀏覽或編輯。' : '請加入 where 縮小範圍。'}`; el.append(hint); }
       }
     } catch (error) { label.textContent = '查詢格式錯誤'; const message = document.createElement('p'); message.className = 'gp-query-error'; message.textContent = error instanceof Error ? error.message : String(error); el.append(message); }
     return el;
@@ -194,7 +203,7 @@ interface QueryState { tree: ReturnType<typeof syntaxTree>; blocks: QueryBlock[]
 function decorateQueries(state: EditorState, blocks: QueryBlock[]): DecorationSet {
   if (state.field(modeField) === 'source') return Decoration.none;
   const runtime = state.field(runtimeField);
-  return Decoration.set(blocks.filter(block => !sourceAt(state, block.from, block.to)).map(block => Decoration.replace({ widget: new QueryWidget(block, runtime), block: true }).range(block.from, block.to)), true);
+  return Decoration.set(blocks.filter(block => !sourceAt(state, block.from, block.to)).map(block => Decoration.replace({ widget: new QueryWidget(block, runtime, state.facet(editorOptions)), block: true }).range(block.from, block.to)), true);
 }
 const queriesField = StateField.define<QueryState>({
   create(state) { const blocks = queryBlocks(state); return { tree: syntaxTree(state), blocks, decorations: decorateQueries(state, blocks) }; },
@@ -300,7 +309,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
       runtimeField, modeField, markdown({ base: markdownLanguage }), history(), drawSelection(), dropCursor(), indentOnInput(), bracketMatching(),
       syntaxHighlighting(defaultHighlightStyle), highlightActiveLine(), highlightSelectionMatches(),
       EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 筆記編輯器', spellcheck: 'false', autocapitalize: 'off' }),
-      EditorState.tabSize.of(2), queriesField, preview,
+      EditorState.tabSize.of(2), editorOptions.of(options), queriesField, preview,
       // Some input drivers/layouts report lowercase "z" even with Shift held.
       // CodeMirror's character fallback otherwise tries unshifted Ctrl+Z first.
       Prec.highest(EditorView.domEventHandlers({ keydown(event, view) {
@@ -346,6 +355,7 @@ export function createEditor(parent: HTMLElement, options: EditorOptions): Edito
       documentKey = nextKey; view.setState(state);
     },
     getDocument: () => view.state.doc.toString(),
+    insertText(text) { view.dispatch({ ...view.state.replaceSelection(text), userEvent: 'input', annotations: isolateHistory.of('full'), scrollIntoView: true }); view.focus(); },
     setRuntime(result, records = []) { runtime = { result, records }; view.dispatch({ effects: updateRuntime.of(runtime) }); },
     focusRange(from, to) { const length = view.state.doc.length; const start = Math.max(0, Math.min(from, length)); const end = Math.max(start, Math.min(to, length)); view.dispatch({ selection: EditorSelection.range(start, end), effects: EditorView.scrollIntoView(start, { y: 'center' }) }); view.focus(); },
     setMode(next) { mode = next; view.dispatch({ effects: updateMode.of(next) }); },

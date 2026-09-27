@@ -11,3 +11,9 @@ P2-1 commit association: `2eef544ac4a7908c99aad6aea8e9147dc30756d1`, pushed and 
 | Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
 | P2-2 Workspace navigation foundation | 2026-09-27 00:27:45 | 2026-09-27 00:44:14 | 26% | 32% | 6 pp | 16m 29s | Association appended after checkpoint | Codex account quota, same reset window 1791048521 | Schema 2 upgrade/backup, folder/navigation/link UX, editor continuity and stale-draft protection; build, 94 tests and 14 E2E pass; manual browser use |
+
+P2-2 commit association: `2bc1bcd87568e7b31b1eb848555c5c60a8afaf08`, pushed and remote SHA verified before M3.
+
+| Milestone | Start UTC | End UTC | Usage start | Usage end | Consumed | Duration | Commit | Source | Result |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| P2-3 Knowledge and record management | 2026-09-27 00:46:06 | 2026-09-27 01:02:11 | 33% | 38% | 5 pp | 16m 05s | Association appended after checkpoint | Codex account quota, same reset window 1791048521 | Full knowledge/record browsing, reviewed semantic rename, query navigation and recovery scope; build, 129 tests and 16 E2E pass; personal UI rename/edit/recovery |

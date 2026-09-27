@@ -16,7 +16,7 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
     server = await createServer({ configFile: false, server: { host: '127.0.0.1', port: 0 }, plugins: [{ name: 'editor-test-harness', configureServer(server) {
       server.middlewares.use('/__editor-test', async (_req, res) => {
         res.setHeader('Content-Type', 'text/html');
-        res.end(await server.transformIndexHtml('/__editor-test', '<!doctype html><button id="save">Save</button><div id="editor"></div><script type="module">import {createEditor} from "/src/editor/editor.ts"; window.changes=[]; window.navigation=[]; window.references=[]; window.editor=createEditor(document.querySelector("#editor"),{onChange:s=>window.changes.push(s),onNavigate:s=>{window.navigation.push(s);window.testNavigate?.(s)},onFindReferences:s=>window.references.push(s)});</script>'));
+        res.end(await server.transformIndexHtml('/__editor-test', '<!doctype html><button id="save">Save</button><div id="editor"></div><script type="module">import {createEditor} from "/src/editor/editor.ts"; window.changes=[]; window.navigation=[]; window.references=[]; window.editor=createEditor(document.querySelector("#editor"),{onChange:s=>window.changes.push(s),onNavigate:s=>{window.navigation.push(s);window.testNavigate?.(s)},onFindReferences:s=>window.references.push(s),onOpenRecord:s=>(window.openedRecords??=[]).push(s),onOpenQuery:q=>(window.openedQueries??=[]).push(q)});</script>'));
       });
     } }] });
     await server.listen();
@@ -159,6 +159,35 @@ describe.skipIf(!hasChromium && !hasEdge)('real browser editor adapter', () => {
     await page.evaluate(() => (window as any).editor.setDocument('external replacement', 'workspace:B'));
     await page.locator('.cm-content').focus(); await page.keyboard.press('ControlOrMeta+z');
     expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('external replacement');
+  });
+
+  it('opens record identity and every result from a bounded reactive query table', async () => {
+    const query = { collection: 'aura', where: { field: 'element', equals: 'fire' } };
+    await page.evaluate(({ query, runtime }) => {
+      const records = Array.from({ length: 250 }, (_, i) => ({ id: `record-${i}`, collection: 'aura', name: `item${i}`, fields: { element: '{base}' }, revision: 1 }));
+      const values = Object.fromEntries(records.map(record => [`aura.${record.name}.element`, { status: 'ok', value: 'fire' }]));
+      const e = (window as any).editor; e.setMode('live'); e.setDocument('# Query\n\n```grasp-query\n' + JSON.stringify(query) + '\n```\n\nEnd'); e.setRuntime({ ...runtime, values }, records); e.focusRange(0, 0);
+    }, { query, runtime });
+    await page.waitForSelector('.gp-query-record');
+    expect(await page.locator('.gp-query tbody tr').count()).toBe(200);
+    expect(await page.locator('.gp-query').innerText()).toContain('250 筆');
+    await page.getByRole('button', { name: '開啟資料 item199', exact: true }).click();
+    expect(await page.evaluate(() => (window as any).openedRecords.at(-1))).toBe('record-199');
+    await page.getByRole('button', { name: '開啟全部查詢結果', exact: true }).click();
+    expect(await page.evaluate(() => (window as any).openedQueries.at(-1))).toEqual(query);
+    expect(errors).toEqual([]);
+  });
+
+  it('inserts text at the retained selection as a separate undoable transaction', async () => {
+    await page.evaluate(() => { const e = (window as any).editor; e.setMode('source'); e.setDocument('Before value after'); e.focusRange(7, 12); });
+    await page.locator('#save').click(); // A toolbar/inspector action does not discard editor selection.
+    await page.evaluate(() => (window as any).editor.insertText('{{aura.item.label}}'));
+    expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before {{aura.item.label}} after');
+    expect(await page.locator('.cm-content').evaluate(node => node === document.activeElement)).toBe(true);
+    await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before value after');
+    await page.keyboard.press('ControlOrMeta+Shift+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before {{aura.item.label}} after');
+    await page.keyboard.insertText('!'); await page.keyboard.press('ControlOrMeta+z'); expect(await page.evaluate(() => (window as any).editor.getDocument())).toBe('Before {{aura.item.label}} after');
+    expect(errors).toEqual([]);
   });
 
   it('round-trips source through the real clipboard and pastes a 12k-definition note', async () => {

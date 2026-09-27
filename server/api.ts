@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { randomUUID } from 'node:crypto';
 import { WorkspaceStore, StoreError, requireRevision, requireString } from './store.js';
 import { ExchangeService, exportMarkdown } from './exchange.js';
+import { RenameService } from './rename.js';
 
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   if (!req.headers['content-type']?.startsWith('application/json')) throw new StoreError('此操作需要 application/json。', 415);
@@ -52,6 +53,7 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
   // Preserve a failed pointer until an explicit successful switch, to avoid losing its recovery hint.
   if (!warning) remember();
   const exchange = new ExchangeService();
+  const rename = new RenameService();
   async function read(req: IncomingMessage): Promise<Record<string, unknown>> {
     const target = currentStore;
     const value = await body(req);
@@ -83,7 +85,7 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
           if (resolve(requested) === currentStore.path) { warning = undefined; remember(); json(res, currentStore.snapshot()); return true; }
           if (b.create !== undefined && typeof b.create !== 'boolean') throw new StoreError('create 必須是 boolean。');
           const next = new WorkspaceStore(requested, { create: b.create === true, name: b.name === undefined ? basename(requested, '.db') : requireString(b.name, 'Workspace 名稱') });
-          currentStore.close(); currentStore = next; exchange.clear(); warning = undefined; remember();
+          currentStore.close(); currentStore = next; exchange.clear(); rename.clear(); warning = undefined; remember();
           json(res, currentStore.snapshot()); return true;
         }
         if (method === 'POST' && path === '/api/notes') {
@@ -120,7 +122,15 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
           const payload = exchange.take(requireString(b.token, 'Import token', 100), revision, currentStore.snapshot());
           json(res, currentStore.applyImport(payload, revision)); return true;
         }
+        if (method === 'POST' && path === '/api/rename/plan') { const b = await read(req); json(res, rename.plan(b, currentStore.snapshot())); return true; }
+        if (method === 'POST' && path === '/api/rename/apply') {
+          const b = await read(req); const revision = requireRevision(b.workspaceRevision);
+          const reviewed = rename.take(requireString(b.token, 'Rename token', 100), revision, currentStore.snapshot());
+          json(res, currentStore.applyImport(reviewed.payload, revision, reviewed.reason)); return true;
+        }
         if (method === 'GET' && path === '/api/history') { json(res, currentStore.history()); return true; }
+        const historyPreview = /^\/api\/history\/(\d+)\/preview$/.exec(path);
+        if (method === 'GET' && historyPreview) { json(res, currentStore.historyPreview(Number(historyPreview[1]))); return true; }
         const history = /^\/api\/history\/(\d+)\/restore$/.exec(path);
         if (method === 'POST' && history) { const b = await read(req); json(res, currentStore.restore(Number(history[1]), requireRevision(b.workspaceRevision))); return true; }
         throw new StoreError('找不到這個 API。', 404);
@@ -133,6 +143,6 @@ export function createApi(options: { defaultPath?: string } = {}): { handle(req:
       }
       return true;
     },
-    close() { exchange.clear(); currentStore.close(); },
+    close() { exchange.clear(); rename.clear(); currentStore.close(); },
   };
 }

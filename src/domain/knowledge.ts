@@ -60,11 +60,15 @@ export function parseNote(note: Note): ParseResult {
         if (typeof template !== 'string') throw new Error('The value must be a JSON string in double quotes.');
         const parts = parseTemplate(template);
         const dependencies = [...new Set(parts.flatMap(part => part.kind === 'reference' ? [part.name] : []))];
-        result.definitions.push({ name, template, dependencies, location });
+        const nameFrom = from + line.indexOf(name, at + 1);
+        const owner = { kind: 'note' as const, noteId: note.id };
+        result.definitions.push({ name, template, dependencies, location, owner, nameLocation: { ...location, from: nameFrom, to: nameFrom + name.length } });
         const valueFrom = from + line.indexOf(literal, line.indexOf('=') + 1);
         const offsets = jsonOffsets(literal);
         for (const part of parts) if (part.kind === 'reference') {
-          result.references.push({ name: part.name, kind: 'dependency', location: { noteId: note.id, from: valueFrom + offsets[part.from], to: valueFrom + offsets[part.to], line: lineNumber } });
+          result.references.push({ name: part.name, kind: 'dependency', owner,
+            location: { noteId: note.id, from: valueFrom + offsets[part.from], to: valueFrom + offsets[part.to], line: lineNumber },
+            nameLocation: { noteId: note.id, from: valueFrom + offsets[part.from + 1], to: valueFrom + offsets[part.to - 1], line: lineNumber } });
         }
       } catch (error) {
         result.diagnostics.push({ kind: 'syntax', name, location, message: `Invalid declaration: ${error instanceof Error ? error.message : 'expected a quoted string'}` });
@@ -75,7 +79,9 @@ export function parseNote(note: Note): ParseResult {
     const reference = /\{\{([A-Za-z_][A-Za-z0-9_.-]*)\}\}/g;
     for (const match of line.matchAll(reference)) {
       const start = from + match.index;
-      if (!mask[start] && !isEscaped(source, start)) result.references.push({ name: match[1], kind: 'reference', location: { noteId: note.id, from: start, to: start + match[0].length, line: lineNumber } });
+      if (!mask[start] && !isEscaped(source, start)) result.references.push({ name: match[1], kind: 'reference', owner: { kind: 'note', noteId: note.id },
+        location: { noteId: note.id, from: start, to: start + match[0].length, line: lineNumber },
+        nameLocation: { noteId: note.id, from: start + 2, to: start + match[0].length - 2, line: lineNumber } });
     }
     from += line.length + 1;
     lineNumber++;
@@ -100,8 +106,10 @@ export function buildKnowledge(notes: Note[], records: StructuredRecord[] = []):
       continue;
     }
     const parts = parseTemplate(template);
-    result.definitions.push({ name, template, location, dependencies: [...new Set(parts.flatMap(part => part.kind === 'reference' ? [part.name] : []))] });
-    for (const part of parts) if (part.kind === 'reference') result.references.push({ name: part.name, kind: 'dependency', location: { ...location, from: part.from, to: part.to } });
+    const owner = { kind: 'record' as const, recordId: record.id, collection: record.collection, recordName: record.name, field };
+    result.definitions.push({ name, template, location, owner, dependencies: [...new Set(parts.flatMap(part => part.kind === 'reference' ? [part.name] : []))] });
+    for (const part of parts) if (part.kind === 'reference') result.references.push({ name: part.name, kind: 'dependency', owner,
+      location: { ...location, from: part.from, to: part.to }, nameLocation: { ...location, from: part.from + 1, to: part.to - 1 } });
   }
   for (const diagnostic of duplicateDiagnostics(result.definitions)) result.diagnostics.push(diagnostic);
   return result;

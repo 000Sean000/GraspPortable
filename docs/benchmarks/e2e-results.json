@@ -102,12 +102,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1063,
+                      "duration": 1095,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:44.507Z",
+                      "startTime": "2026-09-27T00:59:41.557Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -154,12 +154,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 950,
+                      "duration": 973,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:45.999Z",
+                      "startTime": "2026-09-27T00:59:43.085Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -206,12 +206,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 647,
+                      "duration": 694,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:46.956Z",
+                      "startTime": "2026-09-27T00:59:44.065Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -258,12 +258,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6528,
+                      "duration": 6455,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:47.610Z",
+                      "startTime": "2026-09-27T00:59:44.767Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -310,12 +310,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 822,
+                      "duration": 842,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:54.145Z",
+                      "startTime": "2026-09-27T00:59:51.228Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -362,12 +362,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 842,
+                      "duration": 858,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:54.978Z",
+                      "startTime": "2026-09-27T00:59:52.078Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -414,12 +414,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 924,
+                      "duration": 922,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:55.827Z",
+                      "startTime": "2026-09-27T00:59:52.945Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -466,12 +466,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 515,
+                      "duration": 530,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:56.759Z",
+                      "startTime": "2026-09-27T00:59:53.881Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -491,6 +491,127 @@
               "id": "86c89b41e5fe2444d123-538c45755bef955687ee",
               "file": "concurrency.spec.ts",
               "line": 286,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "knowledge-management.spec.ts",
+      "file": "knowledge-management.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "production knowledge management",
+          "file": "knowledge-management.spec.ts",
+          "line": 25,
+          "column": 15,
+          "specs": [
+            {
+              "title": "searches and edits a late record, opens table rows and all filtered results",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\knowledge-management.spec.ts",
+                        "line": 25,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1096,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T00:59:54.456Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\knowledge-management.spec.ts",
+                            "line": 25,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6bf2c910867cbcfda6a1-601bad3c7eb73e77b8cd",
+              "file": "knowledge-management.spec.ts",
+              "line": 35,
+              "column": 3
+            },
+            {
+              "title": "previews identifier and record namespace changes, rewrites real dependencies and recovers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "serial",
+                      "location": {
+                        "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\knowledge-management.spec.ts",
+                        "line": 25,
+                        "column": 15
+                      }
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1053,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-09-27T00:59:55.708Z",
+                      "annotations": [
+                        {
+                          "type": "serial",
+                          "location": {
+                            "file": "C:\\Users\\ASUS\\MyData\\AgentWorkspace\\All-of-Me\\GraspProject\\GraspPortable\\tests\\e2e\\knowledge-management.spec.ts",
+                            "line": 25,
+                            "column": 15
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6bf2c910867cbcfda6a1-e4362f518d03fb8c4b2d",
+              "file": "knowledge-management.spec.ts",
+              "line": 61,
               "column": 3
             }
           ]
@@ -535,12 +656,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 2232,
+                      "duration": 1711,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:57.313Z",
+                      "startTime": "2026-09-27T00:59:56.798Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -587,12 +708,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1642,
+                      "duration": 1725,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:42:59.752Z",
+                      "startTime": "2026-09-27T00:59:58.717Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -656,12 +777,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1146,
+                      "duration": 1138,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:43:01.438Z",
+                      "startTime": "2026-09-27T01:00:00.475Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -708,12 +829,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 924,
+                      "duration": 942,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:43:02.724Z",
+                      "startTime": "2026-09-27T01:00:01.753Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -760,12 +881,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 555,
+                      "duration": 561,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:43:03.654Z",
+                      "startTime": "2026-09-27T01:00:02.706Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -812,12 +933,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3277,
+                      "duration": 3287,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-09-27T00:43:04.215Z",
+                      "startTime": "2026-09-27T01:00:03.274Z",
                       "annotations": [
                         {
                           "type": "serial",
@@ -846,9 +967,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-09-27T00:42:44.201Z",
-    "duration": 23569.908,
-    "expected": 14,
+    "startTime": "2026-09-27T00:59:41.233Z",
+    "duration": 25665.088,
+    "expected": 16,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

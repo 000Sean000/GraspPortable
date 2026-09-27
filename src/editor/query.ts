@@ -1,7 +1,7 @@
 import type { RuntimeResult, StructuredRecord, ValueResult } from '../domain/model';
 
 export interface RecordQuery { collection: string; where?: { field: string; equals: string } }
-export interface QueryRow { name: string; cells: ValueResult[] }
+export interface QueryRow { id: string; name: string; cells: ValueResult[] }
 export interface QueryView { columns: string[]; rows: QueryRow[]; total: number; truncated: boolean }
 const identifier = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
@@ -34,7 +34,7 @@ export function executeQuery(query: RecordQuery, records: StructuredRecord[], ru
   const columns = [...new Set(matched.flatMap(record => Object.keys(record.fields)))].sort();
   return {
     columns,
-    rows: matched.slice(0, limit).map(record => ({ name: record.name, cells: columns.map(field => value(record, field)) })),
+    rows: matched.slice(0, limit).map(record => ({ id: record.id, name: record.name, cells: columns.map(field => value(record, field)) })),
     total: matched.length,
     truncated: matched.length > limit,
   };

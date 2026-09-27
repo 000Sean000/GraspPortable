@@ -14,4 +14,8 @@ Phase 2 active (2026-09-27): the user requested a new bounded goal: daily large-
 
 Phase 2 checkpoint M2: logical hierarchy/navigation and independent note links are implemented. Known v1 databases upgrade only after a validated backup; exchange/history preserve folder identity. 94 tests and 14 production E2E pass, including 3,000-note navigation/restart, per-note undo and multi-tab stale-draft protection. Root personally exercised the new UI on an ignored synthetic workspace. Next step after M2 push: identifier/reference/record all-result browsing, semantic rename/namespace impact preview and query-to-record navigation (M3). File/mirror/rebuild and real migration rehearsal remain unimplemented; do not claim Phase 2 complete.
 
-Suggested checkpoint: `feat: add scalable folder navigation and safe workspace continuity`
+Phase 2 checkpoint M3: complete paginated knowledge/record management, owner-aware semantic rename/namespace preview+atomic apply, query-to-record navigation and explicit recovery scope are implemented. Production build and 16 E2E pass; core tests are 128 before the final storage-limit preview regression. Root manually renamed nested values, edited a late record and restored via recovery UI. Next step after M3 push: M4 filesystem layer, DB-owned attachments, persistent mirror and fresh-database rebuild/startup fallback; then private real migration rehearsal/package. The goal remains active and unfinished.
+
+Suggested checkpoint: `feat: add reviewed identifier changes and complete record browsing`
+
+Final M3 validation: 129 tests and build pass; 16 production E2E green.
