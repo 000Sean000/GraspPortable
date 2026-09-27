@@ -50,12 +50,12 @@ SandboxRoot為實際Git repository的上一層（本機資料夾名GraspPortable
 
 ## Git、工具、模型與額度
 
-master → origin/master，https://github.com/000Sean000/GraspPortable.git；21:35fetch成功0/0，root統一Git。原M1–M4基線8e3d3f0已發布；本輪第一修復checkpoint **fd8a8a776745f6fefca47d26f67cb24644d64305** 已push並核對。當前0.3.2修正、診斷runner、匿名證據與本文隨本段checkpoint發布，主旨「fix: retain publication failures and deliver v0.3.2 repair」；最新SHA查Git history。私人Acceptance／Scratch／generated files均不納Git，package在ignored artifacts。
+master → origin/master，https://github.com/000Sean000/GraspPortable.git；21:35fetch成功0/0，root統一Git。原M1–M4基線8e3d3f0已發布；本輪第一修復checkpoint **fd8a8a776745f6fefca47d26f67cb24644d64305** 已push並核對。0.3.2修正、診斷runner與匿名證據已由 **a52b67ec9239d852700af62443982bc1c0c408d7** commit/push，origin/master實際SHA完全一致，21:43UTC工作樹乾淨。本文最後收尾紀錄另隨docs checkpoint發布；最新SHA查Git history。私人Acceptance／Scratch／generated files均不納Git，package在ignored artifacts。
 
 Computer Use SKILL先前已讀，但本輪無node_repl／Windows GUI callable入口。Playwright Edge真browser可用；Explorer reveal是stub＋檔案stat，不能冒稱桌面驗收。Explorer／Obsidian／實體IME及Human最終操作仍未驗。沒有以API或spawn當畫面證据。
 
-本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。最新21:32:58UTC正常額度88%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
+本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。最新21:43:05UTC正常額度89%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
 
 停止原因是待解除原資料夾Windows阻擋，**不是因額度停止，也不宣稱Goal完成**。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
 
-發布payload審查：自動核准曾因可能含私人絕對路徑而拒絕commit/push，尚未執行Git mutation。逐檔檢查後，package-smoke.json原本僅含套件basename／數字；E2E報告中的機器source paths已轉成repo-relative，原始完整報告另存Scratch，測試stats完全不變。本文移除機器使用者根目錄。重新暫存後再依既有明確checkpoint push授權申請核准；若仍拒絕不得繞過。
+發布payload審查：自動核准曾因可能含私人絕對路徑而拒絕commit/push，尚未執行Git mutation。逐檔檢查後，package-smoke.json原本僅含套件basename／數字；E2E報告中的機器source paths已轉成repo-relative，原始完整報告另存Scratch，測試stats完全不變。本文移除機器使用者根目錄。完成18個staged payload逐一檢查與synthetic PNG目視確認後，重新申請核准已通過；a52b67e正常push成功並核對遠端SHA。這是改正payload後的重新審查，沒有繞過拒絕或改寫history。
