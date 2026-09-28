@@ -32,6 +32,8 @@
 
 當前起始正常額度98%used、10080分鐘/reset1791128122（11:29:02UTC）；11:35:14UTC最新99%used/1%remaining，ordinaryUsageAllowed=true，同窗口，尚未觀察到手動reset。中途一批讀值未返回，已記unavailable後終止只讀等待，沒有推定重置。**本 Goal 保持active，尚不滿足正常結束條件**；持續保存，不另開重置輪詢工作。新窗口首次觀測若已≥1%，不另額外消耗1%。
 
+11:36:59UTC補記：正常bucket已100%used/0%remaining（ordinaryUsageAllowed仍回true），reset仍1791128122，未觀察重置。**因額度停止實質工作；不是正常Goal收尾、也不標complete/paused。** 本段checkpoint `a8d5539d790ef03ca4cfb9b7ce26213acace27d0` 已push、ls-remote一致且工作樹當時乾淨；只补本最低停點紀錄。沒有代理/Reserve/reset操作。額度恢復後接續同一Goal及E1精確停點，不重開環境排障或重做已完成測試。
+
 11:34UTC核對：Scratch port43862 listener PID28156、node.exe dist/server.mjs、parent7708（launcher）；本輪保留live host，下一次使用前需重新核對身分及build/DB，不按歷史PID直接終止。精確停點是 browser observation 被工具policy中止，下一步不是重跑helper/build，而是在工具允许的Windows session續接E1。工具仍拒絕時不得繞過。
 
 ## 前輪結果與證據（2e5414a）
