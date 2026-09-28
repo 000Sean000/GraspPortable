@@ -81,15 +81,15 @@ Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files�
 
 #### E1 — Explorer reveal：已有修正，待驗證（建議先做）
 
-最新續作：[E1 Windows evidence](E1-WINDOWS-VERIFICATION.md)。已由 Explorer 雙擊正確新 build/Scratch 啟動器，Grasp browser 開出且host核對成功；browser state 被 Computer Use URL policy 終止，尚未點 reveal。E1仍BLOCKED，不是native PASS。使用原有自動測試結果，沒有新產品patch；後續UI/UX本輪全部NOT TESTED。
+最新交接：[E1 Windows evidence](E1-WINDOWS-VERIFICATION.md) 保存原始工具名稱、完整錯誤、時間精度、build及Scratch locator，缺漏明列unavailable。**啟動器與host核對PASS；Computer Use瀏覽器畫面取得BLOCKED；E1 native selection未完成，後續UI/UX本輪全部NOT TESTED。** 尚未選synthetic note或點reveal，不是新確認Grasp bug。使用者要求本輪停止重試，不修Codex、不換自動化繞過、不重跑測試代替桌面驗收；只交接並發布文件。
 
 - 問題／證據：原 UI 點擊可触發定位，但 Explorer 仍留在原位置。`bd1b9a0` 把 Windows `['/select,', path]` 改成單一 `/select,<path>`；`11820b7` 新增 Windows/macOS/Linux command-shape tests。這是具體 source 缺陷修正，尚未證明是 GUI 症狀唯一原因。
 - 最小閱讀：上述兩個 commit；[server/api.ts](../server/api.ts) 的 fileRevealCommand/revealFile/reveal route；[tests/api.test.ts](../tests/api.test.ts) 的 platform file reveal command；[main.ts](../src/app/main.ts) 的 beginFileAction/revealNote；[files.spec.ts](../tests/e2e/files.spec.ts) 的 Explorer actions test。直接依賴為 path confinement、published FileEntry 與 workspace guard。
 - 保留契約：只對當前 workspace 驗證過的 path reveal；Windows 選中檔案，macOS `open -R`、Linux parent folder 行為不變；不得以 spawn/API 成功冒充桌面選中。
 - 最小重現：完整 Scratch 獨立副本，使用新 build，選 synthetic acceptance note →「顯示筆記檔」→ Computer Use 觀察 Explorer 的資料夾及選中檔名。記錄 click、handler、activity、locate request/response、reveal request/response、toast、Explorer 結果。API 若尚未回應，先查該 request，不反覆點擊。
-- 驗證命令：`npx vitest run tests/api.test.ts tests/files-api.test.ts`；`npm run build`；`npx playwright test tests/e2e/files.spec.ts tests/e2e/ui-responsiveness.spec.ts --reporter=line`。本輪已執行：20 focused tests、build、10 E2E PASS；line reporter 避免覆蓋既有全套 JSON evidence。
+- 既有驗證命令：`npx vitest run tests/api.test.ts tests/files-api.test.ts`；`npm run build`；`npx playwright test tests/e2e/files.spec.ts tests/e2e/ui-responsiveness.spec.ts --reporter=line`。`2e5414a`交接記錄20 focused tests、build、10 E2E PASS，對應build `874a5a4b-3c75-4620-8bb1-0fee988a3346`；本次launcher-first／收尾未重新執行。line reporter 避免覆蓋既有全套 JSON evidence。
 - 完成判準：focused tests/build 通過；真實 Windows UI 開父資料夾並選中目標 Markdown；記錄 host build 與 Scratch DB locator。E2E 的 stub 不滿足此判準。若失敗，沿同一 request 查明在哪一步中止，再決定局部修正。
-- 接手：同步核准已解除，focused tests/build/E2E 通過；Computer Use 嘗試新 tab 時因無法確認目前 browser URL 而被工具終止，尚未點 Grasp reveal。請在可確認 URL 的 CU session 驗上述現成 patch。Chat 可獨立閱讀 helper/測試及解讀 focused failure；native selection 必須在 Windows 本機證明。
+- 接手：本次確實由Explorer雙擊啟動器開出Grasp，**沒有先手動開新tab**；前輪new-tab記錄不是本次流程。一般Chat可讀上述helper/tests/contracts與證據，但沒有新已確認產品問題可交coding。E1仍待外部本機Windows驗證：相同新build及Scratch DB、synthetic note、一次reveal、正確父資料夾與選中檔名，附時間及可得request/response證據。沒有這項外部結果不改native PASS；本輪不再操作受阻route。
 
 #### E2 — Scratch publication EPERM：診斷，未指定產品修復
 
@@ -110,5 +110,5 @@ Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files�
 - 契約：草稿不參與 committed runtime；shared undo 與本地 Ctrl+Z 分開；workspace revision guard 保留；close/timeout 只停止 client 等待，不聲稱取消 host checkpoint；不能為改善 loading 而跳過 dirty/integrity checks。
 - 最小操作：沿使用者驗收入口及完整 Scratch 副本，補 Computer Use 搜尋/選 synthetic note、Source/Live/Reading、reference 跳轉/共享修改/undo、分組檢視、Files、未完成草稿 reload/manual recovery。已可靠證明的步驟只核對版本，不全套重做。私人資料和影像留 Scratch。
 - 若操作失效：對同一案例保存 click→handler→queue→request起訖→state→畫面，使用 Playwright network/console 加 source 定位。held request 的 2 秒 responsive tests 是隔離能力，不是全庫 endpoint 性能證據。
-- 待執行：`npx playwright test tests/e2e/ui-responsiveness.spec.ts tests/e2e/shared-values.spec.ts tests/e2e/draft-recovery.spec.ts tests/e2e/projection-workflow.spec.ts --reporter=line` 只在對應修改或疑點需要時跑；本輪已跑 ui-responsiveness，其餘沿用各自版本的既有證據。完成以 GUI evidence 與版本對應明確，或具体受阻步驟/錯誤/影響已保存為準。
-- 接手：E1 新 build 已可用；native 工具政策中止已明列，後續沿同一 Scratch 副本 補有關流程；Chat 可 focused source/test 診斷，native interaction 與 full-corpus latency 留本機驗。一般已定位 bug 直接修正重測；不要同時展开所有索引項。
+- 既有測試入口：`npx playwright test tests/e2e/ui-responsiveness.spec.ts tests/e2e/shared-values.spec.ts tests/e2e/draft-recovery.spec.ts tests/e2e/projection-workflow.spec.ts --reporter=line` 只在對應修改或疑點需要時跑；ui-responsiveness的PASS屬`2e5414a`交接，其餘沿用各自版本證據。本次沒有重跑；保存工具blocker不等於GUI PASS。
+- 接手：E1新build已可用，但本輪搜尋/三模式、reference/shared/nested/undo、分組/Files/location、草稿reload/manual recovery全部NOT TESTED，待外部Windows結果。一般Chat可審讀記錄與最小source/tests，沒有新確定產品bug，不製造修改任務。此次文件交接完成與產品桌面驗收未完成必須分開；不展開其他索引項。

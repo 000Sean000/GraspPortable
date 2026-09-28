@@ -1,10 +1,10 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28。當前 Goal：E1 Windows 實際驗證，通過後補有限 UI/UX，最多一項已定位局部修復。沿用前輪架構核對與索引；E2 EPERM 不展開。正常收尾須已觀察使用者手動 reset、新窗口已使用至少1%且最多10%，保留至少90%。不能只因讀完 objective 或留下受阻證據就宣稱本 Goal 完成。
+更新：2026-09-28。當前工作段收斂為 E1 launcher-first 結果與可恢復交接：啟動器／host PASS，Computer Use 瀏覽器畫面取得 BLOCKED，E1 native selection 及本輪 UI/UX 未完成。使用者已要求停止重試此受阻操作，只更新證據／Working State／既有 Task Index、commit/push 並核對後停止；本工作段交接不等於產品桌面驗收完成。E2 EPERM 不展開。正常收尾仍須觀察手動 reset、新窗口已使用至少1%且最多10%，保留至少90%。
 
 ## 授權、基底與停點
 
-使用者已明確取代 smoke-test 唯讀限制，授權同步、局部修復、測試、更新文件與 commit/push。本 Goal 指定由 Explorer 雙擊 Scratch 測試啟動器，沿用 scripts/launch.mjs 開啟正確新 build；原入口/Acceptance保持不變。重置由使用者操作，重置前後接續同一 Goal；正常額度不足時保存，不能用 Reserve/reset券繞過。只有產品語義、資料權限或重大流程改變才回交 Human。
+使用者已明確取代 smoke-test 唯讀限制，授權同步、局部修復、測試、更新文件與 commit/push。最新指示只完成交接：不重試 Computer Use URL-policy 拒絕、不修 Codex 環境、不換自動化繞過、不重跑自動測試代替桌面驗收；沒有已確認新產品問題就不製造修改任務。已完成的啟動流程使用 Explorer 雙擊 Scratch 啟動器與既有 scripts/launch.mjs；原入口/Acceptance保持不變。重置由使用者操作，不使用 Reserve/reset券；不自行開始下一個 Goal。
 
 適用上層 SandboxRoot/AGENTS.md。Authority：[Seed](Project_Seed/README.md) 的 Requirements/Development Method rc.3、[已接受 Plan](GOAL-PLAN.md)、[Binding](BINDING-EDITING-CONTRACT.md)、[Shared](SHARED-VALUE-CONTRACT.md)、[Projection](PROJECTION-CONTRACT.md)。SQLite runtime authority、stable identities、原子共享操作、獨立 shared undo、可恢復未完成草稿、dirty 不覆寫等契約不變。MainVault/Source 唯讀；會寫資料的測試只用完整 Scratch 副本。
 
@@ -30,11 +30,9 @@
 
 **E1 BLOCKED，未取得 native PASS**：停在選 synthetic note 之前，沒有 reveal click、locate/reveal response 或目標 Markdown selection。Source/Live/Reading、reference/shared/undo、Strategy/Files、draft recovery 這一輪全部 NOT TESTED，不拿前輪 headless 證據改列本輪 GUI PASS。完整當次結果與 exact error 見 [E1 Windows evidence](E1-WINDOWS-VERIFICATION.md)。沒有產品 code 修改，沒有重試 checkpoint/E2 或工具初始化。
 
-當前起始正常額度98%used、10080分鐘/reset1791128122（11:29:02UTC）；11:35:14UTC最新99%used/1%remaining，ordinaryUsageAllowed=true，同窗口，尚未觀察到手動reset。中途一批讀值未返回，已記unavailable後終止只讀等待，沒有推定重置。**本 Goal 保持active，尚不滿足正常結束條件**；持續保存，不另開重置輪詢工作。新窗口首次觀測若已≥1%，不另額外消耗1%。
+重置前成果已保存於 `a8d5539`、`9f5a306`；本次文件交接 preflight：乾淨 `9f5a306f40303702cc93b5cc5e36c9c7510cd2fc`、master、fetch成功、HEAD與origin/master 0/0。使用者已通知手動重置，工具已回傳新10080分鐘窗口/reset1791200482、初次0%used、ordinaryUsageAllowed=true；與舊reset1791128122分開計算。完整觀測及交付前用量見 [Usage log](USAGE-LOG.md)，不把舊100%讀值與使用者介面1%的差異解釋為已證明的額度耗盡。
 
-11:36:59UTC補記：正常bucket已100%used/0%remaining（ordinaryUsageAllowed仍回true），reset仍1791128122，未觀察重置。**因額度停止實質工作；不是正常Goal收尾、也不標complete/paused。** 本段checkpoint `a8d5539d790ef03ca4cfb9b7ce26213acace27d0` 已push、ls-remote一致且工作樹當時乾淨；只补本最低停點紀錄。沒有代理/Reserve/reset操作。額度恢復後接續同一Goal及E1精確停點，不重開環境排障或重做已完成測試。
-
-11:34UTC核對：Scratch port43862 listener PID28156、node.exe dist/server.mjs、parent7708（launcher）；本輪保留live host，下一次使用前需重新核對身分及build/DB，不按歷史PID直接終止。精確停點是 browser observation 被工具policy中止，下一步不是重跑helper/build，而是在工具允许的Windows session續接E1。工具仍拒絕時不得繞過。
+11:34UTC最後核對：Scratch port43862 listener PID28156、node.exe dist/server.mjs、parent7708（launcher）；當時保留live host，收尾未重新檢查或停止，不能把歷史PID當現況。精確停點是選 synthetic note 前的 browser observation 被工具policy中止。原始工具名稱、完整錯誤、時間精度及 unavailable 欄位見 [E1 Windows evidence](E1-WINDOWS-VERIFICATION.md)；缺漏不靠再觸發拒絕補齊。
 
 ## 前輪結果與證據（2e5414a）
 
@@ -49,7 +47,9 @@
 
 ## 交接入口與精確下一步
 
-[Task Index：Chat 單題接手](UI-REPAIR-VERIFICATION.md#chat-單題接手) 是唯一當前索引。建議先接 **E1 Explorer 已修待驗**：在允許取得 browser URL 的 Computer Use session，以本輪新 build 與新 Scratch 副本點「顯示筆記檔」，觀察父資料夾與選中 Markdown。若仍失敗，沿同一 request 查 handler/queue/API/state/native 結果，不重做 command helper。
+[Task Index：Chat 單題接手](UI-REPAIR-VERIFICATION.md#chat-單題接手) 是唯一當前索引。**本輪到此交接，不再觸發受阻操作。** 一般 Chat 可直接讀 E1 證據及索引中的少量 source/tests/contracts，理解現有 patch 和證據邊界；沒有新確認產品 bug 可交 coding。
+
+**待外部提供 Windows 結果**：E1 仍需本機操作人員或已能合法取得 browser 畫面的 Windows session，先核對新 build／Scratch DB，沿 Scratch 啟動器流程選 `Grasp acceptance shared workflow` → 按一次「顯示筆記檔」→ 記錄正確父資料夾與目標 Markdown 確實選中。隨結果提供時間、build、workspace locator、筆記／檔名、可得 locate/reveal 結果及 Explorer 證據；缺漏標 unavailable。只有收到此證據才能改列 native PASS。若真正操作失敗，再沿同一 request 定位，不重做已存在 helper patch。這是下一段外部驗證依賴，不是本輪改用其他自動化執行。
 
 E2 是 Scratch EPERM 診斷，根因未定；不得因原 sandbox probe 拒絕就斷定 host 同因，不重試無新資訊 checkpoint。E3 是 GUI coverage/long-wait 補證據，不能把 headless 測試或曾經的 timeout 當成 native PASS 或新的確定 bug。這些是明列待辦，本輪不全部展开。
 
@@ -65,15 +65,17 @@ SandboxRoot 是 repo 的上一層；實際絕對位置見 repo 外 README-驗收
 | GraspPortable/dist/ | 本輪含 Explorer patch 的 build，未重新封裝；不要拿舊 package 驗新 patch |
 | Acceptance/MainVault-Source/ | 唯讀原 snapshot |
 | Acceptance/MainVault-Grasp-v0.3/ | 保留原 Acceptance，publication DB53/public53 成功 |
-| Scratch/Chat-Handoff-20260928-1818/Workspace/ | 本輪新完整獨立副本；測試 host 已停止 |
+| Scratch/Chat-Handoff-20260928-1818/Workspace/ | 完整獨立副本；launcher-first host 最後11:34UTC仍在，收尾未重新檢查 |
+| Scratch/Chat-Handoff-20260928-1818/Start-Grasp-E1.cmd | 已實際雙擊的測試入口；既有 launch.mjs、新 dist、port43862、Scratch DB |
+| Scratch/Chat-Handoff-20260928-1818/Evidence/e1-launcher-20260928.md | 私人原始觀察轉錄與完整本機 locator；不進 Git |
 | Scratch/UI-Repair-20260928-0423/Workspace/ | 先前副本，DB92/public89 EPERM 的歷史目標，不取代原 Acceptance |
 | Scratch/UI-Repair-20260928-0423/Evidence/ | 舊 full-corpus browser/private 證據 |
 | Scratch/UI-Repair-Deployment/ | 完整更新前備份、舊原路徑 Win32/EPERM private 證據 |
 
-若需啟動新 Scratch host，在 repo cwd 設 PORT=43862，GRASP_WORKSPACE 指向本輪副本的 .grasp/workspace.grasp.db，再執行 `node dist/server.mjs`；先確認 port 身分，不能沿用舊 PID。host 開啟成功不等於 GUI。
+下一段授權驗證沿 `Start-Grasp-E1.cmd` 與既有 launcher 邏輯啟動，不手動開 Chrome 新 tab 或用 API 成功替代 GUI。先確認 port 身分，不能沿用舊 PID；本輪不重新啟動或操作。
 
 ## 保存與額度
 
-本輪測試/架構/交接文件納入同一 docs checkpoint；包含本文的最終 SHA 由 Git history 與最終回覆提供，避免自指 commit。push 和遠端核對須實際成功才宣稱發布。
+本輪收尾只改交接文件，不改產品 source/tests/config/Seed/Plan，也不重跑既有測試。包含本文的最終 SHA 由 Git history 與最終回覆提供，避免自指 commit。push 和遠端核對須實際成功才宣稱發布。
 
-[Usage log](USAGE-LOG.md)：前輪架構交接95%→97%；當前E1段98%→99%，均為帳戶觀測，不能當成單任務精確计費。未派子代理、未使用Reserve/reset。當前保存是可恢復checkpoint，不是Goal完成；正常結束仍須觀察使用者reset後新窗口1%～10%並完成交付。更早環境診斷詳情見Git中 `8813e75:docs/EXECUTION-STATE.md`，不再重啟為前置任務。
+[Usage log](USAGE-LOG.md) 分列舊窗口與已確認的使用者重置後窗口；帳戶觀測不是單任務精確計費。未派子代理、未使用Reserve或代理操作reset。達成本輪重置／預算與Git交付條件後結束的是**可恢復交接工作段**，不是全部桌面驗收；E1/E3仍待外部Windows證據。更早環境診斷見Git中 `8813e75:docs/EXECUTION-STATE.md`，不再重啟為前置任務。
