@@ -20,6 +20,17 @@
 
 舊 blocked／Computer Use 缺失／原 Acceptance EPERM 段落以下保留作歷史證據，不再描述 current state。
 
+## Explorer reveal bounded follow-up
+
+2026-09-28 本輪直接處理 Grasp 產品本身的 Explorer reveal，不處理 Codex Doctor、auth、sandbox 或其他環境修復。
+
+- Computer Use 驗收已證明既有 reveal API 可被觸發，但實際 Explorer 沒有導向／選中目標 Markdown。
+- source root cause：Windows host 原本把 Explorer selector 傳成兩個 arguments：`['/select,', path]`。Windows Explorer 的 selector target 應與 `/select,` 保持在同一 argument。
+- 修正：`server/api.ts` 新增 `fileRevealCommand`，Windows 改成單一 `/select,<path>` argument；macOS `open -R` 與 Linux parent-folder 行為不變。
+- regression：`tests/api.test.ts` 增加 Windows／macOS／Linux command-shape tests。
+- commits：`bd1b9a02c7ee018d7e1891c84e84e0a1990b6b80`（product fix）、`11820b72599e9a0b7129cdbd0133cfcc5628b394`（regression）。
+- 本 Chat surface 無法執行使用者 Windows checkout 的 build/test/Computer Use，因此目前狀態是 **implementation committed / native GUI verification pending**，不是完成宣告。
+
 ## 已修正與證據
 
 - 慢Files／Projection讀取脫離全域mutation queue，關閉即取消view等待；一般GET30秒，檔案狀態／定位5分鐘。background定位顯示進度，workspace切換後拒絕舊reveal。
@@ -51,7 +62,7 @@
 
 04:19:23UTC最新阻擋審查：目前工具列表仍無node_repl／Computer Use callable entry；未取得畫面、未點擊、未觸發App approval。Scratch port43862由PID5836實際監聽且程序存在，不重啟；原43861無listener。上一輪中斷前只發出說明、未執行核對，屬無新進展，不能當作GUI證據。本輪只重驗工具與程序後，按連續阻擋規則設Goal=blocked，停止自動初始化／checkpoint重試。待宿主MCP工具載入恢復，或Human提供node_repl啟動錯誤後續作；正常額度94%used、ordinaryUsageAllowed=true，非quota-stop。
 
-**精確下一步**：v0.3.2 repair／acceptance 主線已解除阻塞，不再重試 Computer Use 初始化、Codex Doctor、原始 acceptance checkpoint 或 sandbox rename。接下來由現行 Seed 進入下一個正式產品 Goal 的 Plan；Explorer reveal 與 Scratch EPERM 只在被明確選中時各自作 bounded follow-up。由於「正式切換日用工作流／Programming Runtime／跨裝置 Mobile」屬重大方向分支，需 Human 選定下一條主線後再開新的 Goal。
+**精確下一步**：在已修復的 Windows GraspPortable 環境同步到 `11820b72599e9a0b7129cdbd0133cfcc5628b394`，先跑 focused `tests/api.test.ts`／build，再以 Computer Use 點一次「顯示筆記檔」，確認 Explorer 實際開啟父資料夾並選中該 Markdown。若通過，Explorer reveal follow-up 關閉；若仍失敗，才收集 Explorer 實際視窗／process 行為做下一個最小修正。Scratch sandbox EPERM 不與此驗證混在一起。之後回到下一個正式產品 Goal 的 Plan。
 
 ## 資料保存與 locator
 
