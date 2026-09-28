@@ -49,8 +49,13 @@ async function openDirectory(path: string): Promise<void> {
   const child = spawn(process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open', [path], { windowsHide: true, detached: true, stdio: 'ignore' });
   await new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('spawn', resolve); }); child.unref();
 }
+export function fileRevealCommand(path: string, platform = process.platform): readonly [string, readonly string[]] {
+  if (platform === 'win32') return ['explorer.exe', [`/select,${path}`]];
+  if (platform === 'darwin') return ['open', ['-R', path]];
+  return ['xdg-open', [dirname(path)]];
+}
 async function revealFile(path: string): Promise<void> {
-  const command = process.platform === 'win32' ? ['explorer.exe', ['/select,', path]] as const : process.platform === 'darwin' ? ['open', ['-R', path]] as const : ['xdg-open', [dirname(path)]] as const;
+  const command = fileRevealCommand(path);
   const child = spawn(command[0], [...command[1]], { windowsHide: true, detached: true, stdio: 'ignore' });
   await new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('spawn', resolve); }); child.unref();
 }
