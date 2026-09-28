@@ -25,7 +25,7 @@
 2026-09-28 本輪直接處理 Grasp 產品本身的 Explorer reveal，不處理 Codex Doctor、auth、sandbox 或其他環境修復。
 
 - Computer Use 驗收已證明既有 reveal API 可被觸發，但實際 Explorer 沒有導向／選中目標 Markdown。
-- source root cause：Windows host 原本把 Explorer selector 傳成兩個 arguments：`['/select,', path]`。Windows Explorer 的 selector target 應與 `/select,` 保持在同一 argument。
+- source-level defect：Windows host 原本把 Explorer selector 傳成兩個 arguments：`['/select,', path]`；這與 Windows Explorer 的 `/select,<target>` command shape 不一致，且與本次 GUI 症狀相符。是否為唯一原因仍以 native retest 為準。
 - 修正：`server/api.ts` 新增 `fileRevealCommand`，Windows 改成單一 `/select,<path>` argument；macOS `open -R` 與 Linux parent-folder 行為不變。
 - regression：`tests/api.test.ts` 增加 Windows／macOS／Linux command-shape tests。
 - commits：`bd1b9a02c7ee018d7e1891c84e84e0a1990b6b80`（product fix）、`11820b72599e9a0b7129cdbd0133cfcc5628b394`（regression）。
