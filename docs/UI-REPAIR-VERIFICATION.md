@@ -1,4 +1,6 @@
 # v0.3.2 UI 操作修復
+本檔前段記錄 2026-09-27 至 09-28 早期 UI repair 的歷史證據；當前狀態以 [Working State](EXECUTION-STATE.md) 為準，当前單題索引在文末。舊 Computer Use 缺失／原 Acceptance EPERM 不再是前置任務。
+
 
 本輪目標是恢復主要操作，讓 Human 重新驗收；不是宣告 Human 驗收通過。基線為 origin/master 的 8e3d3f0，實際舊套件 0.3.0 build 5f008760-bd1b-4906-90cc-86a52177616d。0.3.1 build 為 bcab7a56-8871-45b9-bd04-4430de960c4f，已封裝且實際入口核對；後續0.3.2補原Acceptance發布錯誤提示；第一版修復 build 49738c2b-b530-4cae-b93c-2b06a11710f1 已由下述全量檢查找出逾時回歸，後續重新建置。
 
@@ -69,31 +71,42 @@ Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files�
 
 ## Chat 單題接手
 
-以下三卡可分開交接。共同驗收缺口：本輪沒有可用的 node_repl／Computer Use GUI 入口；Explorer reveal 測試使用 stub。不要把 browser E2E 或錯誤注入測試說成 Human 桌面驗收或原路徑發布成功。2026-09-28 04:07:08UTC原路徑正式重試仍失敗，51.966秒、EPERM、DB53/public13/recovery53/dirty0，private證據為Scratch/UI-Repair-Deployment/resumed-checkpoint-private.json。本段未改產品或重跑完整M1–M4。
+共同基底： `8813e75`；Seed 由 [入口](Project_Seed/README.md) 指定。契約以 [Implementation](IMPLEMENTATION-CONTRACT.md)、[Shared](SHARED-VALUE-CONTRACT.md)、[Binding](BINDING-EDITING-CONTRACT.md)、[Projection](PROJECTION-CONTRACT.md) 為準。命令工作目錄均為真正 GraspPortable repo。私人 corpus／workspace／screenshots／完整本機路徑不入 Git；本機 locator 相對 SandboxRoot，即 repo 的上一層。
 
-### 1. 慢讀取時保持 UI 可操作，阻止舊 workspace 晚 reveal（已修）
+### 能獨立局部修改
 
-- **重現／預期：** 在 `/api/projection/state`、`/api/files/status` 或定位請求被 hold 時關閉 Projection／Files 面板；Reading、搜尋及筆記選取應能在 2 秒內繼續。另 hold 定位回應後切換 workspace；舊 workspace 的結果不得送出 reveal/open-folder。停止等待不表示停止 host checkpoint。
-- **根因／改動：** view-owned GET 有 AbortSignal／timeout，關閉或重開面板取消舊讀取；定位在背景呈現進度，workspace guard 阻止舊結果 reveal。5 分鐘定位等待只停止 client 等候，不取消 server 工作。主要介面在 `src/app/api.ts` 的 `request<T>(..., { signal, timeoutMs })` 與 `requestFileLocation<T>()`；呼叫端在 `src/app/main.ts`、`src/app/projection-panel.ts`、`src/app/files-panel.ts`，host 操作在 `server/api.ts`／`server/projection.ts`。
-- **基線／最小測試：** `fd8a8a7`。`npx vitest run tests/app-api.test.ts tests/files-browser.test.ts`；`npx playwright test tests/e2e/ui-responsiveness.spec.ts --reporter=line`。產品有改動時先執行 `npm run build`；focused E2E用line reporter避免覆蓋已保存全套JSON證據。現有結果：最終 build `4102f62d-bfca-4a69-90d5-3c7027963cdc` 的 541 unit/integration tests 與 45 production Edge E2E 全通過；full-corpus B 流程定位 3.536 秒，Explorer 使用 stub。
-- **仍待驗證：** Human 使用實際 Explorer／Obsidian 的桌面 reveal、外部程式佔用下的互動，以及 Windows 實體 GUI；不能由 stub 推論。
+目前没有另行確認且尚未修正的局部產品 bug。Explorer helper 已由 Chat 修正，留待 E1 驗證；不要為填滿此分類製造 patch。文件中「工具不可用／原 publication 仍失败」的 current/historical 衝突可在本輪 Working State 收斂時一併修正，不另開產品任務。
 
-### 2. 發布錯誤不得被 inspect／schedule 清除（已修）
+### 需要跨模組或本機整合驗證
 
-- **重現／預期：** checkpoint 在 `Markdown` 目錄 rename 時注入 `EPERM`；接著呼叫 `inspect()`、`apiState()`、settings 更新與 `schedule()`，並試定位。狀態和原始錯誤提示應持續為 error，定位應顯示可處理原因；只有成功重試 checkpoint 才清除錯誤。
-- **根因／改動：** inspect 初始化重新接受舊 baseline 時曾重設狀態，scheduler 也會把 error 覆蓋成 pending。`server/projection.ts` 現保存 `lastPublicationError`，讓初始化、schedule、inspect/apiState 和定位維持 error；rename error 保留原始碼與 Windows 操作提示，不放寬 dirty 檢查。測試在 `tests/projection-host.test.ts` 的 `retains actionable Windows rename errors through inspection and clears them after retry succeeds`。
-- **基線／最小測試：** `a52b67e`。`npx vitest run tests/projection-host.test.ts -t "retains actionable Windows rename errors"`。現有結果：此錯誤持續性 regression 曾先 RED 後 GREEN；加入 settings/schedule 情境後，完整 541 unit/integration 套件通過。這是測試 fixture 中的 rename error 注入。
-- **仍待驗證：** 原 Acceptance 實際遇到 EPERM 時 UI 提示、成功解除原因後 retry 清除狀態的 Windows 桌面流程；注入測試不證明原路徑 rename 可行。
+#### E1 — Explorer reveal：已有修正，待驗證（建議先做）
 
-### 3. 原 Acceptance 路徑的 Windows `EPERM`（尚未解）
+- 問題／證據：原 UI 點擊可触發定位，但 Explorer 仍留在原位置。`bd1b9a0` 把 Windows `['/select,', path]` 改成單一 `/select,<path>`；`11820b7` 新增 Windows/macOS/Linux command-shape tests。這是具體 source 缺陷修正，尚未證明是 GUI 症狀唯一原因。
+- 最小閱讀：上述兩個 commit；[server/api.ts](../server/api.ts) 的 fileRevealCommand/revealFile/reveal route；[tests/api.test.ts](../tests/api.test.ts) 的 platform file reveal command；[main.ts](../src/app/main.ts) 的 beginFileAction/revealNote；[files.spec.ts](../tests/e2e/files.spec.ts) 的 Explorer actions test。直接依賴為 path confinement、published FileEntry 與 workspace guard。
+- 保留契約：只對當前 workspace 驗證過的 path reveal；Windows 選中檔案，macOS `open -R`、Linux parent folder 行為不變；不得以 spawn/API 成功冒充桌面選中。
+- 最小重現：完整 Scratch 獨立副本，使用新 build，選 synthetic acceptance note →「顯示筆記檔」→ Computer Use 觀察 Explorer 的資料夾及選中檔名。記錄 click、handler、activity、locate request/response、reveal request/response、toast、Explorer 結果。API 若尚未回應，先查該 request，不反覆點擊。
+- 驗證命令：`npx vitest run tests/api.test.ts tests/files-api.test.ts`；`npm run build`；`npx playwright test tests/e2e/files.spec.ts tests/e2e/ui-responsiveness.spec.ts --reporter=line`。本輪已執行：20 focused tests、build、10 E2E PASS；line reporter 避免覆蓋既有全套 JSON evidence。
+- 完成判準：focused tests/build 通過；真實 Windows UI 開父資料夾並選中目標 Markdown；記錄 host build 與 Scratch DB locator。E2E 的 stub 不滿足此判準。若失敗，沿同一 request 查明在哪一步中止，再決定局部修正。
+- 接手：同步核准已解除，focused tests/build/E2E 通過；Computer Use 嘗試新 tab 時因無法確認目前 browser URL 而被工具終止，尚未點 Grasp reveal。請在可確認 URL 的 CU session 驗上述現成 patch。Chat 可獨立閱讀 helper/測試及解讀 focused failure；native selection 必須在 Windows 本機證明。
 
-- **重現／預期：** 以 0.3.2 host 對原 `Acceptance/MainVault-Grasp-v0.3` 執行 checkpoint。預期發布成功後 projection revision 與 DB revision 一致，並可由 UI 開啟／定位最新筆記；目前保存的實際結果仍是 `Markdown` rename 到 `.grasp/internal/projection/old-*` 回 `EPERM`，DB revision 53、public revision 13、recovery revision 53、`dirtyPaths` 空，舊 Markdown 與全樹備份保留。21:51:01 UTC 的 checkpoint 仍失敗；全樹 3,594 個檔案／目錄的 DELETE-open probe 成功，但這不等價於 rename 成功。2026-09-28 04:07:08UTC又一次正式checkpoint仍EPERM（51.966秒），沒有新的已確認根因。
-- **根因／假設：** 尚未定位。`server/projection-generation.ts` 的 `GenerationTree.move()` 呼叫 `fs/promises.rename`；`server/projection.ts` 的 `publish()` 在 `Markdown` 到 `old-*` 的切換點捕捉並保留 error。source review 未找到 GraspPortable 長期持有 Markdown 子檔 handle：`SafeTree.read()` 在 `finally` 關閉 handle，API 路由先讀成 bytes 再回應，SQLite 位於 `.grasp`。外部 child handle、瞬時競態或檔案系統 filter 仍只是可能性，未證實程序／ACL 原因。
-- **基線／最小測試：** 診斷文件基線 `a3121db`；提示與錯誤保留實作 `a52b67e`。`npx vitest run tests/projection-host.test.ts -t "retains actionable Windows rename errors"` 已通過，但僅證明注入失敗的復原與提示。真正驗收需在原 UI 執行 checkpoint，讀回 state 為 ready、manifest 對齊當時 DB revision，再確認舊資料可讀且 dirty 保護仍工作；不要以測試副本或強制搬移代替。
-- **仍待驗證：** 原路徑成功發布及內容／定位核對；Human Windows GUI／外部 app 實際互動。本輪未關閉外部程序、改 ACL、手動搬動原 Markdown 或安裝／提權工具；不要在未指認原因前終止程序或更動資料權限。
+#### E2 — Scratch publication EPERM：診斷，未指定產品修復
 
-### Computer Use 接力前置條件（工具缺口，非產品patch）
+- 已確認：歷史原 Acceptance 失敗與後來成功屬不同時點；原始 PASS 不被 Scratch 失敗取代。fresh-run Scratch UI 曾回 `EPERM: operation not permitted, rename`，source=`Scratch/UI-Repair-20260928-0423/Workspace/Markdown`，destination=`Scratch/UI-Repair-20260928-0423/Workspace/.grasp/internal/projection/old-c6d84420-1322-471e-912f-ad3f9d480ff5`，DB92/public89。當時記錄為取得額外 filesystem 存取後的 host；沒有完整 token probe 能把它簡化成「只在預設 sandbox 發生」。numeric errno 未留存，記 unavailable，不能從 code 猜值。
+- 證據：先前 thread GUI/tool error 是 Scratch 此次失敗原始來源；完整可得欄位已轉錄到 repo 外 `Scratch/Chat-Handoff-20260928-1818/Evidence/prior-scratch-eperm-transcript.md`，明示為舊觀察轉錄而非新 reproduction，包含 exact source/destination 與本輪工具中止文字。原始 Error object/numeric errno 未保存，不能由轉錄補造。`Scratch/UI-Repair-Deployment/resumed-checkpoint-private.json` 是舊**原 Acceptance**失敗（04:07:08UTC，51.966秒，DB53/public13），不能冒充 Scratch 證據。directory/tree/host-token/checkpoint-after-access-probe private JSON 與 [既有診斷](UI-REPAIR-VERIFICATION.md) 保留。
+- 已測假設的界線：一般使用者 DELETE-open 成功、3594 個項目可開 handle，不證明整樹 rename 或目的 parent 權限；restricted sandbox error 5 不證明 host 同樣受限。SafeTree finally close 的 source 證據不排除外部持有者、瞬時競態或 filter。不存在已指認的程序／ACL root cause。
+- 最小閱讀：[server/projection.ts](../server/projection.ts) 的 checkpoint/publish/error mapping；[projection-generation.ts](../server/projection-generation.ts) 的 move；[files.ts](../server/files.ts) 的 SafeTree.read；[projection-host.test.ts](../tests/projection-host.test.ts) 的 error retention regression。修正基底 `a52b67e`，本輪對照到 `8813e75` 未再改這些檔案。
+- 契約：[Projection §§6–8](PROJECTION-CONTRACT.md)：先驗證獨立 generation、durable journal、dirty 不覆蓋、DB/舊 Markdown/recovery 保留；不得手動移走原 Acceptance 或削弱保護。
+- 下一個有區分力的步驟：在新的完整 Scratch 副本、相同 host identity/目的 parent，先對**新建且可拋棄的小型 sibling tree**做同形 rename probe並保存實際 error properties；不要搬既有 Markdown。若小 tree 也失敗，支持一般路徑／identity／parent 限制，仍非產品根因；若小 tree 成功，只排除普遍拒絕，不能排除 corpus handle/filter/時序。之後僅在有新的 handle/trace 或 call-site 診斷可取得時跑一次 product checkpoint，記 code/errno/syscall/source/dest、build、identity、publication step與前後 revisions。沒有新訊息價值就不重試。
+- 測試：`npx vitest run tests/projection-host.test.ts -t "retains actionable Windows rename errors"` 既有 RED→GREEN 只證明注入錯誤的提示/保留/retry；本輪未重跑。新的真實診斷未執行。
+- 完成判準／接手：以證據區分外部拒絕與產品持有 handle/錯誤 path，才能指定修復；若指向產品，局部修正＋回歸＋原 Scratch flow 重測。Chat 可整理診斷/測試 seam，本機 Windows 和完整副本是必要依賴。原 Acceptance 維持 PASS。
 
-- 本機plugin已啟用、node_repl MCP已配置，但本thread工具列表沒有node_repl；未取得畫面／點擊／App approval。已請Human重啟Codex，之後仍需核對工具載入；不把任意feature開關或full filesystem access當成已驗證修復。
-- 真正GUI目標：Scratch/UI-Repair-20260928-0423/Workspace，0.3.2，port43862；04:08:13UTC API為ready/DB89/public89/dirty0。中斷後兩host程序及listener都實際消失，已確認後只重啟Scratch，04:15:19UTC再次API核對ready/DB89/public89/dirty0；先GET/host核對build4102f62d-bfca-4a69-90d5-3c7027963cdc與Scratch路徑，再用CU取得畫面→Reading點擊→新畫面。Shell啟動、HTTP、Playwright都不是這個CU驗收。
-- 原Acceptance Vault保持關閉；要測Obsidian先用上述已發布Scratch/Markdown。原路徑成功發布後才開原Vault。
+#### E3 — 實際操作與長等待：補證據，尚非確定新 bug
+
+- 已有證據：[完整 corpus browser report](benchmarks/ui-repair-full-corpus.json) 覆蓋搜尋選筆記、三模式、reference/shared edit/undo、分組、Files、草稿恢復；每步 buildId 獨立。先前真正 GUI 只可靠證明 synthetic note Reading 與原 publication 狀態。其餘不得升格成 native GUI PASS。
+- 待辨別：原 publication 面板曾五分鐘 client timeout，之後 host 完成、重開顯示已發布。source 確認 inspect 會等 publication 並做驗證，不代表此次耗時已定位到單一 stage。分類是「長等待且部分回饋」，不是證實 handler 未觸發。
+- 最小閱讀：[main.ts](../src/app/main.ts) 的 queue/activity/reveal；[api.ts](../src/app/api.ts) 的 cancellation；[projection-panel.ts](../src/app/projection-panel.ts) 的 show/run/destroy；[files-panel.ts](../src/app/files-panel.ts)；[ui-responsiveness.spec.ts](../tests/e2e/ui-responsiveness.spec.ts)。共享／草稿直接依賴見 [shared-values.spec.ts](../tests/e2e/shared-values.spec.ts)、[draft-recovery.spec.ts](../tests/e2e/draft-recovery.spec.ts)，不要要求重讀全史。
+- 契約：草稿不參與 committed runtime；shared undo 與本地 Ctrl+Z 分開；workspace revision guard 保留；close/timeout 只停止 client 等待，不聲稱取消 host checkpoint；不能為改善 loading 而跳過 dirty/integrity checks。
+- 最小操作：沿使用者驗收入口及完整 Scratch 副本，補 Computer Use 搜尋/選 synthetic note、Source/Live/Reading、reference 跳轉/共享修改/undo、分組檢視、Files、未完成草稿 reload/manual recovery。已可靠證明的步驟只核對版本，不全套重做。私人資料和影像留 Scratch。
+- 若操作失效：對同一案例保存 click→handler→queue→request起訖→state→畫面，使用 Playwright network/console 加 source 定位。held request 的 2 秒 responsive tests 是隔離能力，不是全庫 endpoint 性能證據。
+- 待執行：`npx playwright test tests/e2e/ui-responsiveness.spec.ts tests/e2e/shared-values.spec.ts tests/e2e/draft-recovery.spec.ts tests/e2e/projection-workflow.spec.ts --reporter=line` 只在對應修改或疑點需要時跑；本輪已跑 ui-responsiveness，其餘沿用各自版本的既有證據。完成以 GUI evidence 與版本對應明確，或具体受阻步驟/錯誤/影響已保存為準。
+- 接手：E1 新 build 已可用；native 工具政策中止已明列，後續沿同一 Scratch 副本 補有關流程；Chat 可 focused source/test 診斷，native interaction 與 full-corpus latency 留本機驗。一般已定位 bug 直接修正重測；不要同時展开所有索引項。

@@ -149,3 +149,17 @@ Normal account bucket92%used at resumed start,93% at segment observation (7%rema
 ## Computer Use blocked audit — 2026-09-28 04:19:23 UTC
 
 Normal account bucket94%used (6%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Required Computer Use/node_repl callable entry remained absent across at least three resumed Goal turns. Current tool list rechecked; Scratch PID5836/listener43862 exists, original43861 absent. No GUI action or app-approval was possible; no source changes, publication retries, heavy tests or new workers. Goal tool confirms blocked, not complete or quota-stop. Minimal handoff only; user MCP-startup question remains pending. No Reserve/reset used.
+
+## Architecture / Chat handoff — 2026-09-28 10:09–10:25 UTC
+
+Source: live get_usage_limits, normal codex bucket, 10080-minute window/reset1791128122 (2026-10-04T15:35:22Z). ordinaryUsageAllowed=true throughout these observations.
+
+| UTC | Used / remaining | Segment evidence |
+| --- | --- | --- |
+| 10:09:24 | 95% / 5% | Start; clean 9eeabc4; no subagents |
+| 10:12:50 | 96% / 4% | Fetched 8813e75; source/contract audit; fast-forward approval rejected twice |
+| 10:17:02 | 96% / 4% | User explicitly superseded smoke-test read-only restriction; resume |
+| 10:21:27 | 96% / 4% | Fast-forward; 20 focused tests/build/10 E2E PASS; full Scratch copy; CU URL-policy stop; host stopped |
+| 10:24:43 | 97% / 3% | Working State and existing task index saved; final document/payload review |
+
+Same-window +2 percentage points is shared-account observation, not task-exclusive billing. No subagents, Reserve or reset credits used. Current stop is coherent handoff after publishing, not quota exhaustion; native GUI selection remains unverified. Earlier CU-missing/original-publication blockers are historical. Build874a5a4b-3c75-4620-8bb1-0fee988a3346; no new product code beyond already committed Explorer repair.
