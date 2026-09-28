@@ -8,6 +8,18 @@
 
 已接受且不變：DB runtime authority；自由binding／raw literal／串接、兩種reference、語意優先；共享交易及獨立共享撤銷；未完成草稿持久保存；missing/cycle可保存且標錯；單一readable projection；外部修改必須Review／Import。修改測試全部在Scratch；原MainVault及MainVault-Source唯讀。不要用測試clone覆蓋Human資料，也不要另造persistent AI projection。
 
+## 2026-09-28 續作驗收結果
+
+- Environment：Shell、node_repl、Computer Use、built-in browser、repo access 均已可用於 Grasp 續作；Codex Doctor/auth/connectivity、fresh-profile cwd 等非 Grasp 產品問題不納入本 Goal。
+- GUI acceptance：PASS。Computer Use 實際開啟 acceptance note；Reading mode 顯示 `Acceptance`、`M4.Root`、`M4.Nested`。
+- 原始 acceptance publication：PASS。原始資料成功同步為 `DB 53 / public 53`。
+- Export / filesystem result：PASS。`Markdown/.grasp-export/manifest.json` 存在，revision 53、3,331 files，fingerprint 一致。
+- 本輪沒有修改產品 code、config、sandbox、plugin 或 project files；不需要最小產品修復。
+- 獨立 follow-up：Explorer reveal 尚未把既有 Explorer 視窗導向 Markdown；Scratch copy 在預設 sandbox 仍可重現 `EPERM` rename。兩者不得重新升格成 v0.3.2 主線 blocker。
+- 使用者明確允許恢復正式 GraspPortable 開發；本次續作約 28 分鐘。沒有提供新的 quota snapshot，因此不估算額度差值。
+
+舊 blocked／Computer Use 缺失／原 Acceptance EPERM 段落以下保留作歷史證據，不再描述 current state。
+
 ## 已修正與證據
 
 - 慢Files／Projection讀取脫離全域mutation queue，關閉即取消view等待；一般GET30秒，檔案狀態／定位5分鐘。background定位顯示進度，workspace切換後拒絕舊reveal。
@@ -39,7 +51,7 @@
 
 04:19:23UTC最新阻擋審查：目前工具列表仍無node_repl／Computer Use callable entry；未取得畫面、未點擊、未觸發App approval。Scratch port43862由PID5836實際監聽且程序存在，不重啟；原43861無listener。上一輪中斷前只發出說明、未執行核對，屬無新進展，不能當作GUI證據。本輪只重驗工具與程序後，按連續阻擋規則設Goal=blocked，停止自動初始化／checkpoint重試。待宿主MCP工具載入恢復，或Human提供node_repl啟動錯誤後續作；正常額度94%used、ordinaryUsageAllowed=true，非quota-stop。
 
-**精確下一步**：先恢復本thread可呼叫的node_repl MCP入口，不要再放寬filesystem當作CU修復。工具可用時選擇實際返回的browser window，取得畫面，開Scratch http://127.0.0.1:43862/，觀察→切換Reading→重新觀察；遇App approval由Human按一律允許，原Acceptance Obsidian Vault保持關閉。之後才繼續同路徑GUI debug。原EPERM需新的Windows原因證據，不反覆無資訊checkpoint；最小source/test/待驗項見[Chat單題接手](UI-REPAIR-VERIFICATION.md#chat-單題接手)。原路徑發布ready且revision一致後，才開回原Vault驗閱讀與檔案定位。完整Goal尚未完成。
+**精確下一步**：v0.3.2 repair／acceptance 主線已解除阻塞，不再重試 Computer Use 初始化、Codex Doctor、原始 acceptance checkpoint 或 sandbox rename。接下來由現行 Seed 進入下一個正式產品 Goal 的 Plan；Explorer reveal 與 Scratch EPERM 只在被明確選中時各自作 bounded follow-up。由於「正式切換日用工作流／Programming Runtime／跨裝置 Mobile」屬重大方向分支，需 Human 選定下一條主線後再開新的 Goal。
 
 ## 資料保存與 locator
 
@@ -68,6 +80,6 @@ Computer Use SKILL先前已讀，但本輪無node_repl／Windows GUI callable入
 
 本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。本次最新09-28 04:19:23UTC正常額度94%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
 
-目前缺口是Computer Use工具載入與原資料夾Windows發布障礙；**不是因額度停止，也不宣稱Goal完成**。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
+先前的 Computer Use 工具缺失與原資料夾 publication EPERM 已由 2026-09-28 續作重新分類：Computer Use 與原始 acceptance publication 已通過；Explorer reveal 與 Scratch sandbox EPERM 為獨立 follow-up。v0.3.2 repair／acceptance 主線可結束並恢復正式產品開發。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
 
 發布payload審查：自動核准曾因可能含私人絕對路徑而拒絕commit/push，尚未執行Git mutation。逐檔檢查後，package-smoke.json原本僅含套件basename／數字；E2E報告中的機器source paths已轉成repo-relative，原始完整報告另存Scratch，測試stats完全不變。本文移除機器使用者根目錄。完成18個staged payload逐一檢查與synthetic PNG目視確認後，重新申請核准已通過；a52b67e正常push成功並核對遠端SHA。這是改正payload後的重新審查，沒有繞過拒絕或改寫history。
