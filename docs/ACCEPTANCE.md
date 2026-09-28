@@ -30,7 +30,9 @@ MainVault原始2,820篇筆記、244個資料夾、506個附件保持內容與階
 
 Obsidian使用「Open folder as vault」開啟MainVault-Grasp-v0.3/Markdown。完整fallback要連同hidden .grasp-export與全部附件保存；以manifest.json重建新的DB。外部修改經Review／Import；不要直接編輯DB、metadata、recovery或原始snapshot。出現dirty時不覆蓋外部內容。
 
-桌面Obsidian／Explorer／原生IME尚缺本輪GUI操作證據；Playwright browser與實際檔案hash證據另外陳述。正式交付是否完成以EXECUTION-STATE／M4-VERIFICATION為準，不由目錄範例推定。
+2026-09-28 續作驗收已取得真正 Computer Use 證據：既有 acceptance note 可在 Grasp UI 開啟，Reading mode 實際顯示 `Acceptance`、`M4.Root`、`M4.Nested`。原始 acceptance workspace 的完整 projection 亦已成功發布到 `DB revision 53 / public revision 53`；`Markdown/.grasp-export/manifest.json` 存在，revision 53、3,331 files，fingerprint 與發布結果一致。
+
+目前不再把 Computer Use 或原始 acceptance publication 視為 Grasp blocker。仍保留兩個獨立 bounded follow-up：既有 Explorer 視窗沒有被 reveal 操作導向 Markdown；預設 sandbox 下的 Scratch copy 仍可重現 `EPERM: rename Markdown -> .grasp/internal/projection/old-*`。後者不代表原始 acceptance publication 失敗，也不阻塞正式 GraspPortable 開發。正式交付狀態以 EXECUTION-STATE／M4-VERIFICATION 為準。
 
 本輪 UI 修正與實測見 [UI-REPAIR-VERIFICATION](UI-REPAIR-VERIFICATION.md)。Files／分組面板首次可能先等待全庫 checkpoint，面板會顯示說明；可關閉後继续閱讀及選筆記。檔案定位有畫面下方進度，最多等待5分鐘；逾時不代表host已取消。原驗收workspace更新前會停host並做完整離線hash備份，Scratch測試資料不覆蓋Human資料。
 
