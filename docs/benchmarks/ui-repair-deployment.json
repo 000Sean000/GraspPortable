@@ -44,7 +44,7 @@
     "identifiedBlockingProcess": false,
     "fullRenameSuccessNotInferredFromHandleProbe": true
   },
-  "goalStatus": "blocked",
+  "goalStatus": "active",
   "blockedAudit": {
     "timestamp": "2026-09-27T21:56:16.752Z",
     "consecutiveGoalTurns": 3,
@@ -57,6 +57,36 @@
     "dirtyPathCount": 0,
     "activePublicationJournals": 0,
     "humanResponsePending": true,
+    "quotaStop": false
+  },
+  "resumedAudit": {
+    "timestamp": "2026-09-28T04:15:19.225Z",
+    "computerUseCallable": false,
+    "computerUseGuiVerified": false,
+    "computerUseAppApprovalTriggered": false,
+    "originalCheckpoint": {
+      "at": "2026-09-28T04:07:08.231Z",
+      "elapsedMs": 51966,
+      "state": "error",
+      "errorCode": "EPERM",
+      "databaseRevision": 53,
+      "publicProjectionRevision": 13,
+      "recoveryRevision": 53,
+      "dirtyPathCount": 0
+    },
+    "interruptedHostsVerifiedAbsent": true,
+    "onlyScratchRestarted": true,
+    "scratch": {
+      "port": 43862,
+      "buildId": "4102f62d-bfca-4a69-90d5-3c7027963cdc",
+      "http": 200,
+      "state": "ready",
+      "databaseRevision": 89,
+      "publicProjectionRevision": 89,
+      "dirtyPathCount": 0
+    },
+    "productCodeChanged": false,
+    "fullTestsRerun": false,
     "quotaStop": false
   }
 }

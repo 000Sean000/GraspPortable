@@ -66,3 +66,34 @@ Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files�
 基於新probe證據重試正式checkpoint一次：21:51:01UTC、HTTP200、52.050s、state=error，仍是Markdown→internal old-generation的EPERM；DB53／public13／recovery53保留。開始的無Content-Type請求回415，於mutation前拒絕，沒有發布。重試後無active journal。read-only source追查未見產品未關閉handle：SafeTree.read在finally關閉，API先讀成bytes才回傳，SQLite在.grasp而非Markdown。不能以此排除其他Windows原因，亦未找到可安全自行關閉的確定占用程序。
 
 私人完整證據仍在Scratch/UI-Repair-Deployment：directory-access-probe-private.json、tree-access-probe-private.json、host-token-probe-private.json及checkpoint-after-access-probe-private.json。沒有外部App終止、權限變更、強制move或測試DB覆蓋。Human解除相關視窗占用／確認目錄存取的問題仍待答覆；未宣稱Goal完成。
+
+## Chat 單題接手
+
+以下三卡可分開交接。共同驗收缺口：本輪沒有可用的 node_repl／Computer Use GUI 入口；Explorer reveal 測試使用 stub。不要把 browser E2E 或錯誤注入測試說成 Human 桌面驗收或原路徑發布成功。2026-09-28 04:07:08UTC原路徑正式重試仍失敗，51.966秒、EPERM、DB53/public13/recovery53/dirty0，private證據為Scratch/UI-Repair-Deployment/resumed-checkpoint-private.json。本段未改產品或重跑完整M1–M4。
+
+### 1. 慢讀取時保持 UI 可操作，阻止舊 workspace 晚 reveal（已修）
+
+- **重現／預期：** 在 `/api/projection/state`、`/api/files/status` 或定位請求被 hold 時關閉 Projection／Files 面板；Reading、搜尋及筆記選取應能在 2 秒內繼續。另 hold 定位回應後切換 workspace；舊 workspace 的結果不得送出 reveal/open-folder。停止等待不表示停止 host checkpoint。
+- **根因／改動：** view-owned GET 有 AbortSignal／timeout，關閉或重開面板取消舊讀取；定位在背景呈現進度，workspace guard 阻止舊結果 reveal。5 分鐘定位等待只停止 client 等候，不取消 server 工作。主要介面在 `src/app/api.ts` 的 `request<T>(..., { signal, timeoutMs })` 與 `requestFileLocation<T>()`；呼叫端在 `src/app/main.ts`、`src/app/projection-panel.ts`、`src/app/files-panel.ts`，host 操作在 `server/api.ts`／`server/projection.ts`。
+- **基線／最小測試：** `fd8a8a7`。`npx vitest run tests/app-api.test.ts tests/files-browser.test.ts`；`npx playwright test tests/e2e/ui-responsiveness.spec.ts --reporter=line`。產品有改動時先執行 `npm run build`；focused E2E用line reporter避免覆蓋已保存全套JSON證據。現有結果：最終 build `4102f62d-bfca-4a69-90d5-3c7027963cdc` 的 541 unit/integration tests 與 45 production Edge E2E 全通過；full-corpus B 流程定位 3.536 秒，Explorer 使用 stub。
+- **仍待驗證：** Human 使用實際 Explorer／Obsidian 的桌面 reveal、外部程式佔用下的互動，以及 Windows 實體 GUI；不能由 stub 推論。
+
+### 2. 發布錯誤不得被 inspect／schedule 清除（已修）
+
+- **重現／預期：** checkpoint 在 `Markdown` 目錄 rename 時注入 `EPERM`；接著呼叫 `inspect()`、`apiState()`、settings 更新與 `schedule()`，並試定位。狀態和原始錯誤提示應持續為 error，定位應顯示可處理原因；只有成功重試 checkpoint 才清除錯誤。
+- **根因／改動：** inspect 初始化重新接受舊 baseline 時曾重設狀態，scheduler 也會把 error 覆蓋成 pending。`server/projection.ts` 現保存 `lastPublicationError`，讓初始化、schedule、inspect/apiState 和定位維持 error；rename error 保留原始碼與 Windows 操作提示，不放寬 dirty 檢查。測試在 `tests/projection-host.test.ts` 的 `retains actionable Windows rename errors through inspection and clears them after retry succeeds`。
+- **基線／最小測試：** `a52b67e`。`npx vitest run tests/projection-host.test.ts -t "retains actionable Windows rename errors"`。現有結果：此錯誤持續性 regression 曾先 RED 後 GREEN；加入 settings/schedule 情境後，完整 541 unit/integration 套件通過。這是測試 fixture 中的 rename error 注入。
+- **仍待驗證：** 原 Acceptance 實際遇到 EPERM 時 UI 提示、成功解除原因後 retry 清除狀態的 Windows 桌面流程；注入測試不證明原路徑 rename 可行。
+
+### 3. 原 Acceptance 路徑的 Windows `EPERM`（尚未解）
+
+- **重現／預期：** 以 0.3.2 host 對原 `Acceptance/MainVault-Grasp-v0.3` 執行 checkpoint。預期發布成功後 projection revision 與 DB revision 一致，並可由 UI 開啟／定位最新筆記；目前保存的實際結果仍是 `Markdown` rename 到 `.grasp/internal/projection/old-*` 回 `EPERM`，DB revision 53、public revision 13、recovery revision 53、`dirtyPaths` 空，舊 Markdown 與全樹備份保留。21:51:01 UTC 的 checkpoint 仍失敗；全樹 3,594 個檔案／目錄的 DELETE-open probe 成功，但這不等價於 rename 成功。2026-09-28 04:07:08UTC又一次正式checkpoint仍EPERM（51.966秒），沒有新的已確認根因。
+- **根因／假設：** 尚未定位。`server/projection-generation.ts` 的 `GenerationTree.move()` 呼叫 `fs/promises.rename`；`server/projection.ts` 的 `publish()` 在 `Markdown` 到 `old-*` 的切換點捕捉並保留 error。source review 未找到 GraspPortable 長期持有 Markdown 子檔 handle：`SafeTree.read()` 在 `finally` 關閉 handle，API 路由先讀成 bytes 再回應，SQLite 位於 `.grasp`。外部 child handle、瞬時競態或檔案系統 filter 仍只是可能性，未證實程序／ACL 原因。
+- **基線／最小測試：** 診斷文件基線 `a3121db`；提示與錯誤保留實作 `a52b67e`。`npx vitest run tests/projection-host.test.ts -t "retains actionable Windows rename errors"` 已通過，但僅證明注入失敗的復原與提示。真正驗收需在原 UI 執行 checkpoint，讀回 state 為 ready、manifest 對齊當時 DB revision，再確認舊資料可讀且 dirty 保護仍工作；不要以測試副本或強制搬移代替。
+- **仍待驗證：** 原路徑成功發布及內容／定位核對；Human Windows GUI／外部 app 實際互動。本輪未關閉外部程序、改 ACL、手動搬動原 Markdown 或安裝／提權工具；不要在未指認原因前終止程序或更動資料權限。
+
+### Computer Use 接力前置條件（工具缺口，非產品patch）
+
+- 本機plugin已啟用、node_repl MCP已配置，但本thread工具列表沒有node_repl；未取得畫面／點擊／App approval。已請Human重啟Codex，之後仍需核對工具載入；不把任意feature開關或full filesystem access當成已驗證修復。
+- 真正GUI目標：Scratch/UI-Repair-20260928-0423/Workspace，0.3.2，port43862；04:08:13UTC API為ready/DB89/public89/dirty0。中斷後兩host程序及listener都實際消失，已確認後只重啟Scratch，04:15:19UTC再次API核對ready/DB89/public89/dirty0；先GET/host核對build4102f62d-bfca-4a69-90d5-3c7027963cdc與Scratch路徑，再用CU取得畫面→Reading點擊→新畫面。Shell啟動、HTTP、Playwright都不是這個CU驗收。
+- 原Acceptance Vault保持關閉；要測Obsidian先用上述已發布Scratch/Markdown。原路徑成功發布後才開原Vault。

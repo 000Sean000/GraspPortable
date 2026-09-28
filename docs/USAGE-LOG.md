@@ -141,3 +141,7 @@ Normal account bucket90%used (10%remaining), ordinaryUsageAllowed=true; same1008
 ## Blocked audit — 2026-09-27 21:54:55–21:56 UTC
 
 Normal account bucket91%used (9%remaining), ordinaryUsageAllowed=true; unchanged10080-minute/reset1791128122 window. Live host/state check confirms existing EPERM, DB53/public13/recovery53, dirty0 and no active journal. Same blocker persisted across three consecutive Goal turns; all workers completed and Human response is pending. Goal tool now reports blocked (not complete, not quota-stop). No new product mutation, checkpoint retry or heavy tests this turn. Existing validation retained; only minimal durable blocked-state handoff. No Reserve/reset used.
+
+## Computer Use / publication resumed Goal — 2026-09-28 04:03–04:15 UTC
+
+Normal account bucket92%used at resumed start,93% at segment observation (7%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Account observations, not isolated task cost. User resumed with CU-first and small Chat handoffs. No node_repl callable tool despite installed/enabled plugin and configured MCP; no GUI/approval success claimed. One real protected original checkpoint returned EPERM51.966s. Scratch host0.3.2 was ready DB89/public89; interrupted processes/listeners verified absent and only Scratch restarted. Luna worker limited to source review and three compact handoff cards; no product code or heavy test rerun. Goal active/incomplete, not quota-stop; no Reserve/reset or privilege change.
