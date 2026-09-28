@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ImportPlan, WorkspaceSnapshot } from '../src/domain/model.js';
-import { createApi } from '../server/api.js';
+import { createApi, fileRevealCommand } from '../server/api.js';
 import { WorkspaceStore, type RecoveryPreview } from '../server/store.js';
 import type { RenamePreview } from '../server/rename.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -30,6 +30,20 @@ async function host(options: { dir?: string; remember?: boolean } = {}): Promise
 function request(base: string, path: string, method: string, value: unknown, headers?: Record<string, string>): Promise<Response> {
   return fetch(base + path, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(value) });
 }
+
+describe('platform file reveal command', () => {
+  it('passes the Windows Explorer select target as one argument', () => {
+    expect(fileRevealCommand('C:\\Vault\\Markdown\\note.md', 'win32')).toEqual([
+      'explorer.exe',
+      ['/select,C:\\Vault\\Markdown\\note.md']
+    ]);
+  });
+
+  it('keeps the existing macOS and Linux reveal commands', () => {
+    expect(fileRevealCommand('/vault/note.md', 'darwin')).toEqual(['open', ['-R', '/vault/note.md']]);
+    expect(fileRevealCommand('/vault/note.md', 'linux')).toEqual(['xdg-open', ['/vault']]);
+  });
+});
 
 describe('HTTP authoritative workflow', () => {
   it('previews semantic rename, applies only the reviewed payload, and reviews full recovery scope through HTTP', async () => {
