@@ -1,6 +1,6 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28 12:15（Asia/Taipei）。本輪是使用者重新授權的 **Computer Use 驗證與 v0.3 修復續作 Goal（active，未完成）**。先前blocked停點由本段續作取代。Computer Use 的node_repl工具仍未載入，不能觸發App approval或宣稱GUI操作；原Acceptance發布仍EPERM。正常額度尚有餘量，並非額度停工。
+更新：2026-09-28 12:19（Asia/Taipei）。本輪是使用者重新授權的 **Computer Use 驗證與 v0.3 修復續作 Goal（blocked，未完成）**。本次重新授權後，必要Computer Use入口連續至少三輪仍缺失；Goal工具已再次確認blocked。Computer Use 的node_repl工具仍未載入，不能觸發App approval或宣稱GUI操作；原Acceptance發布仍EPERM。正常額度尚有餘量，並非額度停工。
 
 ## 授權與 authority
 
@@ -37,6 +37,8 @@
 
 已用0.3.2套件準備Scratch/UI-Repair-20260928-0423/Workspace測試host，04:08:13UTC API核對ready、DB89/public89/dirty0。中斷後04:12UTC原host PID20676與Scratch PID40164均不存在、43861/43862無listener；這是實際程序查詢，不依timeout猜測，也未認定停止原因。核對無listener後只重啟Scratch 43862（新PID5836，使用時須重查）；原43861不在執行，Human原一鍵入口仍指向正確0.3.2。啟動及HTTP成功均不算GUI驗證。04:15:19UTC重啟後再驗HTTP200/build4102.../Scratch ready/DB89/public89/dirty0。private紀錄在scratch-resumed-launch-private.json及scratch-resumed-state-private.json。
 
+04:19:23UTC最新阻擋審查：目前工具列表仍無node_repl／Computer Use callable entry；未取得畫面、未點擊、未觸發App approval。Scratch port43862由PID5836實際監聽且程序存在，不重啟；原43861無listener。上一輪中斷前只發出說明、未執行核對，屬無新進展，不能當作GUI證據。本輪只重驗工具與程序後，按連續阻擋規則設Goal=blocked，停止自動初始化／checkpoint重試。待宿主MCP工具載入恢復，或Human提供node_repl啟動錯誤後續作；正常額度94%used、ordinaryUsageAllowed=true，非quota-stop。
+
 **精確下一步**：先恢復本thread可呼叫的node_repl MCP入口，不要再放寬filesystem當作CU修復。工具可用時選擇實際返回的browser window，取得畫面，開Scratch http://127.0.0.1:43862/，觀察→切換Reading→重新觀察；遇App approval由Human按一律允許，原Acceptance Obsidian Vault保持關閉。之後才繼續同路徑GUI debug。原EPERM需新的Windows原因證據，不反覆無資訊checkpoint；最小source/test/待驗項見[Chat單題接手](UI-REPAIR-VERIFICATION.md#chat-單題接手)。原路徑發布ready且revision一致後，才開回原Vault驗閱讀與檔案定位。完整Goal尚未完成。
 
 ## 資料保存與 locator
@@ -64,7 +66,7 @@ master → origin/master，https://github.com/000Sean000/GraspPortable.git；21:
 
 Computer Use SKILL先前已讀，但本輪無node_repl／Windows GUI callable入口。Playwright Edge真browser可用；Explorer reveal是stub＋檔案stat，不能冒稱桌面驗收。Explorer／Obsidian／實體IME及Human最終操作仍未驗。沒有以API或spawn當畫面證据。
 
-本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。本次最新09-28 04:07UTC正常額度93%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
+本輪明確允許正常額度Luna子代理，兩worker透過model=gpt-6-luna selector啟動，serving-model獨立metadata不可得；root負責整合。worker已完成且閒置。本次最新09-28 04:19:23UTC正常額度94%used、ordinaryUsageAllowed=true、10080分鐘/reset1791128122；起點73%，為帳戶觀測，不是task扣額。使用者曾通知reset，宿主本輪尚未反映新window。100%或正常額度耗盡，全部代理停實質工作，只最低安全收尾；不使用Reserve／自行reset。[Usage](USAGE-LOG.md)。
 
 目前缺口是Computer Use工具載入與原資料夾Windows發布障礙；**不是因額度停止，也不宣稱Goal完成**。其他限制：大型checkpoint約1–3分鐘；100ms編輯目標未全面達成；Markdown fallback不含DB operation receipts／共享undo history，完整備份需DB與全樹。
 

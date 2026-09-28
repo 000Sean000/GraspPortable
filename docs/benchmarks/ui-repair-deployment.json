@@ -44,7 +44,7 @@
     "identifiedBlockingProcess": false,
     "fullRenameSuccessNotInferredFromHandleProbe": true
   },
-  "goalStatus": "active",
+  "goalStatus": "blocked",
   "blockedAudit": {
     "timestamp": "2026-09-27T21:56:16.752Z",
     "consecutiveGoalTurns": 3,
@@ -88,5 +88,18 @@
     "productCodeChanged": false,
     "fullTestsRerun": false,
     "quotaStop": false
+  },
+  "computerUseBlockedAudit": {
+    "timestamp": "2026-09-28T04:19:23Z",
+    "minimumConsecutiveResumedTurns": 3,
+    "callableComputerUseTools": 0,
+    "scratchListenerConfirmed": true,
+    "scratchPort": 43862,
+    "originalListenerPresent": false,
+    "guiVerified": false,
+    "appApprovalTriggered": false,
+    "normalQuotaRemainingPercent": 6,
+    "quotaStop": false,
+    "requires": "Host must expose configured node_repl MCP tools; user startup-error response pending"
   }
 }

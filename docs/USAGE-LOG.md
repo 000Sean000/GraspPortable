@@ -145,3 +145,7 @@ Normal account bucket91%used (9%remaining), ordinaryUsageAllowed=true; unchanged
 ## Computer Use / publication resumed Goal — 2026-09-28 04:03–04:15 UTC
 
 Normal account bucket92%used at resumed start,93% at segment observation (7%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Account observations, not isolated task cost. User resumed with CU-first and small Chat handoffs. No node_repl callable tool despite installed/enabled plugin and configured MCP; no GUI/approval success claimed. One real protected original checkpoint returned EPERM51.966s. Scratch host0.3.2 was ready DB89/public89; interrupted processes/listeners verified absent and only Scratch restarted. Luna worker limited to source review and three compact handoff cards; no product code or heavy test rerun. Goal active/incomplete, not quota-stop; no Reserve/reset or privilege change.
+
+## Computer Use blocked audit — 2026-09-28 04:19:23 UTC
+
+Normal account bucket94%used (6%remaining), ordinaryUsageAllowed=true; same10080-minute/reset1791128122 window. Required Computer Use/node_repl callable entry remained absent across at least three resumed Goal turns. Current tool list rechecked; Scratch PID5836/listener43862 exists, original43861 absent. No GUI action or app-approval was possible; no source changes, publication retries, heavy tests or new workers. Goal tool confirms blocked, not complete or quota-stop. Minimal handoff only; user MCP-startup question remains pending. No Reserve/reset used.
