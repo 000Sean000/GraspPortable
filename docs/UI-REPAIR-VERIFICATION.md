@@ -81,6 +81,8 @@ Build `4102f62d-bfca-4a69-90d5-3c7027963cdc`：production build通過，42files�
 
 #### E1 — Explorer reveal：已有修正，待驗證（建議先做）
 
+最新續作：[E1 Windows evidence](E1-WINDOWS-VERIFICATION.md)。已由 Explorer 雙擊正確新 build/Scratch 啟動器，Grasp browser 開出且host核對成功；browser state 被 Computer Use URL policy 終止，尚未點 reveal。E1仍BLOCKED，不是native PASS。使用原有自動測試結果，沒有新產品patch；後續UI/UX本輪全部NOT TESTED。
+
 - 問題／證據：原 UI 點擊可触發定位，但 Explorer 仍留在原位置。`bd1b9a0` 把 Windows `['/select,', path]` 改成單一 `/select,<path>`；`11820b7` 新增 Windows/macOS/Linux command-shape tests。這是具體 source 缺陷修正，尚未證明是 GUI 症狀唯一原因。
 - 最小閱讀：上述兩個 commit；[server/api.ts](../server/api.ts) 的 fileRevealCommand/revealFile/reveal route；[tests/api.test.ts](../tests/api.test.ts) 的 platform file reveal command；[main.ts](../src/app/main.ts) 的 beginFileAction/revealNote；[files.spec.ts](../tests/e2e/files.spec.ts) 的 Explorer actions test。直接依賴為 path confinement、published FileEntry 與 workspace guard。
 - 保留契約：只對當前 workspace 驗證過的 path reveal；Windows 選中檔案，macOS `open -R`、Linux parent folder 行為不變；不得以 spawn/API 成功冒充桌面選中。

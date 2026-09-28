@@ -1,16 +1,18 @@
 # Current Working State — GraspPortable
 
-更新：2026-09-28。當前工作段：架構核對、既有 Explorer 修正驗證、Chat 單題交接。環境已恢复，舊 Computer Use 缺失及原 Acceptance publication EPERM 均屬歷史，不再作開工前置任務。
+更新：2026-09-28。當前 Goal：E1 Windows 實際驗證，通過後補有限 UI/UX，最多一項已定位局部修復。沿用前輪架構核對與索引；E2 EPERM 不展開。正常收尾須已觀察使用者手動 reset、新窗口已使用至少1%且最多10%，保留至少90%。不能只因讀完 objective 或留下受阻證據就宣稱本 Goal 完成。
 
 ## 授權、基底與停點
 
-使用者已明確取代 smoke-test 唯讀限制，授權同步、局部修復、測試、更新文件與 commit/push。本輪完成一個 coherent segment 後停止，不為清空索引繼續開發。只有產品語義、資料權限或重大流程改變才回交 Human。
+使用者已明確取代 smoke-test 唯讀限制，授權同步、局部修復、測試、更新文件與 commit/push。本 Goal 指定由 Explorer 雙擊 Scratch 測試啟動器，沿用 scripts/launch.mjs 開啟正確新 build；原入口/Acceptance保持不變。重置由使用者操作，重置前後接續同一 Goal；正常額度不足時保存，不能用 Reserve/reset券繞過。只有產品語義、資料權限或重大流程改變才回交 Human。
 
 適用上層 SandboxRoot/AGENTS.md。Authority：[Seed](Project_Seed/README.md) 的 Requirements/Development Method rc.3、[已接受 Plan](GOAL-PLAN.md)、[Binding](BINDING-EDITING-CONTRACT.md)、[Shared](SHARED-VALUE-CONTRACT.md)、[Projection](PROJECTION-CONTRACT.md)。SQLite runtime authority、stable identities、原子共享操作、獨立 shared undo、可恢復未完成草稿、dirty 不覆寫等契約不變。MainVault/Source 唯讀；會寫資料的測試只用完整 Scratch 副本。
 
 本機原基底 `9eeabc48a884d1bfc63250f5c3ce1f07422fe881`，工作樹乾淨；fetch 後安全 fast-forward 到 `8813e755d8ae879c9096fc02aaf713704b86fc3f`，master → origin/master。遠端既有修正 `bd1b9a0`、測試 `11820b7` 已納入，不重新實作。先前兩次自動核准拒絕已因本輪明確授權解除；未繞過審查。
 
 ## 架構核對
+
+本節及前輪自動測試為已完成的 `2e5414a` 交接，不重新盤點。
 
 以 [ARCHITECTURE](../ARCHITECTURE.md) 與 [IMPLEMENTATION-CONTRACT](IMPLEMENTATION-CONTRACT.md) 為主，對照 `8813e75` source。核對範圍限交接所需，不宣稱全庫 correctness audit：
 
@@ -22,7 +24,17 @@
 
 未发现需要改寫架構文件的實質落差，故不新增另一份架構文件。任務依驗證負擔分類；Explorer patch 很小，仍需 Windows native 驗證。
 
-## 本輪結果與證據
+## 當前 E1 Windows 操作
+
+本次從乾淨 `2e5414a` 開始，fetch確認0/0。使用正確 build `874a5a4b-3c75-4620-8bb1-0fee988a3346` 與完整副本，不重新 build/test。Computer Use 已從 Explorer 雙擊 `Scratch/Chat-Handoff-20260928-1818/Start-Grasp-E1.cmd`，開出 Grasp browser，GET host 核對 build/Scratch DB；接著取得 browser state 時工具以無法可靠確認 URL 終止本 turn。
+
+**E1 BLOCKED，未取得 native PASS**：停在選 synthetic note 之前，沒有 reveal click、locate/reveal response 或目標 Markdown selection。Source/Live/Reading、reference/shared/undo、Strategy/Files、draft recovery 這一輪全部 NOT TESTED，不拿前輪 headless 證據改列本輪 GUI PASS。完整當次結果與 exact error 見 [E1 Windows evidence](E1-WINDOWS-VERIFICATION.md)。沒有產品 code 修改，沒有重試 checkpoint/E2 或工具初始化。
+
+當前起始正常額度98%used、10080分鐘/reset1791128122（11:29:02UTC）；11:35:14UTC最新99%used/1%remaining，ordinaryUsageAllowed=true，同窗口，尚未觀察到手動reset。中途一批讀值未返回，已記unavailable後終止只讀等待，沒有推定重置。**本 Goal 保持active，尚不滿足正常結束條件**；持續保存，不另開重置輪詢工作。新窗口首次觀測若已≥1%，不另額外消耗1%。
+
+11:34UTC核對：Scratch port43862 listener PID28156、node.exe dist/server.mjs、parent7708（launcher）；本輪保留live host，下一次使用前需重新核對身分及build/DB，不按歷史PID直接終止。精確停點是 browser observation 被工具policy中止，下一步不是重跑helper/build，而是在工具允许的Windows session續接E1。工具仍拒絕時不得繞過。
+
+## 前輪結果與證據（2e5414a）
 
 - 既有 Explorer 修正：Windows 單一 `/select,<path>` argument，macOS/Linux 保持原行為。本輪沒有新增產品 code。
 - `npx vitest run tests/api.test.ts tests/files-api.test.ts`：2 files / 20 tests PASS（2.62s）。
@@ -62,4 +74,4 @@ SandboxRoot 是 repo 的上一層；實際絕對位置見 repo 外 README-驗收
 
 本輪測試/架構/交接文件納入同一 docs checkpoint；包含本文的最終 SHA 由 Git history 與最終回覆提供，避免自指 commit。push 和遠端核對須實際成功才宣稱發布。
 
-[Usage log](USAGE-LOG.md)：本輪正常 bucket 95%→97%，同10080分鐘/reset1791128122窗口；屬帳戶觀測，不是任務精確計費。未派子代理、未使用 Reserve/reset；本輪在 coherent handoff 發布後停止，native GUI 缺口如上，並非宣稱全部驗收完成。更早環境診斷詳情見 Git 中 `8813e75:docs/EXECUTION-STATE.md`，不再重啟為前置任務。
+[Usage log](USAGE-LOG.md)：前輪架構交接95%→97%；當前E1段98%→99%，均為帳戶觀測，不能當成單任務精確计費。未派子代理、未使用Reserve/reset。當前保存是可恢復checkpoint，不是Goal完成；正常結束仍須觀察使用者reset後新窗口1%～10%並完成交付。更早環境診斷詳情見Git中 `8813e75:docs/EXECUTION-STATE.md`，不再重啟為前置任務。

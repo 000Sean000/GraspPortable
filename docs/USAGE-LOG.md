@@ -163,3 +163,11 @@ Source: live get_usage_limits, normal codex bucket, 10080-minute window/reset179
 | 10:24:43 | 97% / 3% | Working State and existing task index saved; final document/payload review |
 
 Same-window +2 percentage points is shared-account observation, not task-exclusive billing. No subagents, Reserve or reset credits used. Current stop is coherent handoff after publishing, not quota exhaustion; native GUI selection remains unverified. Earlier CU-missing/original-publication blockers are historical. Build874a5a4b-3c75-4620-8bb1-0fee988a3346; no new product code beyond already committed Explorer repair.
+
+## E1 launcher-first Goal — 2026-09-28 11:29 UTC onward
+
+Normal get_usage_limits: 11:29:02UTC=98%used/2%remaining; 11:35:14UTC=99%used/1%remaining, ordinaryUsageAllowed=true, same10080-minute/reset1791128122 window. A intervening batch containing a usage read did not return; marked unavailable and its read-only wait terminated, not interpreted as reset. Same-window +1point is account-wide, not task-exclusive usage. No reset observed yet; new-window usage/remaining unavailable.
+
+Current user instruction: user resets manually during this same Goal; normal delivery after observing reset and >=1% new-window total used, maximum10% including all closeout work. Do not cross-subtract windows, invoke reset/Reserve, or spend an extra1% if first new-window observation is already >=1%. No subagents.
+
+Segment: fetched clean2e5414a 0/0; reused verified build874a5a4b and full Scratch copy. Prepared private launcher using existing launch.mjs, double-clicked it with real Explorer CU; browser title and /api/host confirm launch/build/DB. CU browser observation stopped by URL-policy before note selection/reveal. E1 BLOCKED, later UI steps NOT TESTED; no product changes or test rerun. Live Scratch host checked11:34UTC. State/evidence saved as a recoverable checkpoint, Goal active/not achieved, no separate reset-monitoring task.
