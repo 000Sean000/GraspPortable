@@ -1,6 +1,6 @@
-# P0：完整 MainVault 性能基線
+# P0：MainVault 性能基線與部分驗證
 
-**狀態：進行中，尚未完成正式三輪基線。** 本文件只記錄已取得證據；性能預算是否通過與量測是否完整分開判定。接受的 scope、後續階段與停止條件見 [計畫](PERFORMANCE-ISOLATION-PLAN.md)，操作與計時定義見 [instrumentation](PERFORMANCE-INSTRUMENTATION.md)，接續入口見 [工作狀態](EXECUTION-STATE.md)。
+**狀態：依使用者16:16UTC決策收斂為部分驗證；目前只收尾Trial-1R，取消尚未啟動的Trial-2／Trial-3，接續P1。三輪基線未完成。** 本文件只記錄已取得證據；性能預算是否通過與量測是否完整分開判定。接受的 scope、後續階段與停止條件見 [計畫](PERFORMANCE-ISOLATION-PLAN.md)，操作與計時定義見 [instrumentation](PERFORMANCE-INSTRUMENTATION.md)，接續入口見 [工作狀態](EXECUTION-STATE.md)。
 
 ## 實作與驗證
 

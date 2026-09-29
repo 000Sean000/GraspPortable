@@ -4,7 +4,7 @@ Accepted 2026-09-29. Current source is implementation authority; implementation,
 
 ## Scope and accepted decisions
 
-First implementation Goal is **P0 ONLY**: opt-in instrumentation, current-publisher baseline, three complete independent MainVault Scratch trials, reconciled report and durable handoff, then STOP. Do not begin worker relocation, job redesign, optimization, timeout changes, tabs/panes or another Goal automatically. Budget failure is a baseline finding, not authority to optimize during P0.
+Original first implementation Goal was **P0 ONLY**: opt-in instrumentation, current-publisher baseline, three complete independent MainVault Scratch trials, reconciled report and durable handoff, then STOP. **On2026-09-29 16:16UTC the user explicitly changed priority: finish necessary closeout of running Trial-1R, cancel the other two trials, and proceed to P1 product improvements.** P0 is partial and must not be called a completed three-trial baseline. P1's accepted scope below is now authorized; P2–P5, worker relocation, tabs/panes and technology migration remain later work. Current progress/stop details remain in the single working-state entry.
 
 Consider current [Seed](Project_Seed/README.md), Core Requirements/Development Method rc.3, [architecture guide](Project_Seed/graspportable-architecture-planning-guide-v1.0.0-rc.3.md), binding/shared/projection contracts and actual source together. Prior E1-only task restrictions do not redefine this Goal; its native-verification gap remains separate. Preserve DB authority, identities, atomic shared changes, independent shared undo, recoverable drafts, external dirty protection, revision/workspace guards and complete fallback reconstruction.
 
