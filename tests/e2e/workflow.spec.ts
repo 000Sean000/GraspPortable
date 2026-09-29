@@ -4,10 +4,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { once } from 'node:events';
 import { markLegacyFixture, testDirectory } from './fixtures';
+import { evidenceDirectory } from '../../scripts/evidence-path';
 
 const port = 43829;
 const url = `http://127.0.0.1:${port}`;
 const folder = testDirectory('legacy-workflow');
+const evidenceRoot = evidenceDirectory('legacy-workflow');
 const database = resolve(folder, 'test.grasp.db');
 let server: ChildProcess;
 let workspacePath = database;
@@ -41,7 +43,7 @@ async function source(page: Page, markdown: string) {
 function value(page: Page, name: string) { return page.locator('.value-card').filter({ has: page.getByRole('button', { name, exact: true }) }).locator('.value-text'); }
 
 test.describe.serial('production legacy v0.2 compatibility workflow', () => {
-  test.beforeAll(async () => { mkdirSync(folder, { recursive: true }); mkdirSync('docs/benchmarks', { recursive: true }); await start(); });
+  test.beforeAll(async () => { mkdirSync(folder, { recursive: true }); await start(); });
   test.afterAll(stop);
 
   test('create workspace, write Markdown, reactive nested values, definition/references, cycle recovery, undo', async ({ page }) => {
@@ -104,7 +106,7 @@ test.describe.serial('production legacy v0.2 compatibility workflow', () => {
     await page.locator('.note-item').filter({ hasText: 'aura' }).click();
     if ((await page.locator('#mode').innerText()) === 'Source') await page.locator('#mode').click();
     await expect(page.locator('.gp-query')).toContainText('Sean 的 Aura');
-    await page.screenshot({ path: 'docs/benchmarks/product-table.png', fullPage: true });
+    await page.screenshot({ path: resolve(evidenceRoot, 'product-table.png'), fullPage: true });
   });
 
   test('large reference workload remains editable while worker recalculates', async ({ page }) => {
@@ -150,7 +152,7 @@ test.describe.serial('production legacy v0.2 compatibility workflow', () => {
     measurements.sort((a, b) => a - b);
     const inputs = await page.evaluate(() => (window as any).__backgroundInputs as Array<{ time: number; status: string }>);
     const evidence = { timestamp: new Date().toISOString(), browser: 'Chromium/Edge', definitionCount: size + 1, inlineReferences: 1000, typingSamples: measurements.length, sourceInputP50Ms: measurements[Math.floor(measurements.length * .5)], sourceInputP95Ms: measurements[Math.floor(measurements.length * .95)], sourceInputMaxMs: Math.max(...measurements), liveInputMs: liveInputs, inputDuringCascadeMs: duringRecalculation, inputsObservedWhileCalculating: inputs.filter(input => input.status === '背景計算中…').length, longTasksMs: longTasks, note: 'Automation-to-browser input completion includes driver overhead. Browser beforeinput records explicitly count overlap with pending background calculation. Remaining cascade samples may immediately follow computation. Long-task observation includes save/sidebar/input, not a physical IME latency claim.' };
-    writeFileSync('docs/benchmarks/editor-responsiveness.json', JSON.stringify(evidence, null, 2));
+    writeFileSync(resolve(evidenceRoot, 'editor-responsiveness.json'), JSON.stringify(evidence, null, 2));
     expect(measurements[Math.floor(measurements.length * .95)]).toBeLessThan(500);
     expect(Math.max(...liveInputs)).toBeLessThan(500); expect(Math.max(...duringRecalculation)).toBeLessThan(500);
     expect(evidence.inputsObservedWhileCalculating).toBeGreaterThan(0);

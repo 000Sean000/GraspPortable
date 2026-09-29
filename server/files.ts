@@ -1,3 +1,4 @@
+import { hostPerformance } from './performance.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, realpath, rename, rmdir, stat, unlink } from 'node:fs/promises';
@@ -69,6 +70,7 @@ export class SafeTree {
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Managed file root is not a real directory.');
   }
   async checked(path: string, directory = false, create = false): Promise<string> {
+    return hostPerformance.measure('filesystem', 'fs.check', {}, async () => {
     const absolute = this.absolute(path, directory);
     await this.ensureRoot();
     const parts = path ? path.split('/') : [];
@@ -87,15 +89,19 @@ export class SafeTree {
     const between = relative(rootReal, parentReal);
     if (between === '..' || between.startsWith(`..${sep}`) || isAbsolute(between)) throw new Error('Resolved file parent escaped the managed root.');
     return absolute;
+    });
   }
   async writeNew(path: string, bytes: Uint8Array): Promise<void> {
+    return hostPerformance.measure('filesystem', 'fs.write', { bytes: bytes.byteLength }, async () => {
     const absolute = await this.checked(path, false, true);
     // Exclusive creation is essential: no check-then-overwrite of user-edited files.
     const handle = await open(fsPath(absolute), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
     await this.checked(path);
+    });
   }
   async read(path: string, maxBytes = MAX_FILE): Promise<Buffer> {
+    return hostPerformance.measure('filesystem', 'fs.read', {}, async () => {
     const absolute = await this.checked(path);
     const handle = await open(fsPath(absolute), constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     try {
@@ -104,8 +110,10 @@ export class SafeTree {
       const bytes = await handle.readFile();
       if (bytes.length > maxBytes) throw new Error('File grew past the allowed size.');
       await this.checked(path);
+      hostPerformance.instant('filesystem', 'fs.read', { bytes: bytes.length });
       return bytes;
     } finally { await handle.close(); }
+    });
   }
   async entry(path: string): Promise<FileEntry> {
     const absolute = this.absolute(path), info = await lstat(fsPath(absolute));
@@ -113,11 +121,14 @@ export class SafeTree {
     return { name: basename(path), path, absolutePath: absolute, kind: info.isDirectory() ? 'directory' : 'file', size: info.isDirectory() ? 0 : info.size, modifiedAt: info.mtime.toISOString() };
   }
   async moveTo(path: string, target: string): Promise<void> {
+    return hostPerformance.measure('filesystem', 'fs.rename', {}, async () => {
     const source = await this.checked(path), destination = await this.checked(target, false, true);
     try { await lstat(fsPath(destination)); throw new Error('Move destination already exists.'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await rename(fsPath(source), fsPath(destination));
+    });
   }
   async install(path: string, target: string): Promise<void> {
+    return hostPerformance.measure('filesystem', 'fs.rename', {}, async () => {
     const source = await this.checked(path), destination = await this.checked(target, false, true);
     // A hard-link publication is atomic and fails if a competing writer created
     // the destination. Unlink staging immediately; public edits cannot alter it.
@@ -125,6 +136,7 @@ export class SafeTree {
     // Publication already committed at link(). A cleanup failure must not turn
     // a valid published manifest into an apparent failed transaction.
     try { await unlink(fsPath(source)); } catch { /* Harmless internal extra link; recovery payloads are independent copies. */ }
+    });
   }
 }
 
@@ -162,11 +174,11 @@ function projectionPaths(snapshot: WorkspaceSnapshot): { notes: Map<string, stri
   return { notes: paths, folders: folderPaths };
 }
 function envelope(manifest: MirrorManifest): string {
-  return JSON.stringify({ format: 'grasp-manifest', version: 1, sha256: digest(JSON.stringify(manifest)), payload: manifest } satisfies Envelope, null, 2);
+  return hostPerformance.serializeJson('projection', { format: 'grasp-manifest', version: 1, sha256: digest(hostPerformance.serializeJson('projection', manifest)), payload: manifest } satisfies Envelope, null, 2);
 }
 function parseManifest(bytes: Uint8Array): MirrorManifest {
-  const value = JSON.parse(Buffer.from(bytes).toString('utf8')) as Envelope;
-  if (value?.format !== 'grasp-manifest' || value.version !== 1 || !value.payload || !/^[a-f\d]{64}$/.test(value.sha256) || digest(JSON.stringify(value.payload)) !== value.sha256) throw new Error('Manifest metadata checksum or format is invalid.');
+  const value = hostPerformance.parseJson('projection', Buffer.from(bytes).toString('utf8')) as Envelope;
+  if (value?.format !== 'grasp-manifest' || value.version !== 1 || !value.payload || !/^[a-f\d]{64}$/.test(value.sha256) || digest(hostPerformance.serializeJson('projection', value.payload)) !== value.sha256) throw new Error('Manifest metadata checksum or format is invalid.');
   const manifest = value.payload;
   if (manifest.format !== 'grasp-mirror' || manifest.version !== 1 || !['mirror', 'ai', 'projection', 'recovery'].includes(manifest.kind) || !Array.isArray(manifest.notes) || !Array.isArray(manifest.attachments) || !Array.isArray(manifest.dirtyPaths)) throw new Error('Unsupported mirror manifest.');
   return manifest;
@@ -322,7 +334,7 @@ export class WorkspaceFiles {
       const transaction = '.grasp/internal/transactions/' + name;
       const journalPath = transaction + '/journal.json';
       if (!(await this.exists(journalPath)) || await this.exists(transaction + '/rolled-back.json')) continue;
-      const journal = JSON.parse((await this.tree.read(journalPath)).toString('utf8')) as PublishJournal;
+      const journal = hostPerformance.parseJson('projection', (await this.tree.read(journalPath)).toString('utf8')) as PublishJournal;
       if (journal?.format !== 'grasp-publish' || journal.version !== 1 || !journal.manifestPath?.startsWith('.grasp/manifests/') || !Array.isArray(journal.changes)) throw new Error('Invalid pending projection journal: ' + transaction);
       if (await this.matches(journal.manifestPath, journal.manifestSha256, journal.manifestSize)) continue;
       // A reviewed edit/retry can publish a later complete snapshot after a
@@ -392,7 +404,7 @@ export class WorkspaceFiles {
     const dirtyPaths = await this.findDirty(desired);
     if (dirtyPaths.length) { this.state.mirror = { ...this.state.mirror, state: 'dirty', dirtyPaths, writtenFiles: 0, reusedFiles: 0, elapsedMs: performance.now() - started, error: '外部變更尚未審查；保留目前 Markdown 檔案，未發佈新的投影。' }; return; }
     const manifest: MirrorManifest = { format: 'grasp-mirror', version: 1, kind: 'projection', createdAt: new Date().toISOString(), workspace: { id: snapshot.id, name: snapshot.name, revision: snapshot.revision, settings: snapshot.settings }, notes, folders: snapshot.folders, records: snapshot.records, attachments, folderPaths: [...paths.folders].map(([id, path]) => ({ id, path: 'Markdown/' + path })), dirtyPaths: [] };
-    if (this.current && this.current.workspace.revision === snapshot.revision && JSON.stringify({ ...manifest, createdAt: '' }) === JSON.stringify({ ...this.current, createdAt: '' })) {
+    if (this.current && this.current.workspace.revision === snapshot.revision && hostPerformance.serializeJson('projection', { ...manifest, createdAt: '' }) === hostPerformance.serializeJson('projection', { ...this.current, createdAt: '' })) {
       this.state.mirror.state = 'ready'; this.state.mirror.dirtyPaths = []; delete this.state.mirror.error; return;
     }
     const version = revisionName(snapshot.revision), transaction = '.grasp/internal/transactions/' + version;
@@ -420,7 +432,7 @@ export class WorkspaceFiles {
     await this.tree.writeNew(transaction + '/index.md', utf8(indexText(manifest, manifestPath, indexPath)));
     const journal: PublishJournal = { format: 'grasp-publish', version: 1, manifestPath, manifestSha256: digest(metadataBytes), manifestSize: metadataBytes.length, workspaceId: snapshot.id, revision: snapshot.revision, previousFolders: this.current?.folderPaths?.map(folder => folder.path) ?? [],
       changes: changedPaths.map((file, i) => { const old = previous.get(file), next = desired.get(file); return { file, ...(old ? { backup: transaction + '/old-' + i, old: { sha256: old.sha256, size: old.size } } : {}), ...(stages.has(file) ? { stage: stages.get(file)!, next: { sha256: next!.sha256, size: next!.size } } : {}) }; }) };
-    await this.tree.writeNew(transaction + '/staged-journal.json', utf8(JSON.stringify(journal)));
+    await this.tree.writeNew(transaction + '/staged-journal.json', utf8(hostPerformance.serializeJson('projection', journal)));
     await this.tree.install(transaction + '/staged-journal.json', transaction + '/journal.json');
     try {
       for (const change of journal.changes) {

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import { evidenceDirectory } from './evidence-path.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
@@ -92,8 +93,7 @@ try {
   await stop(); const reopened = await start(); assert.deepEqual(reopened, workspace);
   const persistedAttachment = await fetch(`${origin}/api/assets/${attachment.id}?workspace=${encodeURIComponent(reopened.id)}`); assert.equal(persistedAttachment.status, 200); assert.deepEqual(Buffer.from(await persistedAttachment.arrayBuffer()), attachmentBytes);
   const evidence = { timestamp: new Date().toISOString(), node: process.version, platform: process.platform, source: basename(source), packagedFiles: packagedFiles.length, staticAssetsLoaded: assets.length, builtinHostImports: imports, isolatedOutsideRepository: true, installedDependenciesRequired: false, launcherStarted: true, databaseWriteExportRestart: 'passed', attachmentBytesRestart: 'passed', mirrorPublished: 'passed', privateFilesAbsent: true };
-  mkdirSync(join(root, 'docs/benchmarks'), { recursive: true });
-  writeFileSync(join(root, 'docs/benchmarks/package-smoke.json'), JSON.stringify(evidence, null, 2) + '\n');
+  writeFileSync(join(evidenceDirectory('package-smoke'), 'package-smoke.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
   await stop();

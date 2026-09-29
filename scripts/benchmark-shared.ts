@@ -1,6 +1,6 @@
 /** Current grasp-v1 only; synthetic fixtures, no corpus argument or private input.
  * Run alone: node --expose-gc --import tsx scripts/benchmark-shared.ts
- * Writes only docs/benchmarks/shared-domain.json; SQLite scratch is under OS temp.
+ * Writes a new Scratch evidence run (or GRASP_EVIDENCE_ROOT); SQLite scratch is under OS temp.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +13,7 @@ import { applySharedIntent, prepareSharedWorkspace } from '../src/domain/shared'
 import type { Note, RuntimeResult, WorkspaceSnapshot } from '../src/domain/model';
 import { WorkspaceStore } from '../server/store';
 import { sourceHash, type SharedCommand } from '../server/semantic';
+import { evidenceDirectory } from './evidence-path';
 
 assert.equal(process.argv.length, 2, 'This benchmark accepts no corpus or path arguments.');
 const gc = (globalThis as { gc?: () => void }).gc;
@@ -153,7 +154,7 @@ const report = {
     interpretation: 'Boundary samples and OS-reported high water mark, not allocation profiling. RSS may remain reserved after GC; durable receipts intentionally grow the database. A finite synthetic run does not prove absence of leaks.' },
   totalMs: round(performance.now() - started),
 };
-const output = resolve('docs/benchmarks/shared-domain.json'); mkdirSync(resolve('docs/benchmarks'), { recursive: true });
+const output = resolve(evidenceDirectory('shared-domain-benchmark'), 'shared-domain.json');
 writeFileSync(output, JSON.stringify(report, null, 2) + '\n', 'utf8');
-console.log(JSON.stringify({ output: 'docs/benchmarks/shared-domain.json', totalMs: report.totalMs, deepParseMs: deep.phases[0].parseMs, wideParseMs: wide.phases[0].parseMs,
+console.log(JSON.stringify({ output, totalMs: report.totalMs, deepParseMs: deep.phases[0].parseMs, wideParseMs: wide.phases[0].parseMs,
   repeatedPrepareP95Ms: repeated.prepare.p95Ms, sharedCommitP95Ms: persistence.durableCommit.p95Ms, allAssertionsPassed: true }, null, 2));

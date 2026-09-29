@@ -189,3 +189,11 @@ Docs-only checkpoint subject: `docs: hand off blocked E1 desktop verification`. 
 ## P0 performance baseline start — 2026-09-29 13:20 UTC
 
 Live get_usage_limits: normal codex7%used/93%remaining,10080-minute window/reset1791200482, ordinaryUsageAllowed=true. Account-wide observation, not task billing. New accepted P0 scope supersedes old E1-only closeout; old10% condition is not reapplied. Three agents prepare bounded host/browser/runner work; source writes held until docs continuity checkpoint. Git fetch succeeded after network escalation, HEAD/origin0/0 at dd98b21. No Reserve/reset used.
+
+## P0 integration observation — 2026-09-29
+
+Around13:37UTC, `mcp__codex_app__get_usage_limits`: normal codex14%used/86%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same account window as P0 start7%:observed account increase7percentagepoints, not exact task consumption. Source freeze/three copies and instrumentation implementation underway; no Reserve/reset used.
+
+## P0 integration validation — 2026-09-29 13:52:43 UTC
+
+Live `get_usage_limits`: normal codex22%used/78%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same account window:8percentagepoints above interim14%,15above start7%; account-wide observations, not task billing. Complete frozen source and3trial copies verified; instrumentation unit suite577 PASS, updated host73/browser27/runner14focused PASS; production build and45E2E PASS. Diagnostic smoke evidence remains private; formal baseline still pending. No Reserve/reset used.

@@ -1,3 +1,4 @@
+import { hostPerformance } from './performance.js';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs';
@@ -203,7 +204,7 @@ function inspectDatabase(db: DatabaseSync): number {
   if (version >= 4) {
     const row = db.prepare('SELECT revision, state_json FROM semantic_state WHERE singleton=1').get();
     if (!row) throw new StoreError('Workspace semantic state 不完整，原檔未變更。');
-    const state = JSON.parse(String(row.state_json)) as SharedSemanticState;
+    const state = hostPerformance.parseJson('db', String(row.state_json)) as SharedSemanticState;
     if (state.revision !== row.revision || state.workspaceId !== readSnapshot(db, version).id || !Array.isArray(state.bindings) || !Array.isArray(state.results)) throw new StoreError('Workspace semantic state 與資料庫不符，原檔未變更。');
     db.prepare('SELECT id, revision FROM drafts LIMIT 1').get();
     db.prepare('SELECT id, payload_hash, receipt_json, inverse_json FROM operations LIMIT 1').get();
@@ -215,7 +216,7 @@ function migrationFingerprint(db: DatabaseSync, version: number): string {
   const snapshot = readSnapshot(db, version);
   snapshot.notes.sort((a, b) => a.id.localeCompare(b.id));
   snapshot.folders.sort((a, b) => a.id.localeCompare(b.id));
-  return JSON.stringify([snapshot, db.prepare('SELECT * FROM history ORDER BY id').all(), ...(version < 4 ? [] : [
+  return hostPerformance.serializeJson('db', [snapshot, db.prepare('SELECT * FROM history ORDER BY id').all(), ...(version < 4 ? [] : [
     db.prepare('SELECT * FROM semantic_state ORDER BY singleton').all(), db.prepare('SELECT * FROM drafts ORDER BY id').all(), db.prepare('SELECT * FROM operations ORDER BY id').all(),
   ]), ...(version < 5 ? [] : [db.prepare('SELECT * FROM projection_strategy').all(), db.prepare('SELECT * FROM projection_packages ORDER BY id').all(), db.prepare('SELECT * FROM recovery_metadata ORDER BY key').all()])]);
 }
@@ -300,7 +301,7 @@ export class WorkspaceStore {
       if (!exists) this.initialize(options.name ?? '我的 Workspace', options.seed ?? false);
       if (!this.db.prepare('SELECT singleton FROM projection_strategy WHERE singleton=1').get()) {
         const strategy = createDefaultProjectionStrategy(createProjectionCatalog(this.snapshot(), this.semanticState(), { hash: sourceHash }));
-        this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?)').run(strategy.revision, JSON.stringify(strategy));
+        this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?)').run(strategy.revision, hostPerformance.serializeJson('db', strategy));
       }
     } catch (error) { this.db.close(); throw error; }
   }
@@ -337,7 +338,7 @@ export class WorkspaceStore {
         if (recovery) {
           store.writeSemanticState({ ...recovery.bundle.semantic, workspaceId: store.id });
           const strategy = { ...recovery.bundle.strategy, workspaceId: store.id };
-          store.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, JSON.stringify(strategy));
+          store.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, hostPerformance.serializeJson('db', strategy));
           store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('manualDraftRecovery', JSON.stringify(recovery.drafts.length > 0));
           store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('recoveredDraftIds', JSON.stringify(recovery.drafts.map(draft => draft.id)));
           store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('lineageId', JSON.stringify(recovery.bundle.workspaceLineageId));
@@ -347,7 +348,7 @@ export class WorkspaceStore {
         } else {
           store.initializeSemanticState();
           const strategy = createDefaultProjectionStrategy(createProjectionCatalog(store.snapshot(), store.semanticState(), { hash: sourceHash }));
-          store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, JSON.stringify(strategy));
+          store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, hostPerformance.serializeJson('db', strategy));
         }
         store.db.exec('COMMIT');
       } catch (error) { store.db.exec('ROLLBACK'); throw error; }
@@ -393,7 +394,7 @@ export class WorkspaceStore {
           store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('manualDraftRecovery', JSON.stringify(recovery.drafts.length > 0));
           store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('recoveredDraftIds', JSON.stringify(recovery.drafts.map(draft => draft.id)));
         } else { store.initializeSemanticState(); strategy = createDefaultProjectionStrategy(createProjectionCatalog(store.snapshot(), store.semanticState(), { hash: sourceHash })); }
-        store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, JSON.stringify(strategy));
+        store.db.prepare('UPDATE projection_strategy SET revision=?, strategy_json=? WHERE singleton=1').run(strategy.revision, hostPerformance.serializeJson('db', strategy));
         store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('lineageId', JSON.stringify(recovery?.bundle.workspaceLineageId ?? source.id));
         const original = provenance ?? recovery?.bundle.provenance;
         if (original !== undefined) store.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?)').run('provenance', JSON.stringify(original));
@@ -434,7 +435,7 @@ export class WorkspaceStore {
       if (version < 5) this.db.exec(PROJECTION_SCHEMA);
       this.db.exec(`PRAGMA user_version=${SCHEMA_VERSION};`);
       inspectDatabase(this.db);
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT'));
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
     return backupPath;
   }
@@ -462,33 +463,39 @@ export class WorkspaceStore {
         this.writeRecord({ id: 'record-tide', collection: 'aura', name: 'tide', fields: { label: '潮音', element: 'water', description: '安靜的水屬性 Aura' }, revision: 1 });
       }
       this.initializeSemanticState();
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT'));
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
   snapshot(): WorkspaceSnapshot {
+    return hostPerformance.measure('db', 'db.snapshot', {}, () => {
     const ownsReadTransaction = !this.db.isTransaction;
     if (ownsReadTransaction) this.db.exec('BEGIN');
     try {
       const snapshot = readSnapshot(this.db);
-      if (ownsReadTransaction) this.db.exec('COMMIT');
+      hostPerformance.instant('db', 'db.snapshot.size', { notes: snapshot.notes.length, records: snapshot.records.length,
+        folders: snapshot.folders.length, attachments: snapshot.attachments.length, workspaceRevision: snapshot.revision });
+      if (ownsReadTransaction) hostPerformance.measure('db', 'db.commit', { transactionKind: 'read' }, () => this.db.exec('COMMIT'));
       return snapshot;
     } catch (error) { if (ownsReadTransaction) this.db.exec('ROLLBACK'); throw error; }
+    });
   }
 
   /** One SQLite read transaction, including drafts that do not advance semantic revision. */
   projectionCapture(): { snapshot: WorkspaceSnapshot; semantic: SharedSemanticState; strategy: ProjectionStrategy; drafts: DurableDraft[]; lineageId: string; provenance?: unknown } {
+    return hostPerformance.measure('db', 'db.capture', {}, () => {
     const owns = !this.db.isTransaction;
     if (owns) this.db.exec('BEGIN');
     try {
       const snapshot = this.snapshot(), semantic = this.semanticState();
       const row = this.db.prepare('SELECT strategy_json FROM projection_strategy WHERE singleton=1').get();
-      const strategy = row ? JSON.parse(String(row.strategy_json)) as ProjectionStrategy : createDefaultProjectionStrategy(createProjectionCatalog(snapshot, semantic, { hash: sourceHash }));
+      const strategy = row ? hostPerformance.parseJson('db', String(row.strategy_json)) as ProjectionStrategy : createDefaultProjectionStrategy(createProjectionCatalog(snapshot, semantic, { hash: sourceHash }));
       const metadata = (key: string): unknown => { const row = this.db.prepare('SELECT value_json FROM recovery_metadata WHERE key=?').get(key); return row ? JSON.parse(String(row.value_json)) : undefined; };
       const capture = { snapshot, semantic, strategy, drafts: this.drafts(), lineageId: String(metadata('lineageId') ?? snapshot.id), provenance: metadata('provenance') };
-      if (owns) this.db.exec('COMMIT');
+      if (owns) hostPerformance.measure('db', 'db.commit', { transactionKind: 'read' }, () => this.db.exec('COMMIT'));
       return capture;
     } catch (error) { if (owns) this.db.exec('ROLLBACK'); throw error; }
+    });
   }
 
   recoveredDraftsManual(): boolean { return this.db.prepare("SELECT value_json FROM recovery_metadata WHERE key='manualDraftRecovery'").get()?.value_json === 'true'; }
@@ -496,12 +503,12 @@ export class WorkspaceStore {
   projectionStamp(): string {
     const w = this.db.prepare('SELECT id, revision FROM workspace').get()!, semantic = this.db.prepare('SELECT revision FROM semantic_state WHERE singleton=1').get()!, strategy = this.db.prepare('SELECT revision FROM projection_strategy WHERE singleton=1').get();
     const drafts = this.db.prepare('SELECT id, revision, updated_at FROM drafts ORDER BY id').all();
-    return sourceHash(JSON.stringify([w.id, w.revision, semantic.revision, strategy?.revision ?? 0, drafts.map(draft => [draft.id, draft.revision, draft.updated_at])]));
+    return sourceHash(hostPerformance.serializeJson('db', [w.id, w.revision, semantic.revision, strategy?.revision ?? 0, drafts.map(draft => [draft.id, draft.revision, draft.updated_at])]));
   }
-  saveProjectionPackage(value: ProjectionPlanningPackage): void { this.db.prepare('INSERT INTO projection_packages VALUES (?, ?)').run(value.id, JSON.stringify(value)); }
-  projectionPackage(id: string): ProjectionPlanningPackage | undefined { const row = this.db.prepare('SELECT package_json FROM projection_packages WHERE id=?').get(id); return row ? JSON.parse(String(row.package_json)) as ProjectionPlanningPackage : undefined; }
-  projectionMetadata<T>(key: 'published' | 'pending' | 'externalApprovals'): T | undefined { const row = this.db.prepare('SELECT value_json FROM recovery_metadata WHERE key=?').get(`projection:${key}`); return row ? JSON.parse(String(row.value_json)) as T : undefined; }
-  saveProjectionMetadata(key: 'published' | 'pending' | 'externalApprovals', value: unknown): void { this.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json').run(`projection:${key}`, JSON.stringify(value)); }
+  saveProjectionPackage(value: ProjectionPlanningPackage): void { this.db.prepare('INSERT INTO projection_packages VALUES (?, ?)').run(value.id, hostPerformance.serializeJson('db', value)); }
+  projectionPackage(id: string): ProjectionPlanningPackage | undefined { const row = this.db.prepare('SELECT package_json FROM projection_packages WHERE id=?').get(id); return row ? hostPerformance.parseJson('db', String(row.package_json)) as ProjectionPlanningPackage : undefined; }
+  projectionMetadata<T>(key: 'published' | 'pending' | 'externalApprovals'): T | undefined { const row = this.db.prepare('SELECT value_json FROM recovery_metadata WHERE key=?').get(`projection:${key}`); return row ? hostPerformance.parseJson('db', String(row.value_json)) as T : undefined; }
+  saveProjectionMetadata(key: 'published' | 'pending' | 'externalApprovals', value: unknown): void { this.db.prepare('INSERT INTO recovery_metadata VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json').run(`projection:${key}`, hostPerformance.serializeJson('db', value)); }
 
   saveProjectionStrategy(strategy: ProjectionStrategy, workspaceRevision: number, strategyRevision: number): WorkspaceSnapshot {
     this.db.exec('BEGIN IMMEDIATE');
@@ -509,28 +516,30 @@ export class WorkspaceStore {
       const current = this.projectionCapture();
       if (current.snapshot.revision !== workspaceRevision || current.strategy.revision !== strategyRevision || strategy.workspaceId !== current.snapshot.id || strategy.revision !== strategyRevision + 1) throw new StoreError('Projection 策略基線已過期，請重新審查。', 409);
       compileProjectionPlan(createProjectionCatalog(current.snapshot, current.semantic, { hash: sourceHash }), strategy, { mode: 'full' });
-      this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, JSON.stringify(strategy));
-      this.db.exec('COMMIT'); return current.snapshot;
+      this.db.prepare('INSERT INTO projection_strategy VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, strategy_json=excluded.strategy_json').run(strategy.revision, hostPerformance.serializeJson('db', strategy));
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT')); return current.snapshot;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
   semanticState(): SharedSemanticState {
     const row = this.db.prepare('SELECT state_json FROM semantic_state WHERE singleton=1').get();
     if (!row) throw new StoreError('Workspace semantic state 尚未建立。', 500);
-    return JSON.parse(String(row.state_json)) as SharedSemanticState;
+    return hostPerformance.parseJson('db', String(row.state_json)) as SharedSemanticState;
   }
   sharedState(): SharedStateResponse {
+    return hostPerformance.measure('db', 'db.shared-state', {}, () => {
     const owns = !this.db.isTransaction;
     if (owns) this.db.exec('BEGIN');
     try {
       const snapshot = this.snapshot(); const semantic = this.semanticState();
       const response = { snapshot, semantic, noteSources: snapshot.notes.map(n => ({ noteId: n.id, revision: n.revision, sourceHash: sourceHash(n.markdown) })) };
-      if (owns) this.db.exec('COMMIT');
+      if (owns) hostPerformance.measure('db', 'db.commit', { transactionKind: 'read' }, () => this.db.exec('COMMIT'));
       return response;
     } catch (error) { if (owns) this.db.exec('ROLLBACK'); throw error; }
+    });
   }
   private writeSemanticState(state: SharedSemanticState): void {
-    this.db.prepare('INSERT INTO semantic_state (singleton, revision, state_json) VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, state_json=excluded.state_json').run(state.revision, JSON.stringify(state));
+    this.db.prepare('INSERT INTO semantic_state (singleton, revision, state_json) VALUES (1, ?, ?) ON CONFLICT(singleton) DO UPDATE SET revision=excluded.revision, state_json=excluded.state_json').run(state.revision, hostPerformance.serializeJson('db', state));
   }
   private initializeSemanticState(): void {
     const snapshot = readSnapshot(this.db);
@@ -542,6 +551,7 @@ export class WorkspaceStore {
     this.graph = prepared.graph; this.graphRevision = prepared.state.revision;
   }
   private reconcile(before: WorkspaceSnapshot, previous: SharedSemanticState, hints?: SemanticIdentityHints): { graph: ValueGraph; revision: number; patches: SemanticSourcePatch[] } {
+    return hostPerformance.measure('db', 'db.semantic', {}, () => {
     const after = this.snapshot();
     const priorRevision = this.semanticState().revision;
     let prepared: ReturnType<typeof prepareSharedWorkspace>;
@@ -565,15 +575,17 @@ export class WorkspaceStore {
     }
     this.writeSemanticState(prepared.state);
     return { graph: prepared.graph, revision: prepared.state.revision, patches: prepared.patches };
+    });
   }
   private transaction(action: () => void, options: { previous?: () => SharedSemanticState | undefined; hints?: () => SemanticIdentityHints | undefined; operation?: { command: SharedCommand; payloadHash: string }; draft?: () => DurableDraft | undefined; after?: () => void } = {}): WorkspaceSnapshot {
+    return hostPerformance.measure('db', 'db.transaction', {}, () => {
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const before = this.snapshot(); const previous = this.semanticState();
       action();
       this.db.exec('UPDATE workspace SET revision=revision+1');
       const candidate = this.snapshot();
-      const contentChanged = JSON.stringify([before.notes, before.records]) !== JSON.stringify([candidate.notes, candidate.records]);
+      const contentChanged = hostPerformance.serializeJson('db', [before.notes, before.records]) !== hostPerformance.serializeJson('db', [candidate.notes, candidate.records]);
       const prepared = contentChanged || options.operation ? this.reconcile(before, options.previous?.() ?? previous, options.hints?.()) : undefined;
       const committed = this.snapshot();
       if (contentChanged || options.operation) {
@@ -605,13 +617,14 @@ export class WorkspaceStore {
         // Inverse contains only affected owners. The previous semantic identity map
         // is lineage for reparse, never a replacement for recomputing current values.
         const inverse = receipt.undoable ? { notes: before.notes.filter(n => changedNoteIds.includes(n.id)), records: before.records.filter(r => changedRecordIds.includes(r.id)), changedNoteIds, changedRecordIds, previousSemantic: previous } : null;
-        this.db.prepare('INSERT INTO operations (id, payload_hash, receipt_json, inverse_json) VALUES (?, ?, ?, ?)').run(operationId, receipt.payloadHash, JSON.stringify(receipt), JSON.stringify(inverse));
+        this.db.prepare('INSERT INTO operations (id, payload_hash, receipt_json, inverse_json) VALUES (?, ?, ?, ?)').run(operationId, receipt.payloadHash, hostPerformance.serializeJson('db', receipt), hostPerformance.serializeJson('db', inverse));
       }
       options.after?.();
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT'));
       if (prepared) { this.graph = prepared.graph; this.graphRevision = prepared.revision; }
       return committed;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    });
   }
   private expectWorkspace(revision: number): void {
     requireRevision(revision);
@@ -630,7 +643,7 @@ export class WorkspaceStore {
   }
   private recover(reason: string): void {
     const snapshot = this.snapshot();
-    this.db.prepare('INSERT INTO history (created_at, reason, workspace_revision, snapshot_json) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), reason, snapshot.revision, JSON.stringify({ ...snapshot, semanticState: this.semanticState() }));
+    this.db.prepare('INSERT INTO history (created_at, reason, workspace_revision, snapshot_json) VALUES (?, ?, ?, ?)').run(new Date().toISOString(), reason, snapshot.revision, hostPerformance.serializeJson('db', { ...snapshot, semanticState: this.semanticState() }));
   }
   private writeAttachment(a: Attachment): void {
     this.db.prepare('INSERT INTO attachments (id, name, path, path_key, mime_type, sha256, size, revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(a.id, a.name, a.path, folderNameKey(a.path), a.mimeType, a.sha256, a.size, a.revision, a.createdAt);
@@ -648,10 +661,12 @@ export class WorkspaceStore {
     });
   }
   readBlob(sha256: string): Uint8Array {
+    return hostPerformance.measure('db', 'db.blob', {}, () => {
     const result = this.db.prepare('SELECT bytes FROM attachment_blobs WHERE sha256=?').get(sha256);
     if (!result || !(result.bytes instanceof Uint8Array)) throw new StoreError('找不到附件內容；請使用完整備份回復。', 404);
     if (createHash('sha256').update(result.bytes).digest('hex') !== sha256) throw new StoreError('附件雜湊不符；拒絕傳送或匯出損壞內容。');
     return result.bytes;
+    });
   }
   readAttachment(id: string): { attachment: Attachment; bytes: Uint8Array } {
     const row = this.db.prepare('SELECT id, name, path, mime_type AS mimeType, sha256, size, revision, created_at AS createdAt FROM attachments WHERE id=?').get(id);
@@ -680,6 +695,7 @@ export class WorkspaceStore {
     return readDraft(row);
   }
   saveDraft(id: string, input: Record<string, unknown>): { draft: DurableDraft; diagnostics: { message: string }[]; canCommit: boolean } {
+    return hostPerformance.measure('db', 'db.draft-save', {}, () => {
     requireString(id, 'Draft ID', 128); if (!id) throw new StoreError('Draft ID 不得為空。');
     const clientId = requireString(input.clientId, 'Client ID', 128); if (!clientId) throw new StoreError('Client ID 不得為空。');
     const noteId = requireString(input.noteId, 'Note ID', 128);
@@ -710,12 +726,13 @@ export class WorkspaceStore {
       }
       saved = { id, clientId, noteId, title, markdown, syntaxVersion, baseNoteRevision, baseSourceHash, revision: revision + 1, updatedAt: new Date().toISOString(), ...(sourceEdits === undefined ? {} : { sourceEdits }) };
       this.db.prepare('INSERT INTO drafts (id, client_id, note_id, title, markdown, syntax_version, base_note_revision, base_source_hash, revision, updated_at, source_edits_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title=excluded.title, markdown=excluded.markdown, syntax_version=excluded.syntax_version, revision=excluded.revision, updated_at=excluded.updated_at, source_edits_json=excluded.source_edits_json').run(id, clientId, noteId, title, markdown, syntaxVersion, baseNoteRevision, baseSourceHash, saved.revision, saved.updatedAt, sourceEdits === undefined ? null : JSON.stringify(sourceEdits));
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT'));
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
-    const diagnostics = syntaxVersion === 'grasp-v1' ? parseNoteLanguage(markdown, saved.revision).diagnostics.filter(d => d.area !== 'context')
-      : buildKnowledge([{ id: noteId, title, markdown, syntaxVersion, revision: saved.revision, folderId: null, updatedAt: saved.updatedAt }], []).diagnostics.filter(d => d.kind === 'syntax' || d.kind === 'limit');
+    const diagnostics = hostPerformance.measure('db', 'db.draft.parse', { characters: markdown.length }, () => syntaxVersion === 'grasp-v1' ? parseNoteLanguage(markdown, saved.revision).diagnostics.filter(d => d.area !== 'context')
+      : buildKnowledge([{ id: noteId, title, markdown, syntaxVersion, revision: saved.revision, folderId: null, updatedAt: saved.updatedAt }], []).diagnostics.filter(d => d.kind === 'syntax' || d.kind === 'limit'));
     if (!title.trim()) diagnostics.push({ message: '提交前請輸入筆記標題。' } as never);
     return { draft: saved, diagnostics, canCommit: diagnostics.length === 0 };
+    });
   }
   deleteDraft(id: string, revision: number): void {
     requireRevision(revision);
@@ -723,13 +740,13 @@ export class WorkspaceStore {
     try {
       if (this.draft(id).revision !== revision) throw new StoreError('Draft 已有更新，不能刪除較新的內容。', 409);
       this.db.prepare('DELETE FROM drafts WHERE id=?').run(id);
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'write' }, () => this.db.exec('COMMIT'));
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   operation(id: string): OperationReceipt {
     const row = this.db.prepare('SELECT receipt_json FROM operations WHERE id=?').get(requireString(id, 'Operation ID', 128));
     if (!row) throw new StoreError('找不到已提交的 operation receipt。', 404);
-    return JSON.parse(String(row.receipt_json)) as OperationReceipt;
+    return hostPerformance.parseJson('db', String(row.receipt_json)) as OperationReceipt;
   }
   commitShared(input: unknown): SharedCommitResponse {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new StoreError('Shared command 必須是物件。');
@@ -778,7 +795,7 @@ export class WorkspaceStore {
         const receipt = this.operation(intent.operationId);
         if (!receipt.undoable || receipt.semanticRevision !== state.revision) throw new StoreError('共享操作後已有其他語義修改，無法安全撤銷；請重新審查。', 409);
         const row = this.db.prepare('SELECT inverse_json FROM operations WHERE id=?').get(intent.operationId)!;
-        const inverse = JSON.parse(String(row.inverse_json)) as { notes: Note[]; records: StructuredRecord[]; changedNoteIds: string[]; changedRecordIds: string[]; previousSemantic: SharedSemanticState };
+        const inverse = hostPerformance.parseJson('db', String(row.inverse_json)) as { notes: Note[]; records: StructuredRecord[]; changedNoteIds: string[]; changedRecordIds: string[]; previousSemantic: SharedSemanticState };
         const restoredNoteIds = new Set(inverse.notes.map(note => note.id));
         for (const id of inverse.changedNoteIds) if (!restoredNoteIds.has(id)) this.db.prepare('DELETE FROM notes WHERE id=?').run(id);
         for (const n of inverse.notes) this.writeNote({ ...n, revision: this.nextRevision() });
@@ -812,7 +829,7 @@ export class WorkspaceStore {
       for (const n of proposed.snapshot.notes) if (JSON.stringify(n) !== JSON.stringify(oldNotes.get(n.id))) { validateNote(n); this.writeNote({ ...n, revision: this.nextRevision() }); }
       // Rename may swap collection/name keys; validate the complete proposed set
       // before releasing the old rows within this transaction.
-      if (JSON.stringify(current.records) !== JSON.stringify(proposed.snapshot.records)) {
+      if (hostPerformance.serializeJson('db', current.records) !== hostPerformance.serializeJson('db', proposed.snapshot.records)) {
         const records = proposed.snapshot.records.map(validateRecord);
         this.db.exec('DELETE FROM records');
         for (const r of records) this.writeRecord({ ...r, revision: JSON.stringify(current.records.find(old => old.id === r.id)) === JSON.stringify(r) ? r.revision : this.nextRevision() });
@@ -957,7 +974,7 @@ export class WorkspaceStore {
     try {
       const entry = this.db.prepare('SELECT created_at, reason, snapshot_json FROM history WHERE id=?').get(id);
       if (!entry) throw new StoreError('找不到 recovery snapshot。', 404);
-      const snapshot = validateSnapshot(JSON.parse(String(entry.snapshot_json)));
+      const snapshot = validateSnapshot(hostPerformance.parseJson('db', String(entry.snapshot_json)));
       const current = this.snapshot();
       if (snapshot.id !== current.id) throw new StoreError('Recovery snapshot 與目前 workspace 不符，未變更資料。');
       const notes: RecoveryPreview['changes']['notes'] = [];
@@ -996,7 +1013,7 @@ export class WorkspaceStore {
       }
       const counts = (s: WorkspaceSnapshot) => ({ notes: s.notes.length, folders: s.folders.length, records: s.records.length, attachments: s.attachments.length });
       const result: RecoveryPreview = { id, createdAt: String(entry.created_at), reason: String(entry.reason), scope: 'workspace', workspaceRevision: current.revision, snapshotRevision: snapshot.revision, current: counts(current), target: counts(snapshot), changes: { notes, folders, records, attachments }, settingsChanged: JSON.stringify(current.settings) !== JSON.stringify(snapshot.settings), nameBefore: current.name, nameAfter: snapshot.name };
-      this.db.exec('COMMIT');
+      hostPerformance.measure('db', 'db.commit', { transactionKind: 'read' }, () => this.db.exec('COMMIT'));
       return result;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
@@ -1006,7 +1023,7 @@ export class WorkspaceStore {
       this.expectWorkspace(workspaceRevision);
       const entry = this.db.prepare('SELECT snapshot_json FROM history WHERE id=?').get(id);
       if (!entry) throw new StoreError('找不到 recovery snapshot。', 404);
-      const original = JSON.parse(String(entry.snapshot_json)) as WorkspaceSnapshot & { semanticState?: SharedSemanticState };
+      const original = hostPerformance.parseJson('db', String(entry.snapshot_json)) as WorkspaceSnapshot & { semanticState?: SharedSemanticState };
       const snapshot = validateSnapshot(original);
       // Pre-v4 history has no occurrence lineage. Do not guess which repeated
       // old occurrence corresponds to a current one during an explicit restore.

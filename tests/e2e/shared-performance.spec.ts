@@ -6,9 +6,11 @@ import { resolve } from 'node:path';
 import type { SharedStateResponse } from '../../server/semantic';
 import { WorkspaceStore } from '../../server/store';
 import { testDirectory } from './fixtures';
+import { evidenceDirectory } from '../../scripts/evidence-path';
 
 const port = 43849, origin = `http://127.0.0.1:${port}`;
 const directory = testDirectory('shared-performance');
+const evidenceRoot = evidenceDirectory('shared-performance');
 const database = resolve(directory, 'workspace.grasp.db');
 const scale = Number(process.env.GRASP_PERF_SCALE ?? '1');
 if (!Number.isSafeInteger(scale) || scale < 1 || scale > 10) throw new Error('GRASP_PERF_SCALE must be an integer from 1 to 10.');
@@ -25,7 +27,7 @@ const evidence: Record<string, unknown> = {
   limits: { readinessTimeoutMs: readinessTimeout, testTimeoutMs: testTimeout, typingP95LimitMs: 500 },
   note: 'Synthetic production-browser workload. Input completion includes automation overhead; insertText is not native IME evidence. Long tasks include rendering and save work. Explorer/Obsidian are not exercised.',
 };
-function saveEvidence() { mkdirSync(directory, { recursive: true }); writeFileSync(resolve(directory, 'performance.json'), JSON.stringify({ ...evidence, tests: outcomes, serverLogs, timestamp: new Date().toISOString() }, null, 2)); }
+function saveEvidence() { writeFileSync(resolve(evidenceRoot, 'performance.json'), JSON.stringify({ ...evidence, tests: outcomes, serverLogs, timestamp: new Date().toISOString() }, null, 2)); }
 function phase(name: string) { evidence.phase = name; saveEvidence(); }
 async function state(): Promise<SharedStateResponse> {
   const response = await fetch(origin + '/api/shared/state', { signal: AbortSignal.timeout(readinessTimeout) });
@@ -71,7 +73,7 @@ async function typeSamples(page: Page, count: number, text: string, mode: 'sourc
     }
   } finally {
     if (cdp) {
-      try { const result = await cdp.send('Profiler.stop'); writeFileSync(resolve(directory, `${mode}.cpuprofile`), JSON.stringify(result.profile)); }
+      try { const result = await cdp.send('Profiler.stop'); writeFileSync(resolve(evidenceRoot, `${mode}.cpuprofile`), JSON.stringify(result.profile)); }
       catch (error) { evidence[`${mode}ProfileError`] = String(error); }
       await cdp.detach().catch(() => {});
     }
@@ -108,7 +110,7 @@ test.describe.serial(`Production v1 workload (${bindingCount} identifiers / ${re
   });
   test.afterEach(async ({}, info) => {
     outcomes.push({ title: info.title, status: info.status, durationMs: info.duration, errors: info.errors.map(error => error.stack ?? error.message ?? String(error)) });
-    saveEvidence(); await info.attach('v1-performance', { path: resolve(directory, 'performance.json'), contentType: 'application/json' });
+    saveEvidence(); await info.attach('v1-performance', { path: resolve(evidenceRoot, 'performance.json'), contentType: 'application/json' });
   });
   test.afterAll(async () => {
     if (evidence.status !== 'initialization-failed') evidence.status = outcomes.length === 2 && outcomes.every(item => item.status === 'passed') ? 'passed' : 'failed-or-incomplete';

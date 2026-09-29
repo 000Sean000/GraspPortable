@@ -1,8 +1,9 @@
+import { hostPerformance } from './performance.js';
 import { randomUUID } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { resolve, toNamespacedPath } from 'node:path';
-import { createDefaultProjectionStrategy, createFullProjectionBundle, createProjectionCatalog, createProjectionPlanningPackage, reviewProjectionProposal, compileProjectionPlan, projectionJson, type ProjectionCatalog, type ProjectionReview, type ProjectionStrategy, type ProjectionUnit, type ProjectionProposal, type ProjectionPlanningPackage, type ProjectionScope, type ProjectionSelector } from '../src/domain/projection.js';
-import { renderProjection, reviewProjectionFile, type RenderedProjection, type ProjectionReadingChange } from '../src/domain/projection-renderer.js';
+import { createDefaultProjectionStrategy, createFullProjectionBundle, createProjectionCatalog as catalogCore, createProjectionPlanningPackage, reviewProjectionProposal, compileProjectionPlan as planCore, projectionJson as jsonCore, type ProjectionCatalog, type ProjectionReview, type ProjectionStrategy, type ProjectionUnit, type ProjectionProposal, type ProjectionPlanningPackage, type ProjectionScope, type ProjectionSelector } from '../src/domain/projection.js';
+import { renderProjection as renderCore, reviewProjectionFile, type RenderedProjection, type ProjectionReadingChange } from '../src/domain/projection-renderer.js';
 import type { FileEntry, FileExportResult, FilesStatus } from '../src/domain/files.js';
 import type { WorkspaceSnapshot } from '../src/domain/model.js';
 import type { SemanticIdentityHints } from '../src/domain/shared.js';
@@ -10,6 +11,11 @@ import { WorkspaceFiles, readMirrorManifest } from './files.js';
 import { WorkspaceStore, StoreError, type ExternalProjectionApproval } from './store.js';
 import { sourceHash } from './semantic.js';
 import { GenerationTree, byteHash, MANIFEST, COMPLETE, type GenerationManifest, type GenerationEntry, type FullRecovery } from './projection-generation.js';
+
+const createProjectionCatalog: typeof catalogCore = (...args) => hostPerformance.measure('projection', 'projection.catalog', {}, () => catalogCore(...args));
+const compileProjectionPlan: typeof planCore = (...args) => hostPerformance.measure('projection', 'projection.plan', {}, () => planCore(...args));
+const renderProjection: typeof renderCore = (...args) => hostPerformance.measure('projection', 'projection.render', {}, () => renderCore(...args));
+const projectionJson: typeof jsonCore = (...args) => hostPerformance.measure('projection', 'projection.serialize', {}, () => jsonCore(...args));
 
 export interface ProjectionStatus {
   state: 'idle' | 'pending' | 'ready' | 'dirty' | 'error';
@@ -39,13 +45,13 @@ const publicationFailureMessage = (error: unknown): string => {
     ? `Windows 無法替換 Markdown 資料夾；可能被其他程式占用或權限不足。關閉使用該資料夾的外部程式後重試 checkpoint；DB 與舊 Markdown 保留。原始錯誤：${message(error)}`
     : message(error);
 };
-const fingerprint = (capture: Capture) => sourceHash(projectionJson(capture));
+const fingerprint = (capture: Capture) => hostPerformance.measure('projection', 'projection.hash', {}, () => sourceHash(projectionJson(capture)));
 // Only the published reading view may ignore UI settings and saved drafts. Full
 // checkpoints retain the complete capture fingerprint above, including both.
-const readingFingerprint = (snapshot: WorkspaceSnapshot, strategyRevision: number) => sourceHash(projectionJson({
+const readingFingerprint = (snapshot: WorkspaceSnapshot, strategyRevision: number) => hostPerformance.measure('projection', 'projection.hash', {}, () => sourceHash(projectionJson({
   id: snapshot.id, name: snapshot.name, notes: snapshot.notes, folders: snapshot.folders,
   records: snapshot.records, attachments: snapshot.attachments, strategyRevision,
-}));
+})));
 
 /** Sole active projection publisher. Legacy WorkspaceFiles supplies confined file
  * browsing/exchange only; its old timer/publisher is never scheduled here. */
@@ -69,7 +75,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     this.generations = new GenerationTree(this.root);
     this.statusValue = { state: 'idle', workspaceRevision: store.snapshot().revision, lastSuccessRevision: null, projectionRoot: resolve(this.root, 'Markdown'), dirtyPaths: [] };
   }
-  private capture(): Capture { return this.store.projectionCapture(); }
+  private capture(): Capture { return hostPerformance.measure('projection', 'projection.capture', {}, () => this.store.projectionCapture()); }
   private async initializeProjection(): Promise<void> {
     this.projectionInitialized ??= (async () => {
       for (const directory of ['.grasp/recovery', '.grasp/internal/projection', '.grasp/exchange/inbox', '.grasp/exchange/outbox', '.grasp/manifests']) await this.generations.directory(directory);
@@ -77,7 +83,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
       if (await this.generations.exists(`Markdown/${COMPLETE}`)) {
         const published = this.store.projectionMetadata<TrustedPublication>('published'), pending = this.store.projectionMetadata<TrustedPublication | null>('pending');
         let actual: GenerationManifest | undefined; try { actual = await this.generations.manifest('Markdown'); } catch { /* A trusted previous baseline still detects damaged public metadata. */ }
-        if (pending && JSON.stringify(pending.manifest) === JSON.stringify(actual) && !(await this.generations.dirty('Markdown', pending.manifest)).length) {
+        if (pending && hostPerformance.serializeJson('projection', pending.manifest) === hostPerformance.serializeJson('projection', actual) && !(await this.generations.dirty('Markdown', pending.manifest)).length) {
           this.store.saveProjectionMetadata('published', pending); this.store.saveProjectionMetadata('pending', null); this.projectionCurrent = pending.manifest;
         } else if (published) this.projectionCurrent = published.manifest;
         else throw new Error('Public projection has no trusted database publication baseline; preserve it and use explicit rebuild/import.');
@@ -106,17 +112,22 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
       lastSuccessFingerprint: manifest.fingerprint, manifestPath: resolve(this.root, 'Markdown', MANIFEST), dirtyPaths: [], error: this.lastPublicationError };
   }
   private async inventory(directory: string, includeObsidian = false): Promise<GenerationEntry[]> {
+    return hostPerformance.measure('filesystem', 'fs.inventory', {}, async () => {
     const entries: GenerationEntry[] = [];
     for (const path of await this.generations.files(directory, !includeObsidian)) { const bytes = await this.generations.read(`${directory}/${path}`); entries.push({ path, sha256: byteHash(bytes), size: bytes.length }); }
     return entries;
+    });
   }
   private async compareInventory(directory: string, entries: GenerationEntry[], includeObsidian = false): Promise<string[]> {
+    return hostPerformance.measure('filesystem', 'fs.dirty', {}, async () => {
     const known = new Map(entries.map(entry => [entry.path, entry])); const dirty: string[] = [];
     for (const entry of entries) { try { const bytes = await this.generations.read(`${directory}/${entry.path}`); if (bytes.length !== entry.size || byteHash(bytes) !== entry.sha256) dirty.push(entry.path); } catch { dirty.push(entry.path); } }
     for (const file of await this.generations.files(directory, !includeObsidian)) if (!known.has(file)) dirty.push(file);
     return [...new Set(dirty)].sort();
+    });
   }
   private async dirty(): Promise<string[]> {
+    return hostPerformance.measure('filesystem', 'fs.dirty', {}, async () => {
     if (this.projectionCurrent) {
       const dirty = await this.generations.dirty('Markdown', this.projectionCurrent), remaining: string[] = [];
       const accepted = new Map((this.store.projectionMetadata<ExternalProjectionApproval[]>('externalApprovals') ?? []).filter(item => item.generationFingerprint === this.projectionCurrent!.fingerprint).map(item => [item.path.replace(/^Markdown\//, ''), item.sha256]));
@@ -125,16 +136,18 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     }
     if (this.legacy) return this.compareInventory('Markdown', this.legacy);
     return this.generations.files('Markdown');
+    });
   }
   private async recoverPublication(): Promise<void> {
+    return hostPerformance.measure('projection', 'projection.recovery', {}, async () => {
     const files = await readdir(toNamespacedPath(resolve(this.root, '.grasp/internal/projection')));
     for (const name of files.filter(name => /^journal-[a-f\d-]+\.json$/.test(name)).sort()) {
       const journalPath = `.grasp/internal/projection/${name}`;
-      const journal = JSON.parse((await this.generations.read(journalPath, 32 * 1024 * 1024)).toString('utf8')) as PublicationJournal;
+      const journal = hostPerformance.parseJson('projection', (await this.generations.read(journalPath, 32 * 1024 * 1024)).toString('utf8')) as PublicationJournal;
       if (journal.version !== 1 || !/^\.grasp\/internal\/projection\/stage-[a-f\d-]+$/.test(journal.stage) || !/^\.grasp\/internal\/projection\/old-[a-f\d-]+$/.test(journal.previous) || !Array.isArray(journal.previousFiles)) throw new Error('Invalid interrupted publication journal; files preserved.');
       let installed = false;
       if (await this.generations.exists(`Markdown/${COMPLETE}`)) {
-        try { const manifest = await this.generations.validate('Markdown'), pending = this.store.projectionMetadata<TrustedPublication | null>('pending'); installed = manifest.fingerprint === journal.fingerprint && JSON.stringify(manifest) === JSON.stringify(pending?.manifest ?? this.store.projectionMetadata<TrustedPublication>('published')?.manifest); } catch { /* Preserve changed bytes below. */ }
+        try { const manifest = await this.generations.validate('Markdown'), pending = this.store.projectionMetadata<TrustedPublication | null>('pending'); installed = manifest.fingerprint === journal.fingerprint && hostPerformance.serializeJson('projection', manifest) === hostPerformance.serializeJson('projection', pending?.manifest ?? this.store.projectionMetadata<TrustedPublication>('published')?.manifest); } catch { /* Preserve changed bytes below. */ }
       }
       if (!installed) {
         if (!await this.generations.exists('Markdown') && await this.generations.exists(journal.previous)) {
@@ -147,6 +160,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
       }
       await this.generations.move(journalPath, `${journalPath}.done`);
     }
+    });
   }
   override schedule(_snapshot: WorkspaceSnapshot, _readBlob: (sha256: string) => Uint8Array | Promise<Uint8Array>): void {
     if (this.projectionClosing) return;
@@ -155,7 +169,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     if (this.statusValue.state !== 'dirty') this.statusValue.state = this.lastPublicationError ? 'error' : 'pending';
     if (!this.projectionTimer) { const delay = this.initialScheduled ? this.options.checkpointMs ?? 10 * 60_000 : 0; this.initialScheduled = true; this.projectionTimer = setTimeout(() => { this.projectionTimer = undefined; void this.checkpoint(); }, delay); this.projectionTimer.unref?.(); }
   }
-  projectionStatus(): ProjectionStatus { return structuredClone(this.statusValue); }
+  projectionStatus(): ProjectionStatus { hostPerformance.instant('projection', 'projection.status', { state: this.statusValue.state, workspaceRevision: this.statusValue.workspaceRevision, lastSuccessRevision: this.statusValue.lastSuccessRevision ?? undefined }); return structuredClone(this.statusValue); }
   override status(): FilesStatus {
     const base = super.status(), value = this.statusValue;
     base.mirror = { ...base.mirror, state: value.state, revision: value.lastSuccessRevision, manifestPath: value.manifestPath ?? null, indexPath: null, dirtyPaths: value.dirtyPaths.map(path => `Markdown/${path}`), ...(value.error ? { error: value.error } : {}) };
@@ -173,13 +187,15 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     return base;
   }
   override async inspect(): Promise<FilesStatus> {
-    if (this.projectionRunning) await this.projectionRunning;
+    return hostPerformance.measure('projection', 'projection.inspect', {}, async () => {
+    if (this.projectionRunning) await hostPerformance.measure('projection', 'projection.wait', { waitReason: 'inspect-running' }, () => this.projectionRunning!);
     try {
       await this.initializeProjection(); const dirty = await this.dirty(); this.statusValue.dirtyPaths = dirty;
       if (dirty.length) this.statusValue.state = 'dirty';
       else if (this.statusValue.state !== 'error') this.statusValue.state = this.projectionCurrent?.stamp === this.store.projectionStamp() ? 'ready' : 'pending';
     } catch (error) { this.statusValue.state = 'error'; this.statusValue.error = message(error); }
     return this.status();
+    });
   }
   async apiState(): Promise<ProjectionApiState> {
     await this.inspect(); const capture = this.capture(), catalog = createProjectionCatalog(capture.snapshot, capture.semantic, { hash: sourceHash });
@@ -209,6 +225,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     this.schedule(snapshot, sha => this.store.readBlob(sha)); return { snapshot, strategy: frozen.strategy, status: this.projectionStatus() };
   }
   private async writeGeneration(directory: string, capture: Capture, scope: ProjectionScope): Promise<GenerationManifest> {
+    return hostPerformance.measure('projection', 'projection.generation', { scope: scope.mode, notes: capture.snapshot.notes.length, attachments: capture.snapshot.attachments.length }, async () => {
     const catalog = createProjectionCatalog(capture.snapshot, capture.semantic, { hash: sourceHash });
     const plan = compileProjectionPlan(catalog, capture.strategy, scope), rendered = renderProjection(plan);
     const entries: GenerationEntry[] = [];
@@ -216,38 +233,43 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     await this.generations.directory(directory);
     for (const file of rendered.files) await write(file.path, file.text);
     for (const asset of plan.attachments) { const bytes = this.store.readBlob(asset.sha256); if (bytes.length !== asset.size || byteHash(bytes) !== asset.sha256) throw new Error('DB attachment failed hash verification.'); await write(asset.file, bytes); }
-    await write('.grasp-export/rendered.json', JSON.stringify(rendered));
+    await write('.grasp-export/rendered.json', hostPerformance.serializeJson('projection', rendered));
     if (scope.mode === 'full') {
       const recovery: FullRecovery = { bundle: createFullProjectionBundle(capture.snapshot, capture.semantic, capture.strategy, { hash: sourceHash, lineageId: capture.lineageId, ...(capture.provenance === undefined ? {} : { provenance: capture.provenance }) }), drafts: capture.drafts, historyIncluded: false, operationsIncluded: false };
-      await write('.grasp-export/recovery.json', JSON.stringify(recovery));
-    } else await write('.grasp-export/scope.json', JSON.stringify({ format: 'grasp-selected-export', version: 1, scope: plan.scope, omittedTargets: plan.omittedTargets, canRebuildFullWorkspace: false }));
+      await write('.grasp-export/recovery.json', hostPerformance.serializeJson('projection', recovery));
+    } else await write('.grasp-export/scope.json', hostPerformance.serializeJson('projection', { format: 'grasp-selected-export', version: 1, scope: plan.scope, omittedTargets: plan.omittedTargets, canRebuildFullWorkspace: false }));
     const manifest: GenerationManifest = { format: 'grasp-generation', version: 1, kind: scope.mode, id: randomUUID(), fingerprint: fingerprint(capture), workspaceId: capture.snapshot.id,
       workspaceRevision: capture.snapshot.revision, semanticRevision: capture.semantic.revision, strategyRevision: capture.strategy.revision, createdAt: new Date().toISOString(),
-      stamp: sourceHash(JSON.stringify([capture.snapshot.id, capture.snapshot.revision, capture.semantic.revision, capture.strategy.revision, [...capture.drafts].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(draft => [draft.id, draft.revision, draft.updatedAt])])), files: entries, plan };
-    const metadata = JSON.stringify(manifest); await this.generations.write(`${directory}/${MANIFEST}`, metadata);
+      stamp: sourceHash(hostPerformance.serializeJson('projection', [capture.snapshot.id, capture.snapshot.revision, capture.semantic.revision, capture.strategy.revision, [...capture.drafts].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(draft => [draft.id, draft.revision, draft.updatedAt])])), files: entries, plan };
+    const metadata = hostPerformance.serializeJson('projection', manifest); await this.generations.write(`${directory}/${MANIFEST}`, metadata);
     await this.generations.write(`${directory}/${COMPLETE}`, JSON.stringify({ format: 'grasp-generation-complete', version: 1, sha256: byteHash(metadata) }));
     await this.generations.validate(directory); return manifest;
+    });
   }
   async checkpoint(): Promise<ProjectionStatus> {
+    return hostPerformance.measure('projection', 'projection.checkpoint', {}, async () => {
     this.initialScheduled = true;
     if (this.projectionTimer) { clearTimeout(this.projectionTimer); this.projectionTimer = undefined; }
-    if (this.projectionRunning) { await this.projectionRunning; if (['dirty', 'error'].includes(this.statusValue.state) || this.projectionCurrent?.stamp === this.store.projectionStamp()) return this.projectionStatus(); }
+    if (this.projectionRunning) { await hostPerformance.measure('projection', 'projection.wait', { waitReason: 'checkpoint-running' }, () => this.projectionRunning!); if (['dirty', 'error'].includes(this.statusValue.state) || this.projectionCurrent?.stamp === this.store.projectionStamp()) return this.projectionStatus(); }
     this.projectionRunning = this.publish().catch(async error => {
       this.lastPublicationError = publicationFailureMessage(error);
       try { await this.recoverPublication(); this.projectionInitialized = undefined; await this.initializeProjection(); } catch (recoveryError) { this.lastPublicationError += ` Recovery: ${message(recoveryError)}`; }
       this.projectionInitialized = undefined; this.statusValue.state = 'error'; this.statusValue.error = this.lastPublicationError;
     }).finally(() => { this.projectionRunning = undefined; });
     await this.projectionRunning; return this.projectionStatus();
+    });
   }
   private async publish(): Promise<void> {
+    return hostPerformance.measure('projection', 'projection.publish', {}, async () => {
     await this.initializeProjection(); const capture = this.capture(), next = fingerprint(capture);
+    hostPerformance.instant('projection', 'projection.stage', { stage: 'captured', workspaceRevision: capture.snapshot.revision, semanticRevision: capture.semantic.revision, strategyRevision: capture.strategy.revision });
     this.statusValue.workspaceRevision = capture.snapshot.revision; this.statusValue.fingerprint = next;
     let dirty = await this.dirty();
     if (next === this.lastFingerprint && !dirty.length) { this.lastPublicationError = undefined; this.statusValue.state = 'ready'; this.statusValue.error = undefined; return; }
     const id = randomUUID(), recovery = `.grasp/recovery/generation-${id}`;
     const manifest = await this.writeGeneration(recovery, capture, { mode: 'full' });
     this.statusValue.recoveryRevision = capture.snapshot.revision;
-    this.options.fail?.('generation-complete');
+    hostPerformance.instant('projection', 'projection.stage', { stage: 'generation-complete' }); this.options.fail?.('generation-complete');
     dirty = await this.dirty();
     if (dirty.length) { this.statusValue.state = 'dirty'; this.statusValue.dirtyPaths = dirty; await this.retain(); return; }
     const stage = `.grasp/internal/projection/stage-${id}`, previous = `.grasp/internal/projection/old-${id}`;
@@ -259,13 +281,13 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     const journal: PublicationJournal = { version: 1, stage, previous, recovery, fingerprint: next, previousFiles, hadPrevious: await this.generations.exists('Markdown') };
     const trusted: TrustedPublication = { manifest, rendered: renderProjection(manifest.plan), snapshot: capture.snapshot };
     this.store.saveProjectionMetadata('pending', trusted);
-    await this.generations.atomicJson(journalPath, journal); this.options.fail?.('journal-durable');
-    if (journal.hadPrevious) await this.generations.move('Markdown', previous); this.options.fail?.('old-renamed');
+    await this.generations.atomicJson(journalPath, journal); hostPerformance.instant('projection', 'projection.stage', { stage: 'journal-durable' }); this.options.fail?.('journal-durable');
+    if (journal.hadPrevious) { await this.generations.move('Markdown', previous); hostPerformance.instant('projection', 'projection.stage', { stage: 'old-renamed' }); } this.options.fail?.('old-renamed');
     if (journal.hadPrevious) {
       const changed = await this.compareInventory(previous, previousFiles, true);
       if (changed.length) { await this.generations.move(previous, 'Markdown'); await this.generations.move(journalPath, `${journalPath}.done`); this.statusValue.state = 'dirty'; this.statusValue.dirtyPaths = changed; return; }
     }
-    await this.generations.move(stage, 'Markdown'); this.options.fail?.('new-renamed');
+    await this.generations.move(stage, 'Markdown'); hostPerformance.instant('projection', 'projection.stage', { stage: 'new-renamed' }); this.options.fail?.('new-renamed');
     await this.generations.validate('Markdown');
     if (journal.hadPrevious) {
       const changed = await this.compareInventory(previous, previousFiles, true);
@@ -273,12 +295,15 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     }
     this.store.saveProjectionMetadata('published', trusted); this.store.saveProjectionMetadata('pending', null); this.store.saveProjectionMetadata('externalApprovals', []);
     await this.generations.move(journalPath, `${journalPath}.done`);
+    hostPerformance.instant('projection', 'projection.stage', { stage: 'published', workspaceRevision: capture.snapshot.revision });
     this.lastFingerprint = next; this.legacy = undefined; this.acceptCurrent(manifest, capture.snapshot, true);
     if (journal.hadPrevious && !(await this.compareInventory(previous, previousFiles, true)).length) await this.generations.removeVerified(previous);
     await this.retain();
     if (this.store.projectionStamp() !== manifest.stamp) this.schedule(this.store.snapshot(), sha => this.store.readBlob(sha));
+    }, true);
   }
   private async retain(): Promise<void> {
+    return hostPerformance.measure('projection', 'projection.retention', {}, async () => {
     const valid: Array<{ path: string; createdAt: string }> = [];
     for (const name of await readdir(toNamespacedPath(resolve(this.root, '.grasp/recovery')))) {
       if (!/^generation-[a-f\d-]+$/.test(name)) continue;
@@ -286,16 +311,18 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
     }
     valid.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     for (const old of valid.slice(2)) { await this.generations.validate(old.path); await this.generations.removeVerified(old.path); }
+    });
   }
   override async flush(): Promise<FilesStatus> { await this.checkpoint(); return this.status(); }
-  override async close(): Promise<void> { this.projectionClosing = true; if (this.projectionTimer) clearTimeout(this.projectionTimer); if (this.projectionRunning) await this.projectionRunning; /* DB already durably owns edits; close never forces expensive checkpoint. */ }
+  override async close(): Promise<void> { this.projectionClosing = true; if (this.projectionTimer) clearTimeout(this.projectionTimer); if (this.projectionRunning) await hostPerformance.measure('projection', 'projection.wait', { waitReason: 'shutdown-running' }, () => this.projectionRunning!); /* DB already durably owns edits; close never forces expensive checkpoint. */ }
   async ensureForLocate(): Promise<void> {
-    if (this.projectionRunning) await this.projectionRunning;
+    return hostPerformance.measure('projection', 'projection.locate', {}, async () => {
+    if (this.projectionRunning) await hostPerformance.measure('projection', 'projection.wait', { waitReason: 'locate-running' }, () => this.projectionRunning!);
     await this.initializeProjection();
     for (let attempt = 0; attempt < 2; attempt++) {
       const capture = this.capture();
       if (!this.projectionCurrent || readingFingerprint(capture.snapshot, capture.strategy.revision) !== this.lastReadingFingerprint) {
-        const status = await this.checkpoint();
+        const status = await hostPerformance.measure('projection', 'projection.wait', { waitReason: 'locate-checkpoint' }, () => this.checkpoint());
         if (status.state === 'error') throw new StoreError(`Projection 尚未成功發布；${status.error ?? '請稍後重試 checkpoint。'}`, 409);
         if (status.state === 'dirty' || !this.projectionCurrent) throw new StoreError('Projection 尚未成功發布；請先處理 dirty/error。', 409);
         continue;
@@ -313,6 +340,7 @@ export class ProjectionWorkspaceFiles extends WorkspaceFiles {
       }
     }
     throw new StoreError('Workspace 在定位期間變更；請重試。', 409);
+    });
   }
   override async locate(kind: 'note' | 'folder' | 'attachment', id: string): Promise<FileEntry> {
     await this.ensureForLocate();

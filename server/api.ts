@@ -12,8 +12,10 @@ import { readFullGenerationStreaming } from './projection-generation.js';
 import type { ProjectionProposal, ProjectionScope, ProjectionSelector } from '../src/domain/projection.js';
 import type { SemanticIdentityHints } from '../src/domain/shared.js';
 import type { WorkspaceSnapshot } from '../src/domain/model.js';
+import { hostPerformance } from './performance.js';
 
 async function rawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+  return hostPerformance.measure('coordinator', 'http.body', {}, async () => {
   const declared = Number(req.headers['content-length']);
   if (Number.isFinite(declared) && declared > limit) throw new StoreError('請求內容超過大小上限。', 413);
   const chunks: Buffer[] = [];
@@ -23,19 +25,23 @@ async function rawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
     if (length > limit) throw new StoreError('請求內容超過大小上限。', 413);
     chunks.push(Buffer.from(chunk));
   }
+  hostPerformance.instant('coordinator', 'http.body', { bytes: length });
   return Buffer.concat(chunks);
+  });
 }
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   if (!req.headers['content-type']?.startsWith('application/json')) throw new StoreError('此操作需要 application/json。', 415);
   let parsed: unknown;
   const bytes = await rawBody(req, 34 * 1024 * 1024);
-  try { parsed = JSON.parse(bytes.toString('utf8')); } catch { throw new StoreError('請求不是有效的 JSON。'); }
+  try { parsed = hostPerformance.measure('coordinator', 'http.parse', { bytes: bytes.length }, () => JSON.parse(bytes.toString('utf8'))); } catch { throw new StoreError('請求不是有效的 JSON。'); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new StoreError('請求內容必須是 JSON object。');
   return parsed as Record<string, unknown>;
 }
 function json(res: ServerResponse, value: unknown, status = 200): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-  res.end(JSON.stringify(value));
+  const payload = hostPerformance.measure('coordinator', 'http.serialize', {}, () => JSON.stringify(value));
+  hostPerformance.instant('coordinator', 'http.serialize', { characters: typeof payload === 'string' ? payload.length : 0 });
+  res.end(payload);
 }
 function download(res: ServerResponse, name: string, mimeType: string, bytes: Uint8Array | string, inline = false): void {
   const encodedName = encodeURIComponent(name).replace(/['()*]/g, c => `%${c.charCodeAt(0).toString(16)}`);
@@ -74,11 +80,12 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
     try {
       const pointer = JSON.parse(readFileSync(hostStatePath, 'utf8')) as { version?: unknown; path?: unknown };
       if (pointer.version !== 1 || typeof pointer.path !== 'string') throw new Error('Invalid host pointer');
-      if (existsSync(pointer.path)) { try { store = new WorkspaceStore(pointer.path); } catch (error) { unavailable(pointer.path, error); } }
+      const rememberedPath = pointer.path;
+      if (existsSync(rememberedPath)) { try { store = hostPerformance.measure('db', 'db.open', {}, () => new WorkspaceStore(rememberedPath)); } catch (error) { unavailable(rememberedPath, error); } }
       else throw new Error('Remembered database missing');
     } catch { warning = '上次的 workspace 無法開啟，已開啟預設 workspace。請從「開啟 Workspace」重新選擇原 .db。'; }
   }
-  if (!store && !unavailablePath) { try { store = new WorkspaceStore(defaultPath, { create: true, name: 'GraspPortable', seed: !existsSync(defaultPath) }); } catch (error) { unavailable(defaultPath, error); } }
+  if (!store && !unavailablePath) { try { store = hostPerformance.measure('db', 'db.open', {}, () => new WorkspaceStore(defaultPath, { create: true, name: 'GraspPortable', seed: !existsSync(defaultPath) })); } catch (error) { unavailable(defaultPath, error); } }
   let currentStore = store;
   let files = store ? new ProjectionWorkspaceFiles(store) : undefined;
   let changing = false;
@@ -134,6 +141,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           if (req.headers['sec-fetch-site'] === 'cross-site') throw new StoreError('拒絕跨網站的 workspace 修改。', 403);
         }
         const path = url.pathname;
+        if (hostPerformance.enabled && method === 'GET' && path === '/api/diagnostics/performance/clock') { json(res, hostPerformance.clock()); return true; }
         if (method === 'GET' && path === '/api/host') { json(res, { path: currentStore?.path ?? unavailablePath ?? defaultPath, warning, migrationBackupPath: currentStore?.migrationBackupPath, unavailablePath, error: startupError, recoveredDraftsManual: recoveredDraftsManual || currentStore?.recoveredDraftsManual(), recoveredDraftIds: currentStore?.recoveredDraftIds() ?? [] }); return true; }
         checkTarget(currentStore);
         if (method === 'POST' && path === '/api/workspace/open') {
@@ -143,7 +151,7 @@ export function createApi(options: { defaultPath?: string; openDirectory?: (path
           if (resolve(requested) === currentStore?.path) { warning = undefined; remember(); json(res, currentStore.snapshot()); return true; }
           if (b.create !== undefined && typeof b.create !== 'boolean') throw new StoreError('create 必須是 boolean。');
           changing = true;
-          try { const next = new WorkspaceStore(requested, { create: b.create === true, name: b.name === undefined ? basename(requested, '.db') : requireString(b.name, 'Workspace 名稱') }); await replaceStore(next); json(res, next.snapshot()); }
+          try { const next = hostPerformance.measure('db', 'db.open', {}, () => new WorkspaceStore(requested, { create: b.create === true, name: b.name === undefined ? basename(requested, '.db') : requireString(b.name, 'Workspace 名稱') })); await replaceStore(next); json(res, next.snapshot()); }
           finally { changing = false; }
           return true;
         }

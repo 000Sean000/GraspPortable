@@ -5,9 +5,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WorkspaceStore } from '../../server/store';
 import { testDirectory } from './fixtures';
+import { evidenceDirectory } from '../../scripts/evidence-path';
 
 const origin = 'http://127.0.0.1:43841';
 const folder = testDirectory('navigation');
+const evidenceRoot = evidenceDirectory('navigation');
 const database = resolve(folder, 'large.grasp.db');
 let server: ChildProcess;
 async function snapshot() { return (await fetch(origin + '/api/workspace')).json(); }
@@ -74,8 +76,7 @@ test.describe.serial('large logical workspace navigation', () => {
     await page.getByRole('button', { name: '筆記操作 我的新筆記', exact: true }).click(); await page.getByRole('button', { name: '刪除筆記…', exact: true }).click(); await page.locator('.gp-nav-dialog').getByRole('button', { name: '刪除並保存復原點', exact: true }).click();
     expect((await snapshot()).notes.some((n: any) => n.title === '我的新筆記')).toBe(false);
     expect(errors).toEqual([]);
-    mkdirSync('docs/benchmarks', { recursive: true });
-    writeFileSync('docs/benchmarks/navigation-browser.json', JSON.stringify({ notes: 3000, widestFolderNotes: 2275, maxDepth: 6, mountedNotesAtMost: 80, searchInputToVisibleResultMs: samples, platform: process.platform, includesAutomationOverhead: true }, null, 2));
+    writeFileSync(resolve(evidenceRoot, 'navigation-browser.json'), JSON.stringify({ notes: 3000, widestFolderNotes: 2275, maxDepth: 6, mountedNotesAtMost: 80, searchInputToVisibleResultMs: samples, platform: process.platform, includesAutomationOverhead: true }, null, 2));
   });
 
   test('restarts with folder structure, selection and recent notes intact', async ({ page }) => {

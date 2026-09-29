@@ -44,6 +44,8 @@ interface SharedCommand {
 
 ## SQLite authority and HTTP
 
+P0 observations are described in [PERFORMANCE-INSTRUMENTATION.md](PERFORMANCE-INSTRUMENTATION.md): `server/performance.ts` owns opt-in bounded host traces and `src/diagnostics/performance.ts` owns browser/worker observations. `GET /api/diagnostics/performance/clock` is available only with host instrumentation enabled and uses the existing host/origin guards. Logical trace lanes do not establish worker ownership; current persistence and publication remain in-process. Baseline/recovery harnesses are `scripts/performance-baseline.ts`, `prepare-performance-fixture.ts` and `verify-performance-recovery.ts`; evidence readiness is recorded in the working state, not asserted by this source map.
+
 `server/store.ts` exports `WorkspaceStore` and strict validators. **Schema 5** stores notes/folders/records/settings/history, immutable attachment blobs, semantic state, durable drafts/operations, projection strategies/packages and recovery/publication metadata. v1–v4 upgrades require an independently verified backup. Invalid Unicode surrogates are rejected instead of silently changed by SQLite encoding.
 
 All content mutations—including compatibility CRUD/import/rename/restore—reconcile semantic state and persisted source caches in the same transaction. Settings-only changes do not create semantic receipts. Incomplete source remains a durable draft; complete missing/cyclic graphs may commit with explicit status. Draft revisions are independent; stale drafts can be saved but cannot silently commit. Draft edit journals survive restart.

@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { createApi } from './api.js';
+import { hostPerformance } from './performance.js';
 declare const __GRASP_BUILD_ID__: string;
 const buildId = typeof __GRASP_BUILD_ID__ === 'string' ? __GRASP_BUILD_ID__ : 'development';
 
@@ -13,7 +14,7 @@ const api = createApi({ defaultPath });
 const vite = dev ? await (await import('vite')).createServer({ server: { middlewareMode: true }, appType: 'spa' }) : undefined;
 const webRoot = resolve('dist/web');
 const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png' };
-const server = createServer(async (req, res) => {
+const server = createServer((req, res) => hostPerformance.request(req, res, async () => {
   try {
     const expectedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
     if (!expectedHosts.has(req.headers.host || '')) { res.writeHead(403); res.end('Local host only'); return; }
@@ -41,15 +42,15 @@ const server = createServer(async (req, res) => {
     if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Unexpected server error' }));
   }
-});
+}));
 server.listen(port, '127.0.0.1', () => console.log(`GraspPortable: http://127.0.0.1:${port}${dev ? ' (development)' : ''}`));
-server.on('error', error => { console.error(error); process.exitCode = 1; void api.close(); });
+server.on('error', error => { console.error(error); process.exitCode = 1; void api.close().finally(() => hostPerformance.finish()); });
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
   stopping = true;
   await vite?.close();
-  server.close(async () => { try { await api.close(); process.exit(0); } catch (error) { console.error(error); process.exit(1); } });
+  server.close(async () => { try { await api.close(); await hostPerformance.finish(); process.exit(0); } catch (error) { console.error(error); await hostPerformance.finish(); process.exit(1); } });
   server.closeIdleConnections();
 }
 process.on('SIGINT', shutdown);

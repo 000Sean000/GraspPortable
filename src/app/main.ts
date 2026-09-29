@@ -15,6 +15,7 @@ import type { DurableDraft, SharedIntent, SharedCommand, SharedStateResponse, Sh
 import { FILES_INSPECTION_TIMEOUT_MS, requestFileLocation, request, ApiError, setWorkspaceId, workspaceHeaders } from './api';
 import { serializeReference } from '../domain/reference-language';
 import { rebaseSourceEdits } from '../domain/edit-rebase';
+import { browserPerformance, type PerfIntent } from '../diagnostics/performance';
 import type { WorkspaceSnapshot, RuntimeResult, ImportPlan, StructuredRecord, SourceLocation } from '../domain/model';
 import './style.css';
 
@@ -74,6 +75,13 @@ const retiredDraftIds = new Map<string, Set<string>>();
 let discardReview: { noteId: string; id: string; sequence: number; revision: number } | undefined;
 let pendingCommitDraft: { noteId: string; draft: LocalDraft } | undefined;
 let modalEditor: EditorAdapter | undefined;
+type PanelObservation = { shell?: PerfIntent; content?: PerfIntent };
+let observedPanel: PanelObservation | undefined;
+let modalObservationEpoch = 0;
+function cancelPanelObservation() {
+  if (!browserPerformance.enabled) return;
+  modalObservationEpoch++; observedPanel?.shell?.finish('cancelled'); observedPanel?.content?.finish('cancelled'); observedPanel = undefined;
+}
 let editorBase: { workspaceId: string; noteId: string; revision: number } | undefined;
 let pendingNavigation: { workspaceId: string; patch: Record<string, string> } | undefined;
 let actionTail: Promise<unknown> = Promise.resolve();
@@ -88,10 +96,12 @@ function showActivities() {
   operationStatus.textContent = `${running.map(item => `◌ ${item.label}…`).join(' · ')}${waiting ? ` · ${waiting} 項操作等待中` : ''}`;
 }
 function enqueueAction<T>(action: () => T | Promise<T>, label: string): Promise<T> {
+  const queued = browserPerformance.start('app.queue.wait', { queueDepth: activities.size });
   const id = ++actionSequence; activities.set(id, { label, running: false }); showActivities();
   const next = actionTail.then(async () => {
+    queued?.end(); const running = browserPerformance.start('app.action', {}, { parentId: queued?.id }); let succeeded = false;
     activities.get(id)!.running = true; showActivities();
-    try { return await action(); } finally { activities.delete(id); showActivities(); }
+    try { const result = await action(); succeeded = true; return result; } finally { running?.end(succeeded ? 'ok' : 'error'); activities.delete(id); showActivities(); }
   });
   actionTail = next.catch(() => {}); return next;
 }
@@ -106,6 +116,8 @@ async function beginFileAction(action: () => Promise<void>, label: string) {
 const runtimeWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
 const worker = new RuntimeClient(result => {
   if (!snapshot || result.revision !== snapshot.revision) return;
+  const observation = browserPerformance.start('app.runtime.apply', { revision: result.revision }); let succeeded = false;
+  try {
   runtime = result;
   runtimeFailure = undefined;
   for (const waiter of runtimeWaiters.splice(0)) waiter.resolve();
@@ -114,6 +126,8 @@ const worker = new RuntimeClient(result => {
   $('runtime-status').textContent = `${result.metrics.total} 個值 · 重算 ${result.metrics.recalculated} · ${result.metrics.elapsedMs.toFixed(1)} ms`;
   $('issue-count').textContent = String(result.diagnostics.length);
   renderInspector();
+  succeeded = true;
+  } finally { observation?.end(succeeded ? 'ok' : 'error'); }
 }, message => { runtimeFailure = message; $('runtime-status').textContent = '計算暫停'; for (const waiter of runtimeWaiters.splice(0)) waiter.reject(new Error(message)); toast(message, true); });
 const editor = createEditor($('editor'), {
   onChange: (markdown, changes) => { if (snapshot && activeId) markDraft(markdown, changes); },
@@ -141,7 +155,13 @@ function saveNavigationSettings(patch: Record<string, string>) {
   });
 }
 const navigator = createNavigator($('navigation'), {
-  onSelect: (id, range) => { const source = snapshot.notes.find(n => n.id === id)?.markdown; return navigationCommand(async () => { await flush(); await selectNote(id); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); if (mode === 'reading') setMode('live'); editor.focusRange(range.from, range.to); } }); },
+  onSelect: (id, range) => {
+    const intent = browserPerformance.intent('ui.note.intent'), workspaceId = snapshot.id;
+    const source = snapshot.notes.find(n => n.id === id)?.markdown;
+    const pending = navigationCommand(async () => { await flush(); await selectNote(id, intent); if (range) { if (source !== snapshot.notes.find(n => n.id === id)?.markdown) throw new Error('文字已變更，搜尋結果已更新；請重新選取位置。'); if (mode === 'reading') setMode('live'); editor.focusRange(range.from, range.to); } });
+    if (intent) void pending.catch(() => intent.finish(snapshot.id === workspaceId ? 'error' : 'cancelled'));
+    return pending;
+  },
   onCreateNote: folderId => navigationCommand(async () => { await createNote('未命名筆記', '', folderId); ($('note-title') as HTMLInputElement).focus(); ($('note-title') as HTMLInputElement).select(); }),
   onRenameNote: (id, title) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}`, 'PUT', () => { const note = snapshot.notes.find(n => n.id === id)!; return { title, markdown: note.markdown, revision: note.revision }; })),
   onMoveNote: (id, folderId) => navigationCommand(() => navigationMutation(`/notes/${encodeURIComponent(id)}/move`, 'PUT', () => ({ folderId, revision: snapshot.notes.find(n => n.id === id)!.revision }))),
@@ -168,12 +188,12 @@ function toast(message: string, persistent = false) {
   }
   if (!persistent) setTimeout(() => { if (el.textContent?.startsWith(message)) el.hidden = true; }, 5500);
 }
-function run(action: () => unknown, label = '處理操作'): Promise<void> {
+function run(action: () => unknown, label = '處理操作', observeFailure?: () => void): Promise<void> {
   const workspaceId = snapshot?.id;
   return enqueueAction(() => {
     if (workspaceId !== snapshot?.id) throw new Error('Workspace 已切換，請重新操作。');
     return action();
-  }, label).then(() => {}, error => { toast(error instanceof Error ? error.message : String(error), true); });
+  }, label).then(() => {}, error => { observeFailure?.(); toast(error instanceof Error ? error.message : String(error), true); });
 }
 async function transition<T>(action: () => Promise<T>): Promise<T> {
   const main = document.querySelector<HTMLElement>('.main-pane')!;
@@ -190,11 +210,15 @@ async function currentRuntime() {
 function setSaveStatus(text: string, error = false) { $('save-status').textContent = text; $('save-status').classList.toggle('error', error); }
 function hasUnsavedDrafts() { return [...drafts.values()].some(draft => draft.savedSequence !== draft.sequence); }
 function setMode(next: typeof mode) {
+  const observation = browserPerformance.start('app.mode.render', { modeCode: ['live', 'source', 'reading'].indexOf(next) }); let succeeded = false;
+  try {
   mode = next; editor.setMode(mode);
   document.querySelector('.mode-hint')!.textContent = mode === 'reading' ? '閱讀模式 · 點引用可前往定義或修改共享值' : mode === 'source' ? '編輯原文 · 未完成語法自動保存為草稿' : '游標所在行編輯原文，其他位置即時呈現';
   $('mode').textContent = mode === 'live' ? 'Live Preview' : mode === 'source' ? 'Source' : '回到編輯';
   $('mode').setAttribute('aria-pressed', String(mode === 'live'));
   $('reading').setAttribute('aria-pressed', String(mode === 'reading'));
+  succeeded = true; browserPerformance.emit('ui.mode.useful', 'instant', { modeCode: ['live', 'source', 'reading'].indexOf(mode) });
+  } finally { observation?.end(succeeded ? 'ok' : 'error'); }
 }
 function minimalSourceChange(before: string, after: string) {
   if (before === after) return [];
@@ -492,6 +516,8 @@ function updateEditorAssets() {
 }
 function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false, sourcePatches: SharedSourcePatch[] = []) {
   if (snapshot && next.id === snapshot.id && next.revision < snapshot.revision) return;
+  const observation = browserPerformance.start('app.snapshot.apply', { revision: next.revision, notes: next.notes.length, records: next.records.length }); let succeeded = false;
+  try {
   const previousNote = snapshot?.id === next.id ? snapshot.notes.find(note => note.id === activeId) : undefined;
   const changedWorkspace = snapshot && next.id !== snapshot.id;
   snapshot = next;
@@ -545,10 +571,14 @@ function acceptSnapshot(next: WorkspaceSnapshot, resetEditor = false, sourcePatc
     $('note-meta').textContent = `修訂 ${current.revision} · ${new Date(current.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
     $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || current.title}`;
   }
+  succeeded = true;
+  } finally { observation?.end(succeeded ? 'ok' : 'error'); }
 }
 async function flush() {
+  const observation = browserPerformance.start('app.flush', { drafts: drafts.size, waiting: !!saving }); let succeeded = false;
+  try {
   clearTimeout(saveTimer);
-  if (saving) { await saving; if (hasUnsavedDrafts()) await flush(); return; }
+  if (saving) { await saving; if (hasUnsavedDrafts()) await flush(); succeeded = true; return; }
   saving = (async () => {
     while (hasUnsavedDrafts()) {
       const [id, draft] = [...drafts.entries()].find(([, item]) => item.savedSequence !== item.sequence)!;
@@ -573,6 +603,7 @@ async function flush() {
           || (payload.baseSourceHash && stored.baseSourceHash !== payload.baseSourceHash)) throw error;
         saved = await request<DraftResponse>(`/drafts/${encodeURIComponent(draft.id)}`, 'PUT', { ...payload, baseSourceHash: stored.baseSourceHash, revision: stored.revision });
       }
+      browserPerformance.emit('app.draft.ack', 'instant', { revision: saved.draft.revision }, { parentId: observation?.id });
       const pending = drafts.get(id)!;
       pending.persistedRevision = saved.draft.revision; pending.baseSourceHash = saved.draft.baseSourceHash;
       pending.savedSequence = draft.sequence; pending.diagnostics = saved.diagnostics.map(item => item.message);
@@ -580,6 +611,7 @@ async function flush() {
         try {
           pendingCommitDraft = { noteId: id, draft };
           const committed = await sharedCommand({ kind: 'commit-draft', draftId: draft.id, draftRevision: saved.draft.revision });
+          browserPerformance.emit('app.commit.ack', 'instant', { revision: committed.snapshot.revision }, { parentId: observation?.id });
           await acknowledgeDraft(id, draft, committed);
           acceptSharedResult(committed, false);
         } catch (error) {
@@ -596,12 +628,16 @@ async function flush() {
   try { await saving; }
   catch (error) { saveFailure = error instanceof Error ? error : new Error(String(error)); setSaveStatus('儲存失敗 · 草稿仍保留', true); throw new Error(`${saveFailure.message}。草稿仍在編輯器；可在使用說明下載草稿，修正後再按儲存。`); }
   finally { saving = undefined; updateWorkflowStatus(); }
+  succeeded = true;
+  } finally { observation?.end(succeeded ? 'ok' : 'error'); }
 }
 function renderNotes() {
   if (!snapshot) return;
   navigator.setWorkspace(snapshot, activeId);
 }
 function showActiveNote() {
+  const observation = browserPerformance.start('app.note.render', { revision: snapshot.revision }); let succeeded = false;
+  try {
   const note = snapshot.notes.find(n => n.id === activeId);
   const draft = drafts.get(activeId);
   ($('note-title') as HTMLInputElement).value = draft?.title ?? note?.title ?? '';
@@ -615,11 +651,15 @@ function showActiveNote() {
   $('breadcrumb').textContent = `${snapshot.name} / ${navigator.notePath(activeId) || note?.title || '建立筆記'}`;
   $('note-meta').textContent = note ? `修訂 ${note.revision} · ${new Date(note.updatedAt).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '';
   updateStats(); renderNotes(); updateWorkflowStatus();
+  succeeded = true; browserPerformance.emit('ui.note.useful', 'instant', { revision: snapshot.revision });
+  } finally { observation?.end(succeeded ? 'ok' : 'error'); }
 }
-async function selectNote(id: string) {
-  if (id === activeId) return;
+async function selectNote(id: string, intent?: PerfIntent) {
+  const workspaceId = snapshot.id;
+  if (id === activeId) { intent?.useful(() => snapshot.id === workspaceId && activeId === id); return; }
   await transition(async () => {
     await flush(); activeId = id; showActiveNote();
+    intent?.useful(() => snapshot.id === workspaceId && activeId === id);
     const next = await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: id } });
     acceptSnapshot(next);
   });
@@ -678,8 +718,8 @@ function renderInspector() {
     retry: () => worker.retry(),
   });
 }
-function openModal(title: string) { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); return $('modal-body'); }
-function closeModal() { modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
+function openModal(title: string) { cancelPanelObservation(); modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); $('modal-title').textContent = title; $('modal-body').replaceChildren(); if (!($('modal') as HTMLDialogElement).open) ($('modal') as HTMLDialogElement).showModal(); browserPerformance.emit('ui.panel.shell', 'instant'); return $('modal-body'); }
+function closeModal() { cancelPanelObservation(); modalEditor?.destroy(); modalEditor = undefined; filesPanel.destroy(); projectionPanel.destroy(); ($('modal') as HTMLDialogElement).close(); }
 function labeled(label: string, input: HTMLElement) { const group = element('label', 'field'); group.append(element('span', '', label), input); return group; }
 function input(value = '', placeholder = '') { const el = element('input'); el.value = value; el.placeholder = placeholder; return el; }
 function download(text: string, name: string, type = 'text/markdown;charset=utf-8') { const a = element('a'); const url = URL.createObjectURL(new Blob([text], { type })); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
@@ -690,13 +730,22 @@ async function upload<T>(path: string, bytes: Blob | string, type = 'text/markdo
 function downloadFile(entry: FileEntry) {
   const link = element('a'); link.href = `/api/files/download?path=${encodeURIComponent(entry.path)}&workspace=${encodeURIComponent(snapshot.id)}`; link.download = entry.name; link.click();
 }
-async function projectionDialog(noteId?: string) {
+async function projectionDialog(noteId?: string, observation?: PanelObservation) {
   await flush(); const body = openModal('分組策略與可攜資料');
+  const epoch = modalObservationEpoch, workspaceId = snapshot.id; observedPanel = observation;
+  const current = () => epoch === modalObservationEpoch && snapshot.id === workspaceId && ($('modal') as HTMLDialogElement).open;
   // The modal owns this cancellable read. Closing it must release navigation
   // immediately, rather than leaving every application command behind its GET.
-  void projectionPanel.show(body, { flush, accept: value => {
+  const showing = projectionPanel.show(body, { flush, accept: value => {
     if (value.id === snapshot.id && value.revision >= snapshot.revision) acceptSnapshot(value);
   }, download }, noteId);
+  observation?.shell?.useful(current);
+  if (browserPerformance.enabled) void showing.then(() => {
+    browserPerformance.emit('ui.panel.settled', 'instant', { panelCode: 2, hidden: !current() });
+    if (!current()) observation?.content?.finish('cancelled');
+    else if (body.querySelector('.gp-projection-units')) observation?.content?.useful(current);
+    else observation?.content?.finish('error');
+  }, () => observation?.content?.finish(current() ? 'error' : 'cancelled'));
 }
 function checkFileWorkspace(workspaceId: string) {
   if (snapshot.id !== workspaceId) throw new Error('Workspace 已切換；已取消舊 workspace 的檔案開啟。');
@@ -718,9 +767,11 @@ async function openLogicalFolder(folderId: string | null) {
   checkFileWorkspace(workspaceId);
   const opened = await request<{ path: string }>('/files/open-folder', 'POST', { path }); toast(opened.path);
 }
-async function filesDialog() {
+async function filesDialog(observation?: PanelObservation) {
   await flush();
-  void filesPanel.show(openModal('檔案、附件與 Markdown'), {
+  const body = openModal('檔案、附件與 Markdown'), epoch = modalObservationEpoch, workspaceId = snapshot.id; observedPanel = observation;
+  const current = () => epoch === modalObservationEpoch && snapshot.id === workspaceId && ($('modal') as HTMLDialogElement).open;
+  const showing = filesPanel.show(body, {
     getSnapshot: () => snapshot,
     getDatabasePath: async signal => (await request<{ path: string }>('/host', 'GET', undefined, { signal })).path,
     getStatus: signal => request<FilesStatus>('/files/status', 'GET', undefined, { signal, timeoutMs: FILES_INSPECTION_TIMEOUT_MS }),
@@ -742,6 +793,13 @@ async function filesDialog() {
     insertAttachment: (asset, embed) => navigationCommand(async () => { if (!activeId) throw new Error('請先建立或選擇筆記。'); closeModal(); editor.insertText(attachmentMarkdown(asset, embed)); }),
     onError: message => toast(message, true),
   });
+  observation?.shell?.useful(current);
+  if (browserPerformance.enabled) void showing.then(() => {
+    browserPerformance.emit('ui.panel.settled', 'instant', { panelCode: 1, hidden: !current() });
+    if (!current()) observation?.content?.finish('cancelled');
+    else if (body.querySelector('.gp-files-mirror > strong') && !body.querySelector('.gp-files-panel > .gp-files-error')) observation?.content?.useful(current);
+    else observation?.content?.finish('error');
+  }, () => observation?.content?.finish(current() ? 'error' : 'cancelled'));
 }
 async function createNote(title = '未命名筆記', markdown = '', folderId = navigator.currentFolderId()) { await transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>('/notes', 'POST', { title, markdown, folderId, syntaxVersion: 'grasp-v1' }); const created = next.notes.find(n => !snapshot.notes.some(old => old.id === n.id)); activeId = created?.id || next.notes.at(-1)?.id || ''; acceptSnapshot(next, true); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, activeNoteId: activeId } })); setSaveStatus('✓ 已儲存至 SQLite'); }); }
 async function createQueryNote(input: string | RecordQuery) { const query = typeof input === 'string' ? { collection: input } : input; await createNote(`${query.collection} · 資料檢視`, `# ${query.collection}\n\n此 table 使用資料庫中的同一組 records。將游標移入區塊可修改 query。\n\n\`\`\`grasp-query\n${JSON.stringify(query, null, 2)}\n\`\`\`\n`); }
@@ -916,8 +974,22 @@ function helpDialog() {
 $('note-title').oninput = () => markDraft();
 $('save').onclick = () => void run(flush);
 $('workspace-open').onclick = workspaceDialog;
-$('mode').onclick = () => void run(async () => { setMode(mode === 'live' ? 'source' : 'live'); await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); }, '切換編輯模式');
-$('reading').onclick = () => void run(async () => { await flush(); setMode(mode === 'reading' ? 'live' : 'reading'); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } })); }, '切換閱讀模式');
+$('mode').onclick = () => {
+  const observation = browserPerformance.intent('ui.mode.intent'), workspaceId = snapshot.id;
+  void run(async () => {
+    const next = mode === 'live' ? 'source' : 'live'; setMode(next);
+    observation?.useful(() => snapshot.id === workspaceId && mode === next);
+    await flush(); acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } }));
+  }, '切換編輯模式', () => observation?.finish(snapshot.id === workspaceId ? 'error' : 'cancelled'));
+};
+$('reading').onclick = () => {
+  const observation = browserPerformance.intent('ui.mode.intent'), workspaceId = snapshot.id;
+  void run(async () => {
+    await flush(); const next = mode === 'reading' ? 'live' : 'reading'; setMode(next);
+    observation?.useful(() => snapshot.id === workspaceId && mode === next);
+    acceptSnapshot(await request<WorkspaceSnapshot>('/settings', 'PUT', { settings: { ...snapshot.settings, mode } }));
+  }, '切換閱讀模式', () => observation?.finish(snapshot.id === workspaceId ? 'error' : 'cancelled'));
+};
 $('shared-undo').onclick = () => void run(async () => {
   if (pendingSharedCommand) {
     const command = pendingSharedCommand; const result = await executeSharedCommand(command);
@@ -931,17 +1003,24 @@ $('shared-undo').onclick = () => void run(async () => {
 $('toggle-inspector').onclick = () => document.body.classList.toggle('inspector-hidden');
 $('delete-note').onclick = () => void run(async () => { await flush(); const note = snapshot.notes.find(n => n.id === activeId); if (!note) return; const body = openModal('刪除筆記'); body.append(element('p', '', `刪除「${note.title}」？可從復原紀錄找回。`), button('取消', closeModal), button('刪除並保存復原點', async () => transition(async () => { await flush(); const next = await request<WorkspaceSnapshot>(`/notes/${note.id}`, 'DELETE', { revision: snapshot.notes.find(n => n.id === note.id)?.revision ?? note.revision }); acceptSnapshot(next, true); closeModal(); }), 'danger')); });
 for (const name of ['values', 'records', 'issues', 'links'] as const) $(`tab-${name}`).onclick = () => { panel = name; renderInspector(); };
-$('files').onclick = () => void run(filesDialog);
-$('projection').onclick = () => void run(() => projectionDialog());
+function openObservedPanel(panelCode: 1 | 2, selected = false) {
+  const observation = browserPerformance.enabled ? { shell: browserPerformance.intent('ui.panel.shell.intent', { panelCode }), content: browserPerformance.intent('ui.panel.content.intent', { panelCode }) } : undefined;
+  const workspaceId = snapshot.id;
+  void run(() => panelCode === 1 ? filesDialog(observation) : projectionDialog(selected ? activeId : undefined, observation), '處理操作', () => {
+    const outcome = snapshot.id === workspaceId ? 'error' : 'cancelled'; observation?.shell?.finish(outcome); observation?.content?.finish(outcome);
+  });
+}
+$('files').onclick = () => openObservedPanel(1);
+$('projection').onclick = () => openObservedPanel(2);
 $('reveal-note').onclick = () => { const noteId = activeId; void run(() => beginFileAction(() => revealNote(noteId), '定位筆記檔')); };
 $('open-note-folder').onclick = () => { const folderId = snapshot.notes.find(n => n.id === activeId)?.folderId ?? null; void run(() => beginFileAction(() => openLogicalFolder(folderId), '開啟資料夾')); };
-$('export').onclick = () => void run(() => projectionDialog(activeId));
+$('export').onclick = () => openObservedPanel(2, true);
 $('import').onclick = importDialog;
 $('history').onclick = () => void run(historyDialog);
 $('help').onclick = helpDialog;
 $('modal-close').onclick = closeModal;
 document.addEventListener('close', event => {
-  if (event.target === $('modal')) { modalEditor?.destroy(); modalEditor = undefined; projectionPanel.destroy(); }
+  if (event.target === $('modal')) { cancelPanelObservation(); modalEditor?.destroy(); modalEditor = undefined; projectionPanel.destroy(); }
   filesPanel.destroy();
   if (!pendingNavigation || document.querySelector('dialog[open]')) return;
   const pending = pendingNavigation; pendingNavigation = undefined;
