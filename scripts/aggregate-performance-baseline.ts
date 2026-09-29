@@ -5,6 +5,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { assertOutsideRepository, isWithin, repositoryRoot, resolvePhysicalPath } from './evidence-path';
+import { aggregateBrowserPerformance, renderBrowserPerformanceMarkdown } from './aggregate-browser-performance';
 
 type Data = Record<string, any>;
 const object = (value: unknown): Data => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -167,7 +168,7 @@ export function classifyAcknowledgements(raw: unknown, host: HostSamples) {
   const consumed = new Set<number>();
   const instants = list(summary.browserAcknowledgementInstants).map((value, index): Data => ({ ...object(value), index }))
     .filter(value => number(value.at) !== null && ['app.draft.ack', 'app.commit.ack'].includes(value.name)
-      && typeof value.parentId === 'string' && /^s[1-9]\d*:b[1-9]\d*$/.test(value.parentId))
+      && typeof value.parentId === 'string' && /^s(?:0|[1-9]\d*):b[1-9]\d*$/.test(value.parentId))
     .sort((a, b) => a.at - b.at || a.index - b.index);
   for (const instant of instants) {
     const kind = instant.name === 'app.draft.ack' ? 'draft-save' : 'semantic-commit';
@@ -248,8 +249,9 @@ export function extremeInputEvidence(raw: unknown) {
     deliveredAttempts: number; missingDirectSuccessfulAttempts: number; reported: Record<string, number | null>; reportedCountsMatch: boolean;
     expectedFullAttempts: number; validOperationIds: boolean; formalDeliveryVerified: boolean; directTiming: SampleSummary; driverTiming: SampleSummary }>;
 }
-export function aggregateTrial(raw: unknown, correctnessRaw: unknown, host: HostSamples, index: number) {
+export function aggregateTrial(raw: unknown, correctnessRaw: unknown, host: HostSamples, index: number, browserRaw?: unknown) {
   const report = object(raw), summary = object(report.summary), correctness = object(correctnessRaw), corpus = object(report.corpus);
+  const browserPerformance = aggregateBrowserPerformance(raw, browserRaw);
   const direct = list(summary.directBrowserSamples).map(object), operations = list(report.operations).map(object);
   const ui = cells.flatMap(cell => uiNames.flatMap(name => ['daily', 'extreme-note', 'ordinary-under-stress', 'stress-unclassified'].flatMap(scope => {
     const selected = direct.filter(sample => sample.cell === cell && sample.name === name && interactionScope(sample) === scope); if (!selected.length) return [];
@@ -301,6 +303,7 @@ export function aggregateTrial(raw: unknown, correctnessRaw: unknown, host: Host
   if (list(report.phases).length !== 7 || phases.some(phase => !list(report.phases).includes(phase))
     || cellResults.some(cell => cell.occurrences !== 1 || cell.durationMs === null || !['ok', 'measured-failures', 'measured-non-ready'].includes(cell.outcome))) reasons.push('seven-finished-cells-not-proved');
   if (report.measurementCoverageComplete !== true || list(report.coverageMissing).length) reasons.push('measurement-coverage-incomplete');
+  if (browserPerformance.availability !== 'observed') reasons.push('browser-evidence-unavailable');
   if (!graphFixture.verified) reasons.push('stored-graph-fixture-not-proved');
   if (!extremeFixture.verified) reasons.push('stored-extreme-fixture-not-proved');
   for (const mode of ['source', 'live'] as const) if (!extremeInputCoverage[mode].formalDeliveryVerified) reasons.push(`extreme-${mode}-input-not-proved`);
@@ -324,7 +327,7 @@ export function aggregateTrial(raw: unknown, correctnessRaw: unknown, host: Host
     ui, acknowledgement, acknowledgementSamples, acknowledgementSizePolicy: { smallSourceMaxCharacters: SMALL_SOURCE_MAX_CHARACTERS,
       giantSourceMinCharacters: GIANT_SOURCE_MIN_CHARACTERS, ackLinkMaxGapMs: ACK_LINK_MAX_GAP_MS, charactersUnit: 'UTF-16-code-units',
       interpretation: 'Explicit analysis bins, not product limits. Semantic source size comes only from a uniquely paired saved draft; failed or ambiguous attempts remain unclassified.' },
-    graphFixture, extremeFixture, extremeInputCoverage, actions, actionEvidence, checkpointAttempts, stages, hostSamples: sanitizeHostSamples(host),
+    graphFixture, extremeFixture, extremeInputCoverage, browserPerformance, actions, actionEvidence, checkpointAttempts, stages, hostSamples: sanitizeHostSamples(host),
     unclassifiedDirectSamples: summarizeSamples(direct.filter(sample => !cells.includes(sample.cell) || !uiNames.includes(sample.name))),
     unclassifiedOperations: summarizeSamples(operations.filter(sample => !cells.includes(sample.cell) || !operationKinds.includes(sample.kind) || !['http', 'driver'].includes(sample.measurement))),
     actualPublicationCount: list(summary.publicationSpans).length, publicationInvocationCount: list(summary.publicationInvocationSpans).length,
@@ -333,9 +336,9 @@ export function aggregateTrial(raw: unknown, correctnessRaw: unknown, host: Host
     typingOverlapByCell: Object.fromEntries(phases.map(cell => [cell, numericFields(object(summary.typingOverlapByCell)[cell], loads)])),
     correctness: correctnessResult, formalTrialEligible: reasons.length === 0, formalIneligibility: reasons };
 }
-export function aggregateReports(inputs: Array<{ report: unknown; correctness?: unknown; host?: HostSamples; independentWorkspace?: string }>) {
+export function aggregateReports(inputs: Array<{ report: unknown; correctness?: unknown; host?: HostSamples; browser?: unknown; independentWorkspace?: string }>) {
   if (![1, 3].includes(inputs.length)) throw new Error('Supply one smoke review or three formal trial reports.');
-  const trials = inputs.map((input, index) => aggregateTrial(input.report, input.correctness, input.host ?? emptyHostSamples(), index));
+  const trials = inputs.map((input, index) => aggregateTrial(input.report, input.correctness, input.host ?? emptyHostSamples(), index, input.browser));
   const independent = inputs.every(input => typeof input.independentWorkspace === 'string' && input.independentWorkspace.length > 0)
     && new Set(inputs.map(input => input.independentWorkspace)).size === inputs.length;
   const sameCorpus = trials.every(trial => trial.corpus.originalDigest !== null && trial.corpus.originalDigest === trials[0].corpus.originalDigest);
@@ -394,7 +397,7 @@ export function renderMarkdown(aggregate: Aggregate): string {
       `Coverage omissions: ${trial.coverageMissing.length ? trial.coverageMissing.join(', ') : 'none reported'}. Formal evidence omissions: ${trial.formalIneligibility.length ? trial.formalIneligibility.join(', ') : 'none'}.`, '',
       '| Host stage (nested, nonadditive) | Count | Success p95 ms | All-outcome max ms |', '|---|---:|---:|---:|');
     for (const [name, stage] of Object.entries(trial.stages)) lines.push(`| ${name} | ${stage.count ?? 'N/A'} | ${fmt(stage.successfulOnly.p95Ms)} | ${fmt(stage.allObserved.maxMs)} |`);
-    lines.push('');
+    lines.push('', ...renderBrowserPerformanceMarkdown(trial.browserPerformance), '');
   }
   lines.push('## Interpretation', '', ...aggregate.interpretation.map(text => `- ${text}`), '');
   return lines.join('\n');
@@ -431,11 +434,14 @@ export async function main(args: string[]): Promise<void> {
   for (const input of inputs) {
     const report = object(await readJson(input.report)); if (report.schemaVersion !== 1) throw new Error('Unsupported report schema.');
     const correctness = input.correctness ? await readJson(input.correctness) : undefined;
+    let browser: unknown;
+    try { browser = await readJson(scratchPath(resolve(dirname(input.report), 'browser.json'))); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     const wanted = list(object(report.summary).directBrowserApiSamples).map(object).filter(sample => sample.name === 'api.request'
       && ['draft-save', 'semantic-commit'].includes(sample.acknowledgement)).map(sample => sample.requestId).filter(requestId);
     const host = await readHostSamples(scratchPath(resolve(dirname(input.report), 'host.jsonl')), wanted);
     const independentWorkspace = typeof report.workspace === 'string' && isAbsolute(report.workspace) ? scratchPath(report.workspace) : undefined;
-    data.push({ report, correctness, host, independentWorkspace });
+    data.push({ report, correctness, host, browser, independentWorkspace });
   }
   const aggregate = aggregateReports(data);
   await mkdir(output); // Exclusive: never reuse or overwrite an existing evidence directory.

@@ -13,6 +13,13 @@ function proof(kind: 'graph' | 'extreme') {
   return { verificationVersion: 1, verified: true, requiredMutationSucceeded: true, expected, returned: { ...stored }, readback: { ...stored } };
 }
 function hostFixture() { return { ...emptyHostSamples(), requestSizes: { r1: { characters: 300, bodyBytes: 700, parseObservations: 1, ambiguous: false } } }; }
+function browserFixture() {
+  return { version: 1, dropped: 0, droppedIntents: 0, activeIntents: 0, events: [
+    { version: 1, lane: 'browser-main', name: 'browser.observers', phase: 'instant', id: 's0:b1', at: 1,
+      metrics: { longtaskSupported: true, eventTimingSupported: true, frameGapThresholdMs: 50 } },
+    { version: 1, lane: 'browser-main', name: 'browser.longtask', phase: 'sample', id: 's0:b2', at: 2, durationMs: 250, metrics: {} },
+  ] };
+}
 function report(index = 1) {
   const phases = ['cold', 'idle', 'warm', 'noop', 'validation', 'graph', 'stress'];
   const extremeOperations = (['source', 'live'] as const).flatMap(mode => Array.from({ length: mode === 'source' ? 30 : 20 }, (_, at) => ({
@@ -58,15 +65,22 @@ describe('sanitized baseline aggregation', () => {
   });
   it('allowlists all emitted names/strings in JSON and markdown', () => {
     const privateReport = report(); privateReport.coverageMissing = ['SECRET title/path/error'] as never;
-    const result = aggregateReports([{ report: privateReport, correctness: correctness() }]);
+    const browser = { ...browserFixture(), private: 'SECRET title/path/error' };
+    browser.events.push({ ...browser.events[1], name: 'SECRET', metrics: { private: 'SECRET' } } as never);
+    const result = aggregateReports([{ report: privateReport, correctness: correctness(), browser }]);
     const output = JSON.stringify(result) + renderMarkdown(result);
     expect(output).not.toContain('SECRET'); expect(output).not.toContain('private-1'); expect(output).not.toContain('C:/');
     expect(result.trials[0].coverageMissing).toEqual(['unrecognized-coverage-item']);
     expect(result.trials[0].stages).toHaveProperty('db/db.parse'); expect(result.trials[0].stages).not.toHaveProperty('db/SECRET');
+    expect(result.trials[0].browserPerformance.availability).toBe('observed');
+    expect(output).toContain('browser.longtask');
   });
   it('certifies only three distinct, compatible full trials with corresponding correctness', () => {
-    const inputs = [1, 2, 3].map(index => ({ report: report(index), correctness: correctness(index), independentWorkspace: `private-${index}` }));
+    const inputs = [1, 2, 3].map(index => ({ report: report(index), correctness: correctness(index), browser: browserFixture(), independentWorkspace: `private-${index}` }));
     expect(aggregateReports(inputs).status).toBe('3-trial-complete');
+    const missingBrowser = aggregateReports(inputs.map(input => ({ ...input, browser: undefined })));
+    expect(missingBrowser.status).toBe('3-trial-incomplete');
+    expect(missingBrowser.trials[0].formalIneligibility).toContain('browser-evidence-unavailable');
     expect(aggregateReports(inputs.slice(0, 1)).status).toBe('single-trial-review');
     expect(aggregateReports(inputs.map(value => ({ ...value, independentWorkspace: 'same' }))).status).toBe('3-trial-incomplete');
     inputs[1].report.httpTransport.configuredDeadlineMs = 600000;
@@ -99,10 +113,10 @@ describe('sanitized baseline aggregation', () => {
     input.coverageMissing = ['sample-count:extreme-typing-source', 'direct-action:extreme-typing-live', 'missing-direct-actions:extreme-typing-live'] as never;
     expect(aggregateReports([{ report: input }]).trials[0].coverageMissing).toEqual(input.coverageMissing);
   });
-  it('joins small and giant draft sizes to semantic ACKs in each serial flush without using command body size', () => {
+  it('joins initial-session s0 draft sizes to semantic ACKs in each serial flush without using command body size', () => {
     const host = hostFixture(); Object.assign(host.requestSizes, { r3: { characters: 1750010, bodyBytes: 2000000, parseObservations: 1, ambiguous: false } });
     const sample = (requestId: string, kind: string, at: number, durationMs: number, outcome = 'ok') => ({ name: 'api.request', requestId, acknowledgement: kind, at, durationMs, outcome, cell: 'stress' });
-    const instant = (name: string, at: number, parentId = 's1:b1') => ({ name, at, parentId });
+    const instant = (name: string, at: number, parentId = 's0:b1') => ({ name, at, parentId });
     const input = { summary: { directBrowserApiSamples: [sample('r1', 'draft-save', 100, 20), sample('r2', 'semantic-commit', 400, 299),
       sample('r3', 'draft-save', 500, 20), sample('r4', 'semantic-commit', 800, 299), sample('r5', 'semantic-commit', 1000, 30, 'timeout')],
       browserAcknowledgementInstants: [instant('app.draft.ack', 100), instant('app.commit.ack', 400), instant('app.draft.ack', 500), instant('app.commit.ack', 800)] } };

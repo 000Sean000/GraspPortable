@@ -6,7 +6,7 @@
 
 已加入預設停用的 bounded host/browser/worker 觀測、HTTP/request/job 關聯、同步工作與 awaited filesystem 階段、event-loop/CPU/memory 樣本，以及 run-specific evidence roots。既有 benchmark/E2E/package smoke 的報告輸出不再覆寫 tracked 歷史證據。產品排程、timeout、快取、Worker topology、資料 schema 與保存語義保持本次觀測範圍。
 
-- 單元整合：47 files／589 tests PASS；最新 fixture／輸入／ACK 修正後 runner19及aggregator8項 focused tests、TypeScript／production build PASS。
+- 單元整合：47 files／589 tests PASS；最新 fixture／輸入／ACK／browser彙整修正後34項focused tests（runner19、aggregator8、browser helper7）、TypeScript／production build PASS。
 - Production build PASS，整合 build ID `77c39e00-579e-40ad-aa13-f720f69e8c59`。既有 Vite 大 chunk 提示仍存在，不構成性能歸因。
 - Production browser regressions：45 tests PASS，Edge headless，約1.7分鐘；包含 draft recovery、shared atomicity/undo、late reply、workspace guards、projection/import/rebuild 與既有 editor 工作流。
 - 小型 harness smoke：28,734 host events，無事件遺失、sink error 或未結束 host spans，IPC graceful exit。這是量測流程驗證，不是 MainVault 性能結果。
@@ -46,6 +46,8 @@
 15:13UTC 的 `replacement-trial-summary.json` 確認 Trial-1R 與 Frozen 的完整 fingerprint 相同。接續 synthetic diagnostic `2026-09-29T15-15-03-131Z-verified-extreme-ba33419d` 已證明 Graph 1,000 definitions／5,000 references，以及獨立 Extreme note 的實際 1,750,000 UTF-8 bytes／10,000 definitions／50,000 references；returned snapshot 與獨立 readback 的原文 hash 相符。但 Source 的 30 次輸入都在編輯器仍 inert 時失敗，Live 20 次成功；此輪同樣不算完整 coverage。修正測試器每種模式的 writable readiness，另記準備等待，並加入 Source／Live 直接輸入證據 gate；不改產品行為。
 
 此診斷另於15:38UTC超過600,000ms測試器關閉等待上限：hard stop、缺少trace footer且6個host span未結束，3,488,200事件不能視為完整trace。後續同協定統一使用既有CLI支援的1,800,000ms測試等待上限，產品timeout維持原值。修正後的synthetic與正式結果仍待執行，未把等待上限調整寫成性能改善。
+
+15:53UTC 完成修正後 synthetic full-count gate：`2026-09-29T15-42-49-891Z-final-method-501aaa93`，source28e1a70/build950113f6…。七情境完成，Source30/30與Live20/20直接輸入證據、2,288,731host events、0loss/open spans、正常footer與關閉，5,838筆actual publication overlap，原資料不變。保留1次navigation timeout及53次小API timeout。實際ordinary typing2,083、search/navigation/selection各45、mode53、panel15、save23。Extreme Source/Live rAF p95分別209.5/246ms，屬性能超標而非缺失量測。此小型診斷不代替MainVault；後续只有報告彙整程式變更，runner及產品保持相同。
 
 `pending` checkpoint response 表示未確認「當前最新版已完整發布」；若 trace 顯示較舊 capture 成功，必須分列 successful publication 與 latest pending，不能把它寫成 publisher crash，也不能當成最新 ready。不存在的 dedicated DB queue／job status API 記 N/A。同步 wall、process-wide CPU 與 filesystem await 不互相代換。
 
