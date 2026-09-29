@@ -59,6 +59,15 @@ export function applicationFailure(value: unknown): boolean {
 export function responseFailed(httpStatus: number, value: unknown, requireReady = false): boolean {
   return httpStatus < 200 || httpStatus >= 300 || applicationFailure(value) || (requireReady && statusOf(value) !== 'ready');
 }
+/** Preparation only: retain each request's evidence and retry exclusively a pending checkpoint. */
+export async function verifyReadyCheckpoint(action: () => Promise<unknown>): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { await action(); return; }
+    catch (error) {
+      if (!(error instanceof Error) || error.name !== 'CheckpointNotReady' || attempt === 3) throw error;
+    }
+  }
+}
 /** A total harness deadline, without fetch's separate pre-header transport timeout. */
 export async function measuredHttpJson(url: string, method: string, headers: Record<string, string>, body: string | undefined, timeoutMs: number,
   onHeaders?: (status: number, headers: IncomingHttpHeaders) => void): Promise<{ status: number; headers: IncomingHttpHeaders; value: any }> {
@@ -126,7 +135,7 @@ function indexIntervals(spans: TraceSpan[]) {
 type StageSummary = Record<string, unknown>;
 interface CompactTrace { spans: TraceSpan[]; byStage: StageSummary }
 interface BrowserTables { routes?: string[]; methods?: string[] }
-const actionMetric = (kind: string): string | undefined => kind.includes('typing-') ? 'ui.input.raf' : ({ search: 'ui.search.raf', navigation: 'ui.note.intent', mode: 'ui.mode.intent', 'extreme-mode': 'ui.mode.intent', selection: 'ui.selection.raf', 'panel-shell': 'ui.panel.shell.intent' } as Record<string, string>)[kind];
+const actionMetric = (kind: string): string | undefined => kind.endsWith('-prepare') ? undefined : kind.includes('typing-') ? 'ui.input.raf' : ({ search: 'ui.search.raf', navigation: 'ui.note.intent', mode: 'ui.mode.intent', 'extreme-mode': 'ui.mode.intent', selection: 'ui.selection.raf', 'panel-shell': 'ui.panel.shell.intent' } as Record<string, string>)[kind];
 /** Match the initiating action, not a later operation overlapped by a slow first-useful span. */
 export function relatedDriverOperation(name: string, interval: { start: number; end: number }, operations: Operation[], browserToRunnerOffsetMs = 0, uncertaintyMs = 0): Operation | undefined {
   const compatible = (kind: string) => actionMetric(kind) === name
@@ -135,7 +144,7 @@ export function relatedDriverOperation(name: string, interval: { start: number; 
     || (['ui.beforeinput.raf', 'ui.keydown.raf'].includes(name) && (kind.includes('typing-') || kind === 'selection'))
     || (name === 'ui.input.raf' && kind === 'save');
   const start = interval.start + browserToRunnerOffsetMs;
-  return operations.filter(operation => operation.measurement === 'driver' && compatible(operation.kind)
+  return operations.filter(operation => operation.measurement === 'driver' && !operation.kind.endsWith('-prepare') && compatible(operation.kind)
     && start + uncertaintyMs >= operation.start && start - uncertaintyMs <= operation.end)
     .sort((a, b) => Math.abs(start - a.start) - Math.abs(start - b.start))[0];
 }
@@ -319,7 +328,7 @@ export async function runBaseline(options: Options): Promise<string> {
   let browserTables: BrowserTables = {};
   const build = JSON.parse(await readFile(resolve(repositoryRoot, 'dist/build-info.json'), 'utf8'));
   const report: Record<string, unknown> = {
-    schemaVersion: 1, runId, trial: options.trial, startedAt: new Date().toISOString(), status: 'running',
+    schemaVersion: 1, runId, runnerPid: process.pid, trial: options.trial, startedAt: new Date().toISOString(), status: 'running',
     workspace: options.workspace, evidenceDirectory: directory, build, commit: git(['rev-parse', 'HEAD']),
     workingTree: git(['status', '--porcelain']), configuredCounts: countPresets[options.counts], countsPreset: options.counts, phases: options.phases,
     environment: { node: process.version, platform: platform(), arch: arch(), osRelease: release(), cpu: cpus()[0]?.model ?? null, logicalCpus: cpus().length, ramBytes: totalmem(), powerProfile: 'unavailable', storageDevice: 'Unknown', osDiskCache: 'uncontrolled' },
@@ -443,7 +452,18 @@ export async function runBaseline(options: Options): Promise<string> {
   async function settleEditor() {
     await page!.waitForFunction(() => document.querySelector('#save-status')?.textContent === '✓ 已儲存至 SQLite', undefined, { timeout: Math.min(options.timeoutMs, 30000) });
   }
-  async function exercise(fraction: number, burst = false) {
+  async function prepareCheckpointCell(name: 'idle' | 'noop') {
+    const prepared = await measure(`${name}-precondition-save`, async () => {
+      await guardSynthetic(); await page!.locator('#save').click(); await settleEditor();
+      // The explicit Save is ordered behind earlier UI commands. Its visible queue must
+      // also drain before a checkpoint can establish this cell's saved-state precondition.
+      await page!.waitForFunction(() => (document.querySelector('#operation-status') as HTMLElement | null)?.hidden === true
+        && document.querySelector('#save-status')?.textContent === '✓ 已儲存至 SQLite', undefined, { timeout: Math.min(options.timeoutMs, 30000) });
+      return true;
+    });
+    if (prepared !== true) throw new Error(`${name} saved-state precondition was not verified; cell workload was not started.`);
+  }
+  async function exercise(fraction: number, burst = false, waitPanelContent = true) {
     if (!page || synthetic.size < 2) throw new Error('Synthetic fixture unavailable.');
     const ids = [...synthetic.keys()].slice(0, 2), count = (key: keyof Counts) => Math.max(1, Math.ceil(countPresets[options.counts][key] * fraction));
     await selectNote(ids[0]);
@@ -456,17 +476,36 @@ export async function runBaseline(options: Options): Promise<string> {
     }
     await measure('save', async () => { await guardSynthetic(); await page!.locator('#save').click(); await settleEditor(); });
     for (let i = 0; i < count('search'); i++) await measure('search', async () => { await page!.getByLabel('搜尋筆記', { exact: true }).fill(synthetic.get(ids[i % 2])!); await page!.locator(`.note-item[data-note-id="${ids[i % 2]}"]`).waitFor({ state: 'visible' }); });
-    for (let i = 0; i < count('navigation'); i++) await measure('navigation', () => selectNote(ids[i % 2]));
+    for (let i = 0; i < count('navigation'); i++) await measure('navigation', () => selectNote(ids[(i + 1) % 2]));
     for (let i = 0; i < count('mode'); i++) await measure('mode', () => page!.locator('#mode').click());
-    await selectNote(ids[0]); await page.locator('#editor .cm-content').focus(); await page.keyboard.press('ControlOrMeta+End');
-    for (let i = 0; i < count('selection'); i++) await measure('selection', async () => { await guardSynthetic(); await page!.keyboard.press(i % 2 ? 'ArrowRight' : 'Shift+ArrowLeft'); });
+    await measure('selection-prepare', async () => {
+      await selectNote(ids[0]);
+      await page!.waitForFunction(() => {
+        const editor = document.querySelector('#editor .cm-content');
+        return Boolean(editor && !editor.closest('[inert]') && editor.getAttribute('contenteditable') === 'true');
+      }, undefined, { timeout: 10000 });
+      await page!.locator('#editor .cm-content').focus(); await page!.keyboard.press('ControlOrMeta+End'); await guardTyping();
+      await page!.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    });
+    for (let i = 0; i < count('selection'); i++) await measure('selection', async () => {
+      await guardTyping();
+      const boundary = await page!.evaluate(() => performance.timeOrigin + performance.now());
+      await page!.keyboard.press(i % 2 ? 'ArrowRight' : 'Shift+ArrowLeft');
+      await page!.waitForFunction(since => {
+        const diagnostics = (window as unknown as { __GRASP_PERF__?: { snapshot(): { events: TraceEvent[] } } }).__GRASP_PERF__;
+        return diagnostics?.snapshot().events.some(event => event.name === 'ui.selection.raf' && event.phase === 'end'
+          && typeof event.durationMs === 'number' && event.at - event.durationMs >= since);
+      }, boundary, { timeout: 10000 });
+    });
+    const panelExercises = (report.panelExercises as Array<{ cell: string; shellAttempts: number; waitForUsefulContent: boolean }> | undefined) ?? [];
+    panelExercises.push({ cell, shellAttempts: count('panel'), waitForUsefulContent: waitPanelContent }); report.panelExercises = panelExercises;
     for (let i = 0; i < count('panel'); i++) {
       const projection = i % 2 === 1;
       await measure('panel-shell', async () => { await page!.locator(i % 2 ? '#projection' : '#files').click(); await page!.locator('#modal-body').waitFor({ state: 'visible' });
         await page!.waitForFunction(() => Boolean(document.querySelector('#modal-body')?.textContent?.trim())); });
-      // One complete load per cell separates useful content from an immediate busy shell.
-      // Other panel samples intentionally close the busy view, exercising existing cancellation.
-      if (i === 0 || (i === 1 && fraction >= .5)) await measure('panel-content', async () => {
+      // Idle and warm exercises measure useful content. Other loaded exercises close the
+      // measured shell promptly so a blocked panel cannot consume the remaining job interval.
+      if (waitPanelContent && (i === 0 || (i === 1 && fraction >= .5))) await measure('panel-content', async () => {
         await page!.waitForFunction(isProjection => {
           const body = document.querySelector('#modal-body');
           if (body?.querySelector('.validation-error, .gp-files-error')) return true;
@@ -498,10 +537,10 @@ export async function runBaseline(options: Options): Promise<string> {
     if (await page!.locator('#mode').innerText() !== 'Source') await page!.locator('#mode').click();
     await page!.locator('#editor .cm-content').focus(); await page!.keyboard.press('ControlOrMeta+End'); await guardSynthetic();
   }
-  async function exerciseAlongside(background: Promise<unknown>, fraction: number, burst = false) {
+  async function exerciseAlongside(background: Promise<unknown>, fraction: number, burst = false, waitPanelContent = false) {
     let terminal = false;
     const observed = background.finally(() => { terminal = true; }), deadline = performance.now() + options.timeoutMs;
-    try { await exercise(fraction, burst); }
+    try { await exercise(fraction, burst, waitPanelContent); }
     finally {
       try {
         if (!terminal) {
@@ -590,16 +629,22 @@ export async function runBaseline(options: Options): Promise<string> {
     report.setupComplete = true; await save();
     report.sustainedInputProtocol = { cadenceMs: 250, scope: 'After each initial exercise, while its real background request remains pending.', target: 'Run-owned light note in Source mode', actionKind: 'typing-background-source', maximumLoopDurationMs: options.timeoutMs,
       interpretation: 'Pacing is user-input cadence, not simulated job duration. Actual trace intervals alone establish load overlap; failures and blocked input attempts remain evidence.' };
+    report.panelContentPolicy = { idle: 'wait for useful content after measured shell', warm: 'wait for useful content under publication load',
+      cold: 'measure shell and close promptly, then sustain typing', validation: 'measure shell and close promptly, then sustain typing',
+      graph: 'measure shell and close promptly; preload typing starts immediately with the DB operation', stress: 'measure shell and close promptly, then sustain typing', noop: 'no panel exercise' };
+    report.preparationProtocol = { idleAndNoop: 'Recorded explicit UI Save, verified saved status and drained UI command queue, then at most three checkpoint attempts. Only CheckpointNotReady is retried, without delay; every response is retained. Any other failure or three pending responses prevents cell workload.',
+      selection: 'Recorded selection-prepare waits at most 10 s for a writable non-inert editor, focuses and moves to the end, then drains preparation selection over two rAFs. Each measured selection checks delivery readiness and waits at most 10 s for its new timestamped ui.selection.raf terminal; driver time includes that wait, direct latency remains the browser event duration.',
+      graphReload: 'After hydrated reload with the light note already selected in Source mode, immediately focus and type before any new note-search/navigation/settings action; trace intervals must still prove worker overlap.' };
     availabilityTimer = setInterval(() => { if (!availabilityPending) { availabilityPending = request('availability-probe', '/api/diagnostics/performance/clock', 'GET', undefined, 1500).catch(error => recordError('availability-probe', error)).finally(() => { availabilityPending = undefined; }); } }, 250);
     for (const name of options.phases) await runCell(name, async () => {
       const ids = [...synthetic.keys()];
-      if (name === 'idle') { await request('checkpoint-before-idle', '/api/projection/checkpoint', 'POST', {}); await exercise(.5); }
+      if (name === 'idle') { await prepareCheckpointCell('idle'); await verifyReadyCheckpoint(() => request('checkpoint-before-idle', '/api/projection/checkpoint', 'POST', {})); await exercise(.5); }
       if (name === 'cold' || name === 'warm') {
         await updateSynthetic(ids[2]);
         const publication = measure(`${name}-checkpoint`, () => request(`${name}-checkpoint`, '/api/projection/checkpoint', 'POST', {}));
-        await exerciseAlongside(publication, .2);
+        await exerciseAlongside(publication, .2, false, name === 'warm');
       }
-      if (name === 'noop') { await request('checkpoint-before-noop', '/api/projection/checkpoint', 'POST', {}); await measure('noop-checkpoint', () => request('noop-checkpoint', '/api/projection/checkpoint', 'POST', {})); }
+      if (name === 'noop') { await prepareCheckpointCell('noop'); await verifyReadyCheckpoint(() => request('checkpoint-before-noop', '/api/projection/checkpoint', 'POST', {})); await measure('noop-checkpoint', () => request('noop-checkpoint', '/api/projection/checkpoint', 'POST', {})); }
       if (name === 'validation') { const validation = measure('filesystem-validation', () => request('filesystem-validation', '/api/files/status')); await exerciseAlongside(validation, .1); }
       if (name === 'graph') {
         const size = options.counts === 'full' ? 1000 : 40, references = options.counts === 'full' ? 5000 : 50;
@@ -610,7 +655,9 @@ export async function runBaseline(options: Options): Promise<string> {
         const settingsState = await request<WorkspaceSnapshot>('settings-before-reload', '/api/workspace');
         await request('select-light-note-before-reload', '/api/settings', 'PUT', { settings: { ...settingsState.settings, activeNoteId: ids[0], mode: 'source' } });
         await reloadBrowser();
-        await exercise(.1, true); report.graphFixture = { additionalDefinitions: size, additionalReferences: references, bytes: Buffer.byteLength(source), editsOnlyRunOwnedNote: true };
+        await measure('graph-typing-prepare', () => page!.locator('#editor .cm-content').focus());
+        await typeDuringLoad(options.counts === 'full' ? 30 : 4);
+        await exercise(.1, true, false); report.graphFixture = { additionalDefinitions: size, additionalReferences: references, bytes: Buffer.byteLength(source), editsOnlyRunOwnedNote: true };
       }
       if (name === 'stress') {
         const source = syntheticGraph(graphPrefix, options.counts === 'full' ? 10000 : 60, options.counts === 'full' ? 50000 : 100, options.counts === 'full' ? 1750000 : undefined);

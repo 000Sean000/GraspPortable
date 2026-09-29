@@ -6,13 +6,16 @@
 
 已加入預設停用的 bounded host/browser/worker 觀測、HTTP/request/job 關聯、同步工作與 awaited filesystem 階段、event-loop/CPU/memory 樣本，以及 run-specific evidence roots。既有 benchmark/E2E/package smoke 的報告輸出不再覆寫 tracked 歷史證據。產品排程、timeout、快取、Worker topology、資料 schema 與保存語義保持本次觀測範圍。
 
-- 單元整合：46 files／577 tests PASS；之後 JSON 分解的 focused host regression：73 tests PASS。最終整合數以後續紀錄為準。
+- 單元整合：47 files／589 tests PASS；之後 runner16及aggregator5項 focused tests、TypeScript PASS。
 - Production build PASS，整合 build ID `77c39e00-579e-40ad-aa13-f720f69e8c59`。既有 Vite 大 chunk 提示仍存在，不構成性能歸因。
 - Production browser regressions：45 tests PASS，Edge headless，約1.7分鐘；包含 draft recovery、shared atomicity/undo、late reply、workspace guards、projection/import/rebuild 與既有 editor 工作流。
 - 小型 harness smoke：28,734 host events，無事件遺失、sink error 或未結束 host spans，IPC graceful exit。這是量測流程驗證，不是 MainVault 性能結果。
 - 第一個完整 corpus smoke：首次 hydrate 與搜尋輸入的啟動競態導致 locator timeout；在正式 workload 前停止。證據保留，正式副本未使用。修正目標是 harness 啟動順序，未提高產品 timeout。
+- 第二個完整 corpus smoke：七情境完成，3,866,695 host events；無事件遺失、sink error 或未結束 span，184 個 actual publication overlap，原資料相同且正常關閉。保留小 API timeout 與 checkpoint pending；此輪使用較早載入的 harness 及 smoke 樣本數，不是正式基線。
+- 此 smoke 的 post-measurement correctness PASS：兩個同 workspace 的有效 recovery generations、standalone fallback、新 DB rebuild、重新開啟、完整 semantic/strategy/draft/lineage/provenance 比對、506 attachments 的 hash，原有2,821notes及folders/records/attachments均未變更。
+- 最終小型 full-count harness run 通過完整 coverage：471typing、45search/navigation/selection、53mode、15panel、23save；229,609host events、0loss/open spans；970publication overlaps，graph情境中typing與DB重疊45筆、與workergraph重疊2筆。真實失敗仍保留，此結果僅證明量測流程，不替代MainVault。
 
-瀏覽器操作與 rAF 都不證明 native IME／Explorer；原 E1 native gap 保留。完整語料的 post-measurement recovery/rebuild 驗證尚待執行。
+瀏覽器操作與 rAF 都不證明 native IME／Explorer；原 E1 native gap 保留。正式三輪仍需各自執行 post-measurement recovery/rebuild 驗證。
 
 ## 凍結來源與環境
 
@@ -54,6 +57,9 @@ P0 完成需要可信量測與完整 coverage；UX budget 超標是基線結果�
 | `Scratch/Performance-P0-20260929/Trial-1..3/Workspace/` | 三個獨立正式 trial |
 | `Scratch/Performance-P0-20260929/Evidence/2026-09-29T13-53-47-445Z-smoke-small-76c9e151/` | 小型 smoke；原始分類與後續校準保留 |
 | `Scratch/Performance-P0-20260929/Evidence/2026-09-29T13-54-41-291Z-smoke-full-83b34f68/` | 初始化失敗的完整 smoke |
+| `Scratch/Performance-P0-20260929/Evidence/2026-09-29T13-58-20-755Z-smoke-full2-14d6e904/` | 完整七情境 smoke；原始事件及失敗保留 |
+| `Scratch/Performance-P0-20260929/Smoke-full-correctness/correctness.json` | 完整 recovery／fresh-DB／原資料驗證 PASS |
+| `Scratch/Performance-P0-20260929/Evidence/2026-09-29T14-40-13-740Z-fullcounts-ready-19f146ed/` | 最終 full-count synthetic harness coverage PASS |
 | `Scratch/Evidence/2026-09-29T13-50-29-027Z-29208-5a6b776c/playwright/e2e-results.json` | 45 項 production browser regression |
 
 Commit、正式 build、試驗結果、完整 correctness、原來源最終比對與最後 Git 保存狀態待完成後補實際值。

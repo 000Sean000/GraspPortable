@@ -26,7 +26,8 @@ let hostGone = false;
 try { process.kill(baseline.hostPid, 0); } catch (error) { hostGone = (error as NodeJS.ErrnoException).code === 'ESRCH'; }
 assert(hostGone, 'The measured host is still running or cannot be proved stopped.');
 await mkdir(toNamespacedPath(output));
-const report: Record<string, unknown> = { version: 1, startedAt: new Date().toISOString(), status: 'running', timedBaseline: false, phases: {} };
+const report: Record<string, unknown> = { version: 1, baselineRunId: baseline.runId, baselineCommit: baseline.commit, baselineBuildId: baseline.build?.buildId,
+  startedAt: new Date().toISOString(), status: 'running', timedBaseline: false, phases: {} };
 const save = () => writeFile(toNamespacedPath(resolve(output, 'correctness.json')), JSON.stringify(report, null, 2));
 const sha = (bytes: string | Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 async function phase<T>(name: string, action: () => Promise<T>): Promise<T> {
@@ -55,15 +56,18 @@ try {
   await phase('copy-standalone-fallback', () => cp(toNamespacedPath(status.projectionRoot), toNamespacedPath(fallback), { recursive: true, force: false, errorOnExist: true }));
   const recoveryRoot = resolve(dirname(dirname(workspace)), '.grasp', 'recovery');
   const names = (await readdir(toNamespacedPath(recoveryRoot))).filter(name => /^generation-[a-f\d-]+$/.test(name));
-  let valid = 0, invalid = 0;
+  let valid = 0, invalid = 0, foreign = 0;
   await phase('validate-retained-recovery', async () => {
     for (const name of names) {
-      try { await readFullGenerationStreaming(resolve(recoveryRoot, name, '.grasp-export', 'manifest.json')); valid++; }
+      try {
+        const generation = await readFullGenerationStreaming(resolve(recoveryRoot, name, '.grasp-export', 'manifest.json'));
+        if (generation.snapshot.id === expected.snapshot.id) valid++; else foreign++;
+      }
       catch { invalid++; }
     }
-    assert(valid >= 2, 'Fewer than two independent valid recovery generations.');
+    assert(valid >= 2, 'Missing evidence: fewer than two independent valid recovery generations for this workspace.');
   });
-  report.recovery = { validGenerations: valid, invalidPreservedGenerations: invalid };
+  report.recovery = { validGenerations: valid, invalidPreservedGenerations: invalid, foreignPreservedGenerations: foreign };
   await service.close(); service = undefined; store.close(); store = undefined;
   const portable = await phase('validate-standalone-fallback', () => readFullGenerationStreaming(resolve(fallback, '.grasp-export', 'manifest.json')));
   const rebuilt = resolve(output, 'Rebuilt', '.grasp', 'workspace.grasp.db');

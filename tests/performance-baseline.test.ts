@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createServer } from 'node:http';
-import { applicationFailure, assertScratchWorkspace, browserScopeBoundary, completeSpans, measuredHttpJson, overlaps, quantile, relatedDriverOperation, responseFailed, summarizeOperations, summarizeTrace, syntheticGraph, type Operation, type TraceEvent } from '../scripts/performance-baseline';
+import { applicationFailure, assertScratchWorkspace, browserScopeBoundary, completeSpans, measuredHttpJson, overlaps, quantile, relatedDriverOperation, responseFailed, summarizeOperations, summarizeTrace, syntheticGraph, verifyReadyCheckpoint, type Operation, type TraceEvent } from '../scripts/performance-baseline';
 import { assertOutsideRepository, isWithin, repositoryRoot } from '../scripts/evidence-path';
 
 const event = (name: string, phase: string, id: string, at: number, lane = 'projection', extra: Partial<TraceEvent> = {}): TraceEvent => ({ version: 1, name, phase, id, at, lane, ...extra });
@@ -32,6 +32,18 @@ describe('P0 baseline evidence interpretation', () => {
     expect(responseFailed(200, {}, true)).toBe(true);
     expect(responseFailed(503, { state: 'ready' }, true)).toBe(true);
     expect(responseFailed(200, { state: 'ready' }, true)).toBe(false);
+  });
+  it('bounds preparation retries to three pending checkpoints and never retries other failures', async () => {
+    const pending = new Error('Pending'); pending.name = 'CheckpointNotReady';
+    const retained: string[] = [];
+    await verifyReadyCheckpoint(async () => { retained.push(retained.length < 2 ? 'pending' : 'ready'); if (retained.length < 3) throw pending; });
+    expect(retained).toEqual(['pending', 'pending', 'ready']);
+    let pendingAttempts = 0;
+    await expect(verifyReadyCheckpoint(async () => { pendingAttempts++; throw pending; })).rejects.toBe(pending);
+    expect(pendingAttempts).toBe(3);
+    let failedAttempts = 0; const dirty = new Error('Dirty');
+    await expect(verifyReadyCheckpoint(async () => { failedAttempts++; throw dirty; })).rejects.toBe(dirty);
+    expect(failedAttempts).toBe(1);
   });
   it('requires complete matching execution spans and excludes boundary-touch or uncertain overlap', () => {
     const spans = completeSpans([event('projection.publish', 'start', 'p', 100), event('projection.wait', 'start', 'w', 90), event('projection.publish', 'end', 'p', 200)]);
@@ -78,6 +90,12 @@ describe('P0 baseline evidence interpretation', () => {
     const clock = { offsetMs: 0, uncertaintyMs: 0, sampledAt: 0 };
     expect(summarizeTrace([], events, [operation('ok', 20)], clock).driverActionEvidence[0].evidence).toBe('censored-no-terminal-observed');
     expect(summarizeTrace([], [], [operation('ok', 20)], clock).driverActionEvidence[0].evidence).toBe('missing-direct-observation');
+  });
+  it('keeps preparation delays separate from intended typing and selection samples', () => {
+    const preparations = ['sustained-typing-prepare', 'selection-prepare'].map((kind, index) => ({ ...operation('ok', 20), kind, id: `prepare-${index}` }));
+    const summary = summarizeTrace([], [], [...preparations, operation('ok', 20)], { offsetMs: 0, uncertaintyMs: 0, sampledAt: 0 });
+    expect(summary.driverActionEvidence.map(sample => sample.kind)).toEqual(['typing-source']);
+    expect(summary.byKind['cold/driver/sustained-typing-prepare'].attempted).toBe(1);
   });
   it('decodes direct draft and semantic ACK timing separately from acknowledgement instants', () => {
     const browser = [event('api.request', 'end', 'a', 120, 'browser', { durationMs: 10, outcome: 'ok', metrics: { routeCode: 0, methodCode: 0 } }),

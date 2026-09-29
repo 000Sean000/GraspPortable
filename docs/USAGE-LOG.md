@@ -197,3 +197,11 @@ Around13:37UTC, `mcp__codex_app__get_usage_limits`: normal codex14%used/86%remai
 ## P0 integration validation — 2026-09-29 13:52:43 UTC
 
 Live `get_usage_limits`: normal codex22%used/78%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same account window:8percentagepoints above interim14%,15above start7%; account-wide observations, not task billing. Complete frozen source and3trial copies verified; instrumentation unit suite577 PASS, updated host73/browser27/runner14focused PASS; production build and45E2E PASS. Diagnostic smoke evidence remains private; formal baseline still pending. No Reserve/reset used.
+
+## P0 full-corpus diagnostic validation — 2026-09-29 14:25:09 UTC
+
+Live `get_usage_limits`: normal codex30%used/70%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same-window8percentagepoints above previous22%; shared-account observation, not task billing. Complete7-cell diagnostic smoke:3,866,695host events,0loss/sink errors/open spans,184actual publication overlaps and original data unchanged. Recovery verification underway; formal trials remain pending. Source checkpoint0b4dd58 is local only. No Reserve/reset used.
+
+## P0 measurement harness gate — 2026-09-29 14:42 UTC
+
+Live `get_usage_limits`: normal codex35%used/65%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same-window5percentagepoints above previous30%; account-wide, not task billing. Full-corpus recovery passed; final full-count synthetic harness coverage passed with all7cells, direct action evidence, truegraph/DB/publication overlaps and zero event loss.47files/589tests passed plus later16runner/5aggregator focused tests andTypeScript. Fetch origin succeeded again,local2ahead/0behind. Three formal full-corpus trials remain pending. No Reserve/reset used.
