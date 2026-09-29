@@ -3,8 +3,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createServer } from 'node:http';
-import { applicationFailure, assertScratchWorkspace, browserScopeBoundary, completeSpans, measuredHttpJson, overlaps, quantile, relatedDriverOperation, responseFailed, summarizeOperations, summarizeTrace, syntheticGraph, verifyReadyCheckpoint, type Operation, type TraceEvent } from '../scripts/performance-baseline';
+import { applicationFailure, assertScratchWorkspace, browserScopeBoundary, completeSpans, measuredHttpJson, overlaps, privateApplicationDiagnostic, quantile, relatedDriverOperation, responseFailed, summarizeExtremeInputCoverage, summarizeOperations, summarizeTrace, syntheticGraph, verifyReadyCheckpoint, verifySyntheticFixture, type Operation, type TraceEvent } from '../scripts/performance-baseline';
 import { assertOutsideRepository, isWithin, repositoryRoot } from '../scripts/evidence-path';
+import { WorkspaceStore } from '../server/store';
 
 const event = (name: string, phase: string, id: string, at: number, lane = 'projection', extra: Partial<TraceEvent> = {}): TraceEvent => ({ version: 1, name, phase, id, at, lane, ...extra });
 const operation = (outcome: Operation['outcome'], durationMs: number): Operation => ({ id: 'o1', cell: 'cold', kind: 'typing-source', measurement: 'driver', start: 100, end: 100 + durationMs, durationMs, outcome });
@@ -97,6 +98,23 @@ describe('P0 baseline evidence interpretation', () => {
     expect(summary.driverActionEvidence.map(sample => sample.kind)).toEqual(['typing-source']);
     expect(summary.byKind['cold/driver/sustained-typing-prepare'].attempted).toBe(1);
   });
+  it('requires separate direct delivery evidence for Extreme Source and Live while retaining failed attempts', () => {
+    const operations = [
+      { ...operation('error', 3), id: 'source-failed', kind: 'extreme-typing-source' },
+      { ...operation('ok', 10), id: 'source-missing', kind: 'extreme-typing-source' },
+      { ...operation('ok', 20), id: 'live', kind: 'extreme-typing-live' },
+      { ...operation('ok', 50), id: 'prepare', kind: 'extreme-source-prepare' },
+    ];
+    const coverage = summarizeExtremeInputCoverage(operations, [
+      { name: 'ui.input.raf', operationId: 'live', outcome: 'ok' }, { name: 'ui.input.raf', operationId: 'live', outcome: 'ok' },
+      { name: 'ui.beforeinput.raf', operationId: 'source-missing', outcome: 'ok' },
+    ]);
+    expect(coverage.source).toEqual({ attempted: 2, driverSuccessful: 1, driverFailed: 1, directTerminalAttempts: 0, deliveredAttempts: 0, missingDirectSuccessfulAttempts: 1 });
+    expect(coverage.live).toEqual({ attempted: 1, driverSuccessful: 1, driverFailed: 0, directTerminalAttempts: 1, deliveredAttempts: 1, missingDirectSuccessfulAttempts: 0 });
+    const markerSave = { ...operation('ok', 20), id: 'save-marker', kind: 'extreme-save-ack' };
+    expect(relatedDriverOperation('ui.input.raf', { start: 110, end: 140 }, [markerSave])?.kind).toBe('extreme-save-ack');
+    expect(summarizeExtremeInputCoverage([markerSave], [{ name: 'ui.input.raf', operationId: markerSave.id, outcome: 'ok' }]).source.deliveredAttempts).toBe(0);
+  });
   it('decodes direct draft and semantic ACK timing separately from acknowledgement instants', () => {
     const browser = [event('api.request', 'end', 'a', 120, 'browser', { durationMs: 10, outcome: 'ok', metrics: { routeCode: 0, methodCode: 0 } }),
       event('api.request', 'end', 'b', 130, 'browser', { durationMs: 20, outcome: 'error', metrics: { routeCode: 1, methodCode: 1 } }), event('app.draft.ack', 'instant', 'c', 121, 'browser')];
@@ -121,6 +139,35 @@ describe('P0 baseline evidence interpretation', () => {
     expect(source.match(/^@/gm)).toHaveLength(10000);
     expect((source.match(/:ref:/g)?.length ?? 0) + (source.match(/\[\[@/g)?.length ?? 0)).toBe(50000);
     expect(() => syntheticGraph('bad prefix', 10, 10)).toThrow();
+  });
+  it('preserves exact canonical fixtures through real store commits and verifies independent stored state', () => {
+    const store = new WorkspaceStore(':memory:', { create: true, seed: false });
+    try {
+      const graphBlank = store.createNote('Synthetic Graph', '# Synthetic Graph\n', null, 'grasp-v1').notes.find(note => note.title === 'Synthetic Graph')!;
+      const graphSource = syntheticGraph('G12345', 1000, 5000);
+      const graphReturned = store.updateNote(graphBlank.id, graphBlank.title, graphSource, graphBlank.revision, null, 'grasp-v1');
+      const graphExpected = { noteId: graphBlank.id, title: graphBlank.title, source: graphSource, definitions: 1000, references: 5000 };
+      expect(verifySyntheticFixture(graphReturned, store.snapshot(), graphExpected).readback).toMatchObject({ definitions: 1000, references: 5000, bytes: Buffer.byteLength(graphSource) });
+      const extremeBlank = store.createNote('Synthetic Extreme', '# Synthetic Extreme\n', null, 'grasp-v1').notes.find(note => note.title === 'Synthetic Extreme')!;
+      const source = syntheticGraph('E12345', 10000, 50000, 1750000);
+      const returned = store.updateNote(extremeBlank.id, extremeBlank.title, source, extremeBlank.revision, null, 'grasp-v1');
+      const stored = store.snapshot(), expected = { noteId: extremeBlank.id, title: extremeBlank.title, source, definitions: 10000, references: 50000 };
+      const verified = verifySyntheticFixture(returned, stored, expected);
+      expect(verified).toMatchObject({ verified: true, requiredMutationSucceeded: true, definitions: 10000, references: 50000, bytes: 1750000 });
+      expect(verified.returned.sourceHash).toBe(verified.expected.sourceHash);
+      expect(verified.readback.sourceHash).toBe(verified.expected.sourceHash);
+      expect(stored.notes.find(note => note.id === graphBlank.id)?.markdown).toBe(graphSource);
+      expect(stored.notes.find(note => note.id === extremeBlank.id)?.markdown).toBe(source);
+      expect(() => verifySyntheticFixture(undefined, stored, expected)).toThrow(/mutation failed/);
+      expect(() => verifySyntheticFixture(returned, stored, { ...expected, references: 49999 })).toThrow(/dimensions/);
+      expect(() => verifySyntheticFixture(returned, { ...stored, notes: stored.notes.filter(note => note.id !== extremeBlank.id) }, expected)).toThrow(/identity/);
+      expect(() => verifySyntheticFixture(returned, { ...stored, notes: stored.notes.map(note => note.id === extremeBlank.id ? { ...note, markdown: note.markdown + 'x' } : note) }, expected)).toThrow(/source differs/);
+    } finally { store.close(); }
+  }, 30000);
+  it('keeps bounded application diagnostics available only through the private log helper', () => {
+    expect(privateApplicationDiagnostic({ error: 'Occurrence identity is ambiguous; provide a source mapping instead of guessing.' }, 20)).toBe('Occurrence identity ');
+    expect(privateApplicationDiagnostic({ status: { error: 'Nested failure' } })).toBe('Nested failure');
+    expect(privateApplicationDiagnostic({ state: 'ready', notes: ['source is not diagnostic'] })).toBeUndefined();
   });
 });
 

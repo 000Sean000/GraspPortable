@@ -37,7 +37,7 @@ Run commands from the actual repository root with Node 24.18 or a separately rec
 ```powershell
 node --import tsx scripts/prepare-performance-fixture.ts --source <readonly-complete-workspace> --output-root <new-Scratch-root>
 npm run build
-node --import tsx scripts/performance-baseline.ts --workspace <Scratch-trial/.grasp/workspace.grasp.db> --output-root <Scratch-evidence-root> --trial trial-1 --counts full
+node --import tsx scripts/performance-baseline.ts --workspace <Scratch-trial/.grasp/workspace.grasp.db> --output-root <Scratch-evidence-root> --trial trial-1 --counts full --timeout-ms 1800000
 node --import tsx scripts/verify-performance-recovery.ts --workspace <Scratch-trial/.grasp/workspace.grasp.db> --frozen-workspace <Scratch-frozen/.grasp/workspace.grasp.db> --baseline-report <run/report.json> --output-root <new-Scratch-correctness-root>
 node --import tsx scripts/aggregate-performance-baseline.ts --report <run/report.json> --correctness <correctness/correctness.json> --output-root <new-Scratch-aggregate-root>
 ```
@@ -48,7 +48,13 @@ The production runner verifies the owned host's build/workspace identity, only e
 
 Idle and no-op preparation explicitly saves and verifies the visible command queue has drained before checkpointing. Selection readiness and sustained-input preparation have separate driver timings; they are not input samples. Loaded cold/validation/DB/stress exercises close measured panel shells promptly so a waiting panel does not consume all of the background job interval. Idle/warm also measure useful panel content. These policies and every preparation failure remain in the run report.
 
+The runner creates four synthetic notes: Typing, Navigation, Graph and Extreme. Graph and Extreme have independent, noncolliding identifiers and canonical reference caches. Successful mutation responses and independent stored readbacks must match the requested exact source/hash, UTF-8 bytes, definitions and references before workload dimensions are certified. Full Extreme dimensions are 1,750,000 bytes,10,000 definitions and50,000 references; the separate1,000-definition/5,000-reference Graph remains present. Planned dimensions alone are never evidence. Each Extreme mode has measured writable/non-inert preparation, exact note/mode guards, retained failed attempts, and distinct direct-input coverage.
+
+The formal protocol explicitly uses the already-supported1,800,000ms harness request/shutdown ceiling because a verified giant publication exceeded the earlier600,000ms diagnostic ceiling. This does not change any product timeout or short availability/save deadline. A forced shutdown makes evidence incomplete. All three formal trials must use the same ceiling; earlier diagnostics retain their actual settings and failures.
+
 The aggregator accepts one report for review or three repeated `--report ... --correctness ...` pairs for formal comparison. It emits allowlisted numeric/hash metadata into a new private directory; inspect its aggregate before copying it into Git. Three-trial completeness requires matching clean source/build/corpus, independent workspace paths, full measurement coverage and matching successful correctness records. Performance budgets are assessed separately.
+
+Draft ACK size joins the actual host parse characters to the browser request ID; semantic ACK attribution additionally requires one preceding draft ACK within the same flush. Small source (at most16,384 UTF-16 characters), intermediate and giant source (at least1,000,000 characters) are descriptive reporting bins, not product limits. Unpaired or ambiguous ACKs remain unclassified and prevent an all-attempt passing claim. Cell names or a small semantic command body do not prove that its saved source was small.
 
 Existing benchmark and browser tests use `GRASP_EVIDENCE_ROOT` (absolute) plus a generated run directory, or default to a unique sibling `Scratch/Evidence` directory. This includes report writes inside test bodies, not only Playwright's reporter. Historical tracked reports remain unchanged. The legacy `benchmark-files.ts` is still a legacy-engine benchmark; the new baseline harness exercises the production publisher through the bundled host.
 

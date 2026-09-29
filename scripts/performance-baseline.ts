@@ -9,8 +9,10 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Browser, Page } from '@playwright/test';
+import type { Browser, Page, Response as BrowserResponse } from '@playwright/test';
 import type { Note, WorkspaceSnapshot } from '../src/domain/model';
+import { parseNote } from '../src/domain/knowledge';
+import { serializeReference } from '../src/domain/reference-language';
 import { assertOutsideRepository, isWithin, repositoryRoot, resolvePhysicalPath } from './evidence-path';
 
 export interface TraceEvent {
@@ -49,12 +51,31 @@ export function summarizeOperations(samples: Operation[]) {
       censoredLowerBoundsMs: censored.map(sample => sample.durationMs), completionP95Ms: samples.some(sample => sample.outcome !== 'ok') ? null : quantile(completed, .95) },
     interpretation: 'Successful-only statistics exclude non-ready responses and failures explicitly; timeouts/cancellations are censored. A pending checkpoint response is not proof its publication failed.' };
 }
+export function summarizeExtremeInputCoverage(operations: Operation[], direct: Array<{ name: string; operationId?: string; outcome: string }>) {
+  const terminalIds = new Set(direct.filter(sample => sample.name === 'ui.input.raf').map(sample => sample.operationId));
+  const deliveredIds = new Set(direct.filter(sample => sample.name === 'ui.input.raf' && sample.outcome === 'ok').map(sample => sample.operationId));
+  return Object.fromEntries((['source', 'live'] as const).map(mode => {
+    const attempts = operations.filter(operation => operation.measurement === 'driver' && operation.kind === `extreme-typing-${mode}`);
+    return [mode, { attempted: attempts.length, driverSuccessful: attempts.filter(operation => operation.outcome === 'ok').length,
+      driverFailed: attempts.filter(operation => operation.outcome !== 'ok').length, directTerminalAttempts: attempts.filter(operation => terminalIds.has(operation.id)).length,
+      deliveredAttempts: attempts.filter(operation => deliveredIds.has(operation.id)).length,
+      missingDirectSuccessfulAttempts: attempts.filter(operation => operation.outcome === 'ok' && !terminalIds.has(operation.id)).length }];
+  })) as Record<'source' | 'live', { attempted: number; driverSuccessful: number; driverFailed: number; directTerminalAttempts: number; deliveredAttempts: number; missingDirectSuccessfulAttempts: number }>;
+}
 export function applicationFailure(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const object = value as Record<string, unknown>;
   return Boolean(object.error) || object.state === 'error' || object.state === 'dirty'
     || (object.status !== undefined && applicationFailure(object.status))
     || (object.mirror !== undefined && applicationFailure(object.mirror));
+}
+/** Private-error-log only: never copy this source-derived diagnostic into traces or summaries. */
+export function privateApplicationDiagnostic(value: unknown, limit = 4000): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const object = value as Record<string, unknown>;
+  const error = typeof object.error === 'string' ? object.error : typeof object.message === 'string' ? object.message : undefined;
+  if (error) return error.slice(0, limit);
+  return privateApplicationDiagnostic(object.status ?? object.mirror, limit);
 }
 export function responseFailed(httpStatus: number, value: unknown, requireReady = false): boolean {
   return httpStatus < 200 || httpStatus >= 300 || applicationFailure(value) || (requireReady && statusOf(value) !== 'ready');
@@ -91,7 +112,7 @@ export async function measuredHttpJson(url: string, method: string, headers: Rec
 }
 export function syntheticGraph(prefix: string, bindings: number, references: number, bytes?: number): string {
   if (!/^[A-Za-z][A-Za-z0-9]{0,15}$/.test(prefix) || !Number.isSafeInteger(bindings) || bindings < 2 || !Number.isSafeInteger(references) || references < 0) throw new Error('Invalid synthetic graph dimensions.');
-  const referenceText = Array.from({ length: references }, (_, i) => i % 2 ? `[[@${prefix}V${i % (bindings - 1)}|old]]` : `[old](:ref:${prefix}V${i % (bindings - 1)})`);
+  const referenceText = Array.from({ length: references }, (_, i) => serializeReference({ kind: i % 2 ? 'wiki' : 'pure', identifier: `${prefix}V${i % (bindings - 1)}`, value: `A:${i % (bindings - 1)}` }));
   let source = `# Synthetic P0 graph\n\n@${prefix}R = <|A|>\n` + Array.from({ length: bindings - 1 }, (_, i) => `@${prefix}V${i} = ${prefix}R + <|:${i}|>`).join('\n') + '\n\n'
     + Array.from({ length: Math.ceil(references / 10) }, (_, i) => referenceText.slice(i * 10, i * 10 + 10).join(' ')).join('\n\n') + '\n\nTyping area: ';
   if (bytes !== undefined) {
@@ -99,6 +120,27 @@ export function syntheticGraph(prefix: string, bindings: number, references: num
     const padding = bytes - Buffer.byteLength(source); source += ('\n' + 'x'.repeat(79)).repeat(Math.ceil(padding / 80)).slice(0, padding);
   }
   return source;
+}
+interface FixtureExpectation { noteId: string; title: string; source: string; definitions: number; references: number }
+/** A declared workload is valid only after both committed response and independent readback agree. */
+export function verifySyntheticFixture(returned: WorkspaceSnapshot | undefined, readback: WorkspaceSnapshot, expected: FixtureExpectation) {
+  if (!returned) throw new Error('Required synthetic fixture mutation failed; no workload may be declared.');
+  const sourceHash = createHash('sha256').update(expected.source).digest('hex');
+  const dimensions = { bytes: Buffer.byteLength(expected.source), definitions: expected.definitions, references: expected.references, sourceHash };
+  const inspect = (snapshot: WorkspaceSnapshot, label: string) => {
+    const note = snapshot.notes.find(item => item.id === expected.noteId);
+    if (!note || note.title !== expected.title || note.syntaxVersion !== 'grasp-v1') throw new Error(`${label} synthetic fixture identity does not match.`);
+    if (note.markdown !== expected.source) throw new Error(`${label} synthetic fixture source differs from the requested canonical source.`);
+    const parsed = parseNote(note);
+    const actual = { bytes: Buffer.byteLength(note.markdown), definitions: parsed.definitions.length, references: parsed.references.filter(item => item.kind === 'reference').length,
+      dependencyReferences: parsed.references.filter(item => item.kind === 'dependency').length, sourceHash: createHash('sha256').update(note.markdown).digest('hex'), noteRevision: note.revision, workspaceRevision: snapshot.revision };
+    if (parsed.diagnostics.length || actual.bytes !== dimensions.bytes || actual.definitions !== dimensions.definitions || actual.references !== dimensions.references || actual.sourceHash !== sourceHash)
+      throw new Error(`${label} synthetic fixture dimensions or syntax do not match the required workload.`);
+    return actual;
+  };
+  const returnedProof = inspect(returned, 'Committed response'), readbackProof = inspect(readback, 'Independent stored readback');
+  return { verificationVersion: 1 as const, verified: true as const, requiredMutationSucceeded: true as const, expected: dimensions, returned: returnedProof, readback: readbackProof,
+    bytes: readbackProof.bytes, definitions: readbackProof.definitions, references: readbackProof.references, sourceHash: readbackProof.sourceHash, editsOnlyRunOwnedNote: true };
 }
 export function completeSpans(events: TraceEvent[]): TraceSpan[] {
   const starts = new Map<string, TraceEvent>(), result: TraceSpan[] = [];
@@ -142,7 +184,7 @@ export function relatedDriverOperation(name: string, interval: { start: number; 
     || (name === 'ui.panel.content.intent' && kind === 'panel-shell')
     || (name === 'ui.search.raf' && kind === 'navigation')
     || (['ui.beforeinput.raf', 'ui.keydown.raf'].includes(name) && (kind.includes('typing-') || kind === 'selection'))
-    || (name === 'ui.input.raf' && kind === 'save');
+    || (name === 'ui.input.raf' && ['save', 'extreme-save-ack'].includes(kind));
   const start = interval.start + browserToRunnerOffsetMs;
   return operations.filter(operation => operation.measurement === 'driver' && !operation.kind.endsWith('-prepare') && compatible(operation.kind)
     && start + uncertaintyMs >= operation.start && start - uncertaintyMs <= operation.end)
@@ -363,6 +405,8 @@ export async function runBaseline(options: Options): Promise<string> {
       const value = response.value; sample.applicationState = statusOf(value);
       if (responseFailed(response.status, value, path === '/api/projection/checkpoint')) {
         sample.errorStage = 'application';
+        const diagnostic = privateApplicationDiagnostic(value);
+        if (diagnostic) recordError(`${name} ${sample.id} private application diagnostic`, diagnostic);
         const error = new Error(`HTTP ${response.status}; application state ${sample.applicationState ?? 'unknown'} is not verified current-ready success.`);
         if (response.status >= 200 && response.status < 300 && path === '/api/projection/checkpoint' && sample.applicationState === 'pending') error.name = 'CheckpointNotReady';
         sample.outcome = errorOutcome(error); throw error;
@@ -410,18 +454,19 @@ export async function runBaseline(options: Options): Promise<string> {
     }
     clocks[cell] = { host: hostSamples, browser: browserSamples, combined: combinedClock };
   }
-  async function guardSynthetic() {
+  async function guardSynthetic(expectedId?: string) {
     if (!page) throw new Error('Browser unavailable.');
     const selected = await page.locator('.note-item.active').getAttribute('data-note-id');
-    if (!selected || !synthetic.has(selected)) throw new Error('Refusing to edit a note not created by this run.');
+    if (!selected || !synthetic.has(selected) || (expectedId !== undefined && selected !== expectedId)) throw new Error('Refusing to edit a note outside the expected run-owned target.');
   }
-  async function guardTyping() {
-    await guardSynthetic();
-    const writable = await page!.evaluate(() => {
+  async function guardTyping(expectedId?: string, expectedMode?: 'source' | 'live') {
+    await guardSynthetic(expectedId);
+    const writable = await page!.evaluate(mode => {
       const editor = document.querySelector('#editor .cm-content'), active = document.activeElement;
-      return Boolean(editor && (editor === active || editor.contains(active)) && !editor.closest('[inert]') && editor.getAttribute('contenteditable') === 'true');
-    });
-    if (!writable) throw new Error('Typing was not delivered: the synthetic editor is unfocused, inert, or read-only.');
+      return Boolean(editor && (editor === active || editor.contains(active)) && !editor.closest('[inert]') && editor.getAttribute('contenteditable') === 'true'
+        && (!mode || document.querySelector('#mode')?.textContent?.trim() === (mode === 'source' ? 'Source' : 'Live Preview')));
+    }, expectedMode);
+    if (!writable) throw new Error('Input was not delivered: the target editor is unfocused, inert, read-only, or in the wrong mode.');
   }
   async function waitBrowserHydrated() {
     const start = epoch();
@@ -528,6 +573,15 @@ export async function runBaseline(options: Options): Promise<string> {
     if (!note || note.title !== synthetic.get(id)) throw new Error('Synthetic fixture identity changed.');
     return request<WorkspaceSnapshot>('synthetic-note-update', `/api/notes/${id}`, 'PUT', { title: note.title, markdown: markdown ?? `${note.markdown}\nP0 checkpoint ${sequence}`, revision: note.revision, folderId: note.folderId, syntaxVersion: 'grasp-v1' });
   }
+  async function verifyStoredFixture(role: 'graph' | 'extreme', returned: WorkspaceSnapshot | undefined, noteId: string, source: string, definitions: number, references: number) {
+    const proof = await measure(`${role}-fixture-verification`, async () => {
+      if (!returned) throw new Error(`Required ${role} fixture mutation failed; the cell cannot measure the requested workload.`);
+      const stored = await request<WorkspaceSnapshot>(`${role}-fixture-readback`, '/api/workspace');
+      return verifySyntheticFixture(returned, stored, { noteId, title: synthetic.get(noteId)!, source, definitions, references });
+    });
+    if (!proof) throw new Error(`Required ${role} fixture verification failed; the cell is incomplete.`);
+    return { ...proof, verifiedAt: epoch(), syntheticNoteRole: role };
+  }
   async function typeDuringLoad(samples: number) {
     // Caller focuses a run-owned note before starting the load. No navigation/settings wait hides a DB stall.
     for (let i = 0; i < samples; i++) await measure('typing-source', async () => { await guardTyping(); await page!.keyboard.insertText('l'); });
@@ -556,15 +610,40 @@ export async function runBaseline(options: Options): Promise<string> {
     }
   }
   async function extremeTyping(id: string) {
-    await selectNote(id);
-    if (await page!.locator('#mode').innerText() !== 'Source') await page!.locator('#mode').click();
     for (const mode of ['source', 'live'] as const) {
       if (mode === 'live') await measure('extreme-mode', () => page!.locator('#mode').click());
-      await guardSynthetic(); await page!.locator('#editor .cm-content').focus(); await page!.keyboard.press('ControlOrMeta+End');
-      for (let i = 0; i < (options.counts === 'full' ? mode === 'source' ? 30 : 20 : 2); i++) await measure(`extreme-typing-${mode}`, async () => { await guardTyping(); await page!.keyboard.insertText('e'); });
+      await measure(`extreme-${mode}-prepare`, async () => {
+        if (mode === 'source') {
+          await selectNote(id);
+          if (await page!.locator('#mode').innerText() !== 'Source') await page!.locator('#mode').click();
+        }
+        await page!.waitForFunction(expectedMode => {
+          const editor = document.querySelector('#editor .cm-content');
+          return Boolean(editor && !editor.closest('[inert]') && editor.getAttribute('contenteditable') === 'true'
+            && document.querySelector('#mode')?.textContent?.trim() === (expectedMode === 'source' ? 'Source' : 'Live Preview'));
+        }, mode, { timeout: 10000 });
+        await page!.locator('#editor .cm-content').focus(); await page!.keyboard.press('ControlOrMeta+End'); await guardTyping(id, mode);
+      });
+      for (let i = 0; i < (options.counts === 'full' ? mode === 'source' ? 30 : 20 : 2); i++) await measure(`extreme-typing-${mode}`, async () => { await guardTyping(id, mode); await page!.keyboard.insertText('e'); });
       await measure('extreme-save-ack', async () => {
-        await guardSynthetic(); const response = page!.waitForResponse(item => item.url().endsWith('/api/shared/commands') && item.request().method() === 'POST', { timeout: Math.min(options.timeoutMs, 60000) });
-        await page!.locator('#save').click(); const saved = await response; if (!saved.ok()) throw new Error(`Extreme save HTTP ${saved.status()}.`); await settleEditor();
+        // This listener is armed before a new save-marker edit. Earlier autosave completion
+        // cannot turn the explicit Save into a no-op with an impossible future ACK wait.
+        type Receipt = { response?: BrowserResponse; error?: Error };
+        let finish!: (receipt: Receipt) => void, timer: ReturnType<typeof setTimeout> | undefined, finished = false;
+        const onResponse = (response: BrowserResponse) => {
+          if (response.url().endsWith('/api/shared/commands') && response.request().method() === 'POST') finish({ response });
+        };
+        const receipt = new Promise<Receipt>(resolve => {
+          finish = value => { if (finished) return; finished = true; clearTimeout(timer); page!.off('response', onResponse); resolve(value); };
+        });
+        page!.on('response', onResponse);
+        timer = setTimeout(() => { const error = new Error('Extreme save acknowledgement timed out.'); error.name = 'TimeoutError'; finish({ error }); }, Math.min(options.timeoutMs, 60000));
+        try {
+          await guardTyping(id, mode); await page!.keyboard.insertText('s'); await page!.locator('#save').click();
+          const saved = await receipt; if (saved.error) throw saved.error;
+          if (!saved.response?.ok()) throw new Error(`Extreme save HTTP ${saved.response?.status() ?? 'unavailable'}.`);
+          await settleEditor();
+        } finally { finish({ error: new Error('Extreme save observation closed.') }); }
       });
     }
   }
@@ -603,15 +682,24 @@ export async function runBaseline(options: Options): Promise<string> {
     originalIds = new Set(initial.notes.map(note => note.id)); originalDigest = digestOriginal(initial, originalIds);
     report.corpus = { notes: initial.notes.length, noteBytes: initial.notes.reduce((sum, note) => sum + Buffer.byteLength(note.markdown), 0), folders: initial.folders.length, records: initial.records.length, attachments: initial.attachments.length, attachmentBytes: initial.attachments.reduce((sum, asset) => sum + asset.size, 0), revision: initial.revision, databaseBytes: (await stat(options.workspace)).size, originalDigest };
     const prefix = `P0_${randomUUID().replaceAll('-', '').slice(0, 10)}`;
-    let graphPrefix = ''; do { graphPrefix = `P${randomUUID().replaceAll('-', '').slice(0, 5)}`; } while (initial.notes.some(note => note.markdown.includes(`@${graphPrefix}`)));
+    const usedPrefixes = new Set<string>();
+    const choosePrefix = () => {
+      let candidate: string;
+      do { candidate = `P${randomUUID().replaceAll('-', '').slice(0, 5)}`; }
+      while (usedPrefixes.has(candidate) || initial.notes.some(note => note.markdown.includes(candidate)) || initial.records.some(record => JSON.stringify(record).includes(candidate)));
+      usedPrefixes.add(candidate); return candidate;
+    };
+    const graphPrefix = choosePrefix(), extremePrefix = choosePrefix();
     let current = initial;
-    for (const label of ['Typing', 'Navigation', 'Graph']) {
+    for (const label of ['Typing', 'Navigation', 'Graph', 'Extreme']) {
       const title = `${prefix} ${label}`, before = new Set(current.notes.map(note => note.id));
       current = await request<WorkspaceSnapshot>('fixture-create', '/api/notes', 'POST', { title, markdown: `# ${title}\n\nSynthetic P0 measurement area.\n`, folderId: null, syntaxVersion: 'grasp-v1' });
       const note = current.notes.find(note => !before.has(note.id)); if (!note || note.title !== title) throw new Error('Fixture creation did not return the expected new note.');
       synthetic.set(note.id, title);
     }
-    report.fixture = { ...report.fixture as object, syntheticNotesCreated: synthetic.size, syntheticPrefix: prefix };
+    report.fixture = { ...report.fixture as object, syntheticNotesCreated: synthetic.size, syntheticPrefix: prefix,
+      separateGraphAndExtremeNotes: true, graphPrefix, extremePrefix, canonicalReferenceCaches: true,
+      workloadMeaning: 'Ordinary Graph remains present when the separate Extreme note is added; the Extreme note itself has the specified verified dimensions before typing.' };
     const { chromium } = await import('@playwright/test');
     const useEdge = platform() === 'win32' && existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe');
     browser = await chromium.launch({ ...(useEdge ? { channel: 'msedge' } : {}), headless: true }); report.browser = { version: browser.version(), channel: useEdge ? 'msedge' : 'chromium', headless: true, viewport: { width: 1440, height: 1000 } };
@@ -634,6 +722,7 @@ export async function runBaseline(options: Options): Promise<string> {
       graph: 'measure shell and close promptly; preload typing starts immediately with the DB operation', stress: 'measure shell and close promptly, then sustain typing', noop: 'no panel exercise' };
     report.preparationProtocol = { idleAndNoop: 'Recorded explicit UI Save, verified saved status and drained UI command queue, then at most three checkpoint attempts. Only CheckpointNotReady is retried, without delay; every response is retained. Any other failure or three pending responses prevents cell workload.',
       selection: 'Recorded selection-prepare waits at most 10 s for a writable non-inert editor, focuses and moves to the end, then drains preparation selection over two rAFs. Each measured selection checks delivery readiness and waits at most 10 s for its new timestamped ui.selection.raf terminal; driver time includes that wait, direct latency remains the browser event duration.',
+      extremeModes: 'Separate extreme-source-prepare and extreme-live-prepare operations record bounded 10 s writable/non-inert and intended-mode readiness plus focus. Each input rechecks the exact Extreme note and mode. Both mode batches must contain delivered direct input evidence; all failed attempts remain counted. Each extreme-save-ack arms its response observer before an additional save-marker edit, attributed to that save operation rather than either typing batch.',
       graphReload: 'After hydrated reload with the light note already selected in Source mode, immediately focus and type before any new note-search/navigation/settings action; trace intervals must still prove worker overlap.' };
     availabilityTimer = setInterval(() => { if (!availabilityPending) { availabilityPending = request('availability-probe', '/api/diagnostics/performance/clock', 'GET', undefined, 1500).catch(error => recordError('availability-probe', error)).finally(() => { availabilityPending = undefined; }); } }, 250);
     for (const name of options.phases) await runCell(name, async () => {
@@ -652,21 +741,24 @@ export async function runBaseline(options: Options): Promise<string> {
         await prepareLoadTyping();
         const mutation = measure('large-synthetic-db-operation', () => updateSynthetic(ids[2], source));
         try { await typeDuringLoad(options.counts === 'full' ? 30 : 4); await exerciseAlongside(mutation, .1, true); } finally { await mutation; }
+        const graphProof = await verifyStoredFixture('graph', await mutation, ids[2], source, size, references);
+        report.graphFixture = { ...graphProof, additionalDefinitions: graphProof.definitions, additionalReferences: graphProof.references };
         const settingsState = await request<WorkspaceSnapshot>('settings-before-reload', '/api/workspace');
         await request('select-light-note-before-reload', '/api/settings', 'PUT', { settings: { ...settingsState.settings, activeNoteId: ids[0], mode: 'source' } });
         await reloadBrowser();
         await measure('graph-typing-prepare', () => page!.locator('#editor .cm-content').focus());
         await typeDuringLoad(options.counts === 'full' ? 30 : 4);
-        await exercise(.1, true, false); report.graphFixture = { additionalDefinitions: size, additionalReferences: references, bytes: Buffer.byteLength(source), editsOnlyRunOwnedNote: true };
+        await exercise(.1, true, false);
       }
       if (name === 'stress') {
-        const source = syntheticGraph(graphPrefix, options.counts === 'full' ? 10000 : 60, options.counts === 'full' ? 50000 : 100, options.counts === 'full' ? 1750000 : undefined);
+        const definitions = options.counts === 'full' ? 10000 : 60, references = options.counts === 'full' ? 50000 : 100;
+        const source = syntheticGraph(extremePrefix, definitions, references, options.counts === 'full' ? 1750000 : undefined);
         await prepareLoadTyping();
-        const large = measure('extreme-synthetic-db-operation', () => updateSynthetic(ids[2], source));
+        const large = measure('extreme-synthetic-db-operation', () => updateSynthetic(ids[3], source));
         try { await typeDuringLoad(options.counts === 'full' ? 30 : 4); await exerciseAlongside(large, .1, true); } finally { await large; }
+        report.extremeFixture = await verifyStoredFixture('extreme', await large, ids[3], source, definitions, references);
         await reloadBrowser();
-        await extremeTyping(ids[2]);
-        report.extremeFixture = { definitions: options.counts === 'full' ? 10000 : 60, references: options.counts === 'full' ? 50000 : 100, bytes: Buffer.byteLength(source), editsOnlyRunOwnedNote: true };
+        await extremeTyping(ids[3]);
         await updateSynthetic(ids[2]);
         const first = measure('stress-checkpoint-a', () => request('stress-checkpoint-a', '/api/projection/checkpoint', 'POST', {}));
         const second = measure('stress-checkpoint-b', () => request('stress-checkpoint-b', '/api/projection/checkpoint', 'POST', {}));
@@ -707,6 +799,15 @@ export async function runBaseline(options: Options): Promise<string> {
     report.successfulActionCounts = countCoverage;
     report.attemptedActionCounts = attemptedCounts;
     const coverageMissing: string[] = [];
+    if (options.phases.includes('graph') && (report.graphFixture as { verified?: boolean } | undefined)?.verified !== true) coverageMissing.push('verified-graph-fixture');
+    if (options.phases.includes('stress') && (report.extremeFixture as { verified?: boolean } | undefined)?.verified !== true) coverageMissing.push('verified-extreme-fixture');
+    const extremeInputCoverage = summarizeExtremeInputCoverage(operations, summary.directBrowserSamples); report.extremeInputCoverage = extremeInputCoverage;
+    if (options.phases.includes('stress')) for (const mode of ['source', 'live'] as const) {
+      const evidence = extremeInputCoverage[mode], expected = options.counts === 'full' ? mode === 'source' ? 30 : 20 : 2;
+      if (evidence.attempted < expected) coverageMissing.push(`sample-count:extreme-typing-${mode}`);
+      if (evidence.deliveredAttempts === 0) coverageMissing.push(`direct-action:extreme-typing-${mode}`);
+      if (evidence.missingDirectSuccessfulAttempts > 0) coverageMissing.push(`missing-direct-actions:extreme-typing-${mode}`);
+    }
     if (options.counts === 'full') {
       for (const [kind, count] of Object.entries(countPresets.full)) if (attemptedCounts[kind] < count) coverageMissing.push(`sample-count:${kind}`);
       for (const [metric, available] of Object.entries(summary.metricCoverage)) if (available === false) coverageMissing.push(`metric:${metric}`);
@@ -720,7 +821,10 @@ export async function runBaseline(options: Options): Promise<string> {
         if (evidence.some(item => item.evidence === 'missing-direct-observation')) coverageMissing.push(`missing-direct-actions:${kind}`);
       }
       if (!operations.some(operation => operation.kind === 'panel-content' && operation.outcome === 'ok')) coverageMissing.push('panel-useful-content');
-      if (options.phases.includes('stress') && !report.extremeFixture) coverageMissing.push('extreme-fixture');
+      if (options.phases.includes('stress')) {
+        const extreme = report.extremeFixture as ReturnType<typeof verifySyntheticFixture> | undefined;
+        if (!extreme || extreme.readback.bytes !== 1750000 || extreme.readback.definitions !== 10000 || extreme.readback.references !== 50000) coverageMissing.push('extreme-fixture-dimensions');
+      }
     }
     report.coverageMissing = coverageMissing;
     report.browserSessionTransitions = browserTransitions;

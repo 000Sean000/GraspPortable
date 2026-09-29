@@ -205,3 +205,7 @@ Live `get_usage_limits`: normal codex30%used/70%remaining;10080-minute primary w
 ## P0 measurement harness gate — 2026-09-29 14:42 UTC
 
 Live `get_usage_limits`: normal codex35%used/65%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same-window5percentagepoints above previous30%; account-wide, not task billing. Full-corpus recovery passed; final full-count synthetic harness coverage passed with all7cells, direct action evidence, truegraph/DB/publication overlaps and zero event loss.47files/589tests passed plus later16runner/5aggregator focused tests andTypeScript. Fetch origin succeeded again,local2ahead/0behind. Three formal full-corpus trials remain pending. No Reserve/reset used.
+
+## P0 fixture and input evidence audit — 2026-09-29 15:32 UTC
+
+Live `get_usage_limits`: normal codex43%used/57%remaining;10080-minute primary window/reset1791200482;ordinaryUsageAllowed=true. Same-window8percentagepoints above previous35%; account-wide observation, not task billing. Earlier full-count coverage claims are superseded: required extreme fixture PUT failed and was not enforced. First formal attempt excluded with audit preserved; Trial-1R created and verified from Frozen. Repaired fixture tests18 and aggregator tests7/TypeScript PASS. Current diagnostic proves actual1,750,000-byte/10,000-definition/50,000-reference note but exposes Source readiness race; measured preparation and direct-mode coverage repair underway. Formal valid trials0/3. No Reserve/reset used.
