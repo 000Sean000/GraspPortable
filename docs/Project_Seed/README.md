@@ -17,6 +17,7 @@ scope: seed-routing-and-source-precedence
 | --- | --- | --- |
 | CoreRequirementsFile | [GraspPortable-Core-Requirements-v1.0.0-rc.3.md](GraspPortable-Core-Requirements-v1.0.0-rc.3.md) | WHY、產品行為與驗收方向 |
 | CoreDevelopmentMethodFile | [GraspPortable-Core-Development-Method-v1.0.0-rc.3.md](GraspPortable-Core-Development-Method-v1.0.0-rc.3.md) | Plan／Goal 決策邊界、工程方法與證據 |
+| ArchitecturePlanningGuideFile | [graspportable-architecture-planning-guide-v1.0.0-rc.3.md](graspportable-architecture-planning-guide-v1.0.0-rc.3.md) | 2026-09-29 補充：模組 owner／ports／依賴、四維分類與接續；不自行擴張 Goal |
 
 本文的 Core Requirements、Core Development Method 分別指上述 mapping。版本變動在此集中更新路由。
 
