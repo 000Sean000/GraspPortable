@@ -1,10 +1,10 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.6
+version: 1.0.0-rc.7
 updated: 2026-10-03
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.5.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.6.md
 ---
 
 ## 執行目標
@@ -15,7 +15,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.5.md
 
 維持已接受的產品語義與替換邊界。長程工作開始前集中確認重大決策；交棒後自主選擇實作方法、適時委派、做足以保護當次成果的必要驗證，並留下可跨 thread 與環境接續的 repo 工作狀態。
 
-本文件描述整體架構規劃方法。實際技術選擇由 [Engineering 入口](README.md) 連至獨立決策；已接受的具体模組與實作映射由後續架構文件承載。
+本文件描述整體架構規劃方法。實際技術選擇由 [Engineering 入口](README.md) 連至獨立決策；本次採用的架構模型與具體模組配置，亦由該入口連到獨立決策及產品架構文件。
 
 ## 架構責任與邊界
 
@@ -82,7 +82,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.5.md
 
 ### 1. 恢復當前工作
 
-讀取 `docs/Project_Seed/README.md` 路由的現行產品需求，以及 `docs/Engineering/README.md` 路由的開發方法、已接受的 Plan、適用的 repo instructions，以及 `docs/EXECUTION-STATE.md`。依任務需要讀取 `ARCHITECTURE.md`、`docs/DECISIONS.md` 與相關 source／tests，核對基底、有效決策及在製變更。
+讀取 `docs/Project_Seed/README.md` 路由的現行產品需求，以及 `docs/Engineering/README.md` 路由的開發方法、已接受的 Plan、適用的 repo instructions，以及 `docs/EXECUTION-STATE.md`。依 Engineering 入口讀取現行產品架構、模型／技術決策與相關 source／tests，核對基底、有效決策及在製變更。
 
 形成足以支援當次 Goal 的模組邊界、責任摘要與四維分類，再進入相應工作。
 
@@ -104,6 +104,6 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.5.md
 
 在 repo 保存基底版本、工作範圍、變更、測試結果、未完成事項與下一步。換 thread 或環境前留下可恢復狀態；接手後核對版本與契約變動，再沿原工作繼續。
 
-由開發方法承載協作流程，由 `ARCHITECTURE.md` 承載已接受的模組邊界與實作映射，由模組／工作紀錄承載四維實際值與進度。讓 `AGENTS.md` 等入口以短指引路由至對應文件。Planning Bridge 保存規劃決策，development working state 留在 repo。
+由開發方法承載協作流程，由 Engineering 入口所指的產品架構承載模組邊界與實作映射，由模組／工作紀錄承載四維實際值與進度。讓 `AGENTS.md` 等入口以短指引路由至對應文件。Planning Bridge 保存規劃決策，development working state 留在 repo。
 
 在當次授權範圍內完成修改與提交，維持文件、公開契約、程式及測試的一致性。
