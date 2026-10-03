@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GraspPortable.App/GraspPortable.App.csproj" />
+    <Project Path="src/GraspPortable.Contracts/GraspPortable.Contracts.csproj" />
+    <Project Path="src/GraspPortable.Core/GraspPortable.Core.csproj" />
+    <Project Path="src/GraspPortable.Host/GraspPortable.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GraspPortable.Core.Tests/GraspPortable.Core.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Host.Tests/GraspPortable.Host.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Integration.Tests/GraspPortable.Integration.Tests.csproj" />
+  </Folder>
+</Solution>

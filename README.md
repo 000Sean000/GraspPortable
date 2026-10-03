@@ -1,25 +1,23 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.8.0
+version: 1.9.1
 updated: 2026-10-03
 scope: rewrite-branch-entry
 ---
 
 ## 從產品需求重新實作
 
-本分支 `rewrite/dotnet` 為新版建立乾淨的文件起點。新版程式從零撰寫；原 Prototype 保存在 [master](https://github.com/000Sean000/GraspPortable/tree/5ca1373dca91e16d9e161de498bf8fcaebac1031/) 對應的固定來源版本，供歷史查考。本分支目前交付物只有文件。
+`rewrite/dotnet` 已建立 Windows 試用版本。從根目錄執行 [Start-GraspPortable.cmd](Start-GraspPortable.cmd)，預設開啟獨立 FirstUI 測試 workspace；[操作說明](docs/Engineering/FirstUI-Quickstart.md)列出可體驗流程與資料位置。
 
-先看 [專案架構圖解](docs/Engineering/GraspPortable-Architecture-Diagrams-v1.0.0.md)：程式碼依賴、Windows 執行配置與共享修改時序。
+Core／SQLite／HTTP 與 editor 回歸已通過，App／Host Release 發行成功並已在本機啟動。**Windows GUI／中文 IME／端到端流暢度尚未驗收，因此 S1 尚未全部通過**；詳見[驗證紀錄](docs/Engineering/S1-Validation.md)。目前停在使用者試用與必要修正，不自動開始 S2。
 
-讀取入口：
+1. [本輪授權與工作狀態](docs/EXECUTION-STATE.md)：目前進度、證據、未完成與下一步。
+2. [Project Seed](docs/Project_Seed/README.md)：產品 WHAT／WHY 與完整方向。
+3. [Windows S1 計畫 rc.6](docs/Engineering/Implementation-Plan-v1.0.0-rc.6.md)：目標、四 Projects、接面、分期、可體驗驗收與有界測試。
+4. [產品架構 rc.3](docs/Engineering/GraspPortable-Architecture-v1.0.0-rc.3.md)／[架構圖解 v1.1.0](docs/Engineering/GraspPortable-Architecture-Diagrams-v1.1.0.md)：依賴、程序、資料與交易。
+5. [Engineering](docs/Engineering/README.md)：整體方法、目錄原則、主動 subagent 協作與技術決策。
+6. [開發環境](docs/Engineering/Development-Environment.md)：Workspace／repository 邊界與本機觀測。
 
-1. [本輪決策與工作狀態](docs/EXECUTION-STATE.md)：平台範圍、目前授權與下一步。
-2. [現行 Project Seed](docs/Project_Seed/README.md)：完整產品需求與 WHY。
-3. [產品架構](docs/Engineering/GraspPortable-Architecture-v1.0.0-rc.2.md)：模組、執行、資料一致性與效能安排。
-4. [工程入口](docs/Engineering/README.md)：整體方法、架構模型與實際技術決策分開路由。
-5. [最早可查的兩份原始文件](docs/Reference/Originals/README.md)：rc.1 原文與來源。
-6. [舊文件與 insight 索引](docs/Reference/README.md)：按問題讀取歷史參考。
+已接受語法基準見 [Syntax Review rc.4](docs/Engineering/Binding-Syntax-Review-v1.0.0-rc.4.md)，沿用使用者整體接受的 rc.3 profile：ASCII case-sensitive identifier、@ 只在定義左側、@code 區域、單層起始／marker 疊層、局部邊界 escape 及可設定 parsing allowlist。
 
-本機環境已按新版 Workspace／repository 邊界確認，見 [開發環境](docs/Engineering/Development-Environment.md)。[Windows 實作規劃 rc.5](docs/Engineering/Implementation-Plan-v1.0.0-rc.5.md)已納入 namespace 唯一性、即時更新、首輪多段引用、Portable 優先與暫定效能門檻；最新 ASCII／@ 定義與 code fence 解析政策，以及 單層起始、marker 疊層與邊界 escape見 [Binding Syntax Review](docs/Engineering/Binding-Syntax-Review-v1.0.0-rc.3.md)。產品程式仍未開始，等待語法確認及實作授權。
-
-本輪已選擇重新實作；最新使用者明確決策優先。Seed 保存完整產品目標；架構、進度與當次交付範圍另外記錄。
+舊 Prototype 固定來源為 [5ca1373](https://github.com/000Sean000/GraspPortable/tree/5ca1373dca91e16d9e161de498bf8fcaebac1031/)；[Reference](docs/Reference/README.md)僅按問題查考，[Originals](docs/Reference/Originals/README.md)保存來源，不作現行工作授權。Legacy1 不納入日常搜尋。

@@ -1,21 +1,21 @@
 ---
 title: GraspPortable — Product Architecture
-version: 1.0.0-rc.2
+version: 1.0.0-rc.3
 updated: 2026-10-03
-status: architecture-baseline-not-implemented
+status: accepted-architecture-baseline
 scope: product-modules-runtime-and-data-boundaries
-supersedes: GraspPortable-Architecture-v1.0.0-rc.1.md
+supersedes: GraspPortable-Architecture-v1.0.0-rc.2.md
 ---
 
 ## 先讀這裡
 
-這份架構將 [Seed](../Project_Seed/README.md) 的完整產品方向放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.0.1.md)。第一個 Windows 可操作版本可以只實作其中一條流程；完整產品責任仍保留在這份架構中。
+這份架構將 [Seed](../Project_Seed/README.md) 的完整產品方向放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.0.2.md)。S1 實作已接受的完整 Windows 筆記流程；完整產品責任仍保留在這份架構中。
 
 整體採用「功能模組 + 模組內部分層 + Ports／Adapters」。Windows App 負責即時互動，本機後端負責資料規則、計算、保存與交換。模組透過明確契約協作，共享修改集中提交，較慢的工作有獨立排程。
 
-最重要的成果是：能找出一項功能歸誰、修改影響何處、哪裡可替換，以及哪個執行路徑可能拖慢 UI。此文件是工程基準；所有模組尚待實作，效能與 GUI 仍待實測。
+最重要的成果是：能找出一項功能歸誰、修改影響何處、哪裡可替換，以及哪個執行路徑可能拖慢 UI。此文件是工程基準；實作與效能／GUI 的動態驗證結果以 EXECUTION-STATE 為準。
 
-[新版架構圖解](GraspPortable-Architecture-Diagrams-v1.0.0.md) 分開呈現程式碼依賴、Windows 執行配置與共享提交時序；原參考圖不作本專案的現行架構圖。
+[新版架構圖解](GraspPortable-Architecture-Diagrams-v1.1.0.md) 分開呈現程式碼依賴、Windows 執行配置與共享提交時序；原參考圖不作本專案的現行架構圖。
 
 ## 1. 產品責任地圖
 
@@ -43,7 +43,7 @@ Platform、SQLite、HTTP、編輯器與雲端 provider adapters 是上述模組�
 
 Application 可以依賴 Domain 與 Ports；Adapters 依賴對應契約；Domain 不依賴 Host／UI／HTTP／SQLite。程式碼依賴與實際呼叫流程分開理解。
 
-模組間公開接面放在 owner 的 Contracts 區域；消費者對契約的依賴須列明。Shared Kernel 僅保留跨模組確實相同的穩定型別，不放所有模組服務。跨模組依賴保持無循環；Application 協調需要多模組參與的 use case。
+模組間公開接面放在 owner 的 Public 區域（與程序間 wire Contracts 分開）；消費者對契約的依賴須列明。Shared Kernel 僅保留跨模組確實相同的穩定型別，不放所有模組服務。跨模組依賴保持無循環；Application 協調需要多模組參與的 use case。
 
 讀取也經明確契約。Query 的 SQLite adapter 可使用 Knowledge 公開且可版本化的 read schema／view，不能任意依賴私有表結構。優化查詢可直接投影成 DTO，避免為了畫面資料載入完整 domain object graph。
 
@@ -79,7 +79,7 @@ MAUI App 啟動並管理本機後端。API 僅綁 loopback，使用每次啟動�
 
 Blazor Hybrid 的 Razor 元件在 App 的 .NET 環境執行，透過本機 interop 呈現於 WebView；ASP.NET Core 後端服務資料與操作，不負責逐次輸入的 UI rendering。編輯器 JS 管理立即輸入、游標、選取、IME 及 undo，Razor 管理周邊 UI。
 
-App Client 是 UI 的 backend port。Windows 用本機 HTTP command／query adapter；版本通知以可替換的通知 channel 傳送。UI 不透過該 API 同步等待每個按鍵。確切通知協定與封裝方式留到實作選擇，不改變版本、重連及補讀契約。
+App Client 是 UI 的 backend port。Windows 用本機 HTTP command／query adapter；版本通知以可替換的通知 channel 傳送。UI 不透過該 API 同步等待每個按鍵。S1 採 HTTP JSON commands／queries 與 SSE revision 通知；重連有缺口就補讀 snapshot。
 
 ## 4. 編輯、計算與保存的一致性
 
@@ -112,7 +112,7 @@ Prepare 期間不長時間持有 SQLite 寫入 transaction。初期以 workspace
 | 持久提交 | 每 workspace 一個提交通道；批量寫入受影響內容 | 有界等待與可見狀態；長 prepare 不占寫鎖 |
 | 匯出／checkpoint／重建 | 低優先工作；以 committed snapshot 分批處理及 I/O 限流 | 可取消／續作，保留最後成功產物；不阻塞正常輸入 |
 
-表內是邏輯與執行安排；具體 worker、connection 與 batch 數量在實作依裝置及 workload 設定。有 `async` 或命名為不同 lane 本身不構成執行隔離。
+表內是邏輯與執行安排；S1 起始為每 workspace 最多兩個 CPU prepare workers、單 writer；connection 與 batch 依代表 workload 調整。有 `async` 或命名為不同 lane 本身不構成執行隔離。
 
 Graph 的單一 node 不等於單一網路請求或 domain event。批次傳入受影響資料、批次回傳 delta；限制快取記憶體與展開結果大小的資源使用。遇到極端展開，提供明確工作／資源狀態，不靜默截斷資料。
 
@@ -142,47 +142,46 @@ Programming Integration 透過同一查詢／修改契約接觸知識。真正�
 
 ## 8. Solution／project 配置基準
 
-| 預定 project／package | 類型與責任 | 允許的主要依賴 |
+| Product project | 類型與責任 | 允許的 project 依賴 |
 | --- | --- | --- |
-| GraspPortable.App | MAUI Blazor Hybrid executable；Windows 啟動／生命週期／平台組裝 | UI、Client、Contracts |
-| GraspPortable.UI | Razor Class Library；按 Authoring／Workspace／Views／Exchange 分區，含 editor JS assets | Client、Contracts |
-| GraspPortable.Client | Class Library；App Client port 及 Windows HTTP adapter | Contracts |
-| GraspPortable.Host | ASP.NET Core executable；API、工作排程及後端組裝 | Core、Infrastructure、Contracts |
-| GraspPortable.Core | Class Library；按功能模組分區，各模組內有 Contracts／Application／Domain／Ports | Contracts 中純資料契約 |
-| GraspPortable.Infrastructure | Class Library；按模組分區的 SQLite／檔案／平台 adapters | Core、Contracts |
-| GraspPortable.Contracts | Class Library；程序間 commands、queries、receipts 與必要共用值型別 | .NET 基礎型別 |
+| GraspPortable.App | MAUI Blazor Hybrid executable；Razor、editor assets、畫面狀態／ViewModel、client、Windows 啟動／平台 | Contracts |
+| GraspPortable.Host | ASP.NET Core executable；API、排程、DI、SQLite／檔案 adapters、後端生命週期 | Core、Contracts |
+| GraspPortable.Core | Class Library；功能 use cases／domain／ports／parser／graph／evaluation | 無 |
+| GraspPortable.Contracts | Class Library；程序間 commands／queries／receipts／notifications | 無 |
 
-表內是實作起點，尚未建立專案。後端是 Host 啟動的完整應用，由 Core 與 Infrastructure 提供內部責任。Contracts 不放服務實作或 ORM entity；型別按功能命名，保持 transport schema 與 domain model 的映射清楚。
+七專案方案收斂為四個，避免首輪 UI／Client／Infrastructure 跨 assembly 分散維護。UI 與 backend client 邏輯仍各自有接面，只是位於 App；外部 adapters 在 Host，核心 ports 保留 Core。後端由 Host 啟動，Class Libraries 不承擔 executable。
 
-邏輯模組先用 namespace／資料夾及公開接面約束，同一 project 內也不能任意跨模組讀取內部狀態。若編譯隔離或獨立替換確有價值，再將對應模組抽成 project。測試按實際風險建立，原型只加入本次能力需要的整合與操作驗證。
+Host 將 wire DTO 映射 Core 型別。Core 與 Contracts 均不依賴其他產品 project；Contracts 不含 ORM entity／服務實作。App 不引用 Core／Host、不直接開 DB。
+
+按功能建立淺目錄，僅在需要時分 Public／Model／Ports。Core 跨 owner 限制：Knowledge → ValueEngine.Public、Query → Knowledge.Public、後期 Exchange → Knowledge.Public；ValueEngine 不反向讀取 Knowledge。所有跨模組依賴保持無循環。同 assembly 的 namespace 不是編譯隔離，使用少量有意義的依賴檢查；實際獨立重用／build／test 需求出現時再抽 project。
+
+App 同一功能的 Razor、樣式、ViewModel、Editor TypeScript／Interop 鄰近放置。CodeMirror 持有高頻文字、selection、IME／local history；ViewModel 協調畫面狀態，Backend client 經 port 提供操作。Renderer dispatcher 套用狀態；component dispose 不取消已接受提交的結果追蹤。目錄可按 use case 細化，不预建空的 mobile／後期 modules。
 
 ## 9. 規劃狀態與實作入口
 
-| 模組／責任 | Importance | Status | Environment | Agent |
+| 模組／責任 | Importance | Environment | Agent | 計畫階段 |
 | --- | --- | --- | --- | --- |
-| Workspace、Authoring、Knowledge、Value Engine、Query | Trunk | WAITING_FOR_IMPLEMENTATION | Core：Cloud-capable；Windows GUI／IME：Local-required | High-capability |
-| Exchange／Recovery | Trunk；依首輪範圍分期 | WAITING_FOR_IMPLEMENTATION | 邏輯：Cloud-capable；目標 filesystem／復原：Local-required | High-capability |
-| Cross-device Continuity、Programming Integration | Non-trunk；相對首輪驗證 | WAITING_FOR_IMPLEMENTATION | 協定：Cloud-capable；平台整合：Local-required | High-capability |
-| Host／Infrastructure／Client adapters | 必要流程的 Trunk | WAITING_FOR_IMPLEMENTATION | 可攜契約：Cloud-capable；Windows 封裝：Local-required | High-capability |
+| Workspace、Authoring、Knowledge、ValueEngine、最小 Query | Trunk | 邏輯 Cloud-capable；Windows／IME／SQLite 整合 Local-required | High-capability，模型／effort 預設沿用 | S0–S1 |
+| Exchange／Recovery | Trunk，分期 | 邏輯 Cloud-capable；副本／filesystem／復原 Local-required | High-capability | S2–S3 |
+| Records／進階 Views | Non-trunk，相對 S1 | 邏輯 Cloud-capable；UX Local-required | High-capability | S4 |
+| Cross-device Continuity／Programming | Non-trunk，相對 S1 | 契約 Cloud-capable；平台 Local-required | High-capability | S5 |
 
-表內為本次預設，局部工作可依已定契約另行安排。原型用 UI／UX 驗證需求與技術；使用者的操作回饋回寫相應文件。界面調整通常局部影響；若改變資料一致性、生命週期或執行假設，再修訂受到影響的架構。
+Status 是動態維度，集中於 EXECUTION-STATE，不在靜態架構重複保存過時完成狀態。四個 source 入口為 `src/GraspPortable.App`、`src/GraspPortable.Host`、`src/GraspPortable.Core`、`src/GraspPortable.Contracts`；tests 隨實際高風險契約建立，具體 build／操作入口由交付文件記錄。
 
-初期 source／tests 入口尚未存在；上述 project 表是預定配置。程式建立時補上真實路徑，不把預定位置寫成已有實作。
+原文 rename 核心、共享 literal 修改、一般段落 Live Preview 均在 S1。專用 rename UI、composition 專用編輯器與共享語意 undo 延後；延後 UI 不移除已承諾的身分與共享提交能力。
 
-## 10. 尚待具體化的事項
+## 10. 分期處理的未定事項
 
-- 目標裝置、資料／依賴成長規模、互動延遲與資源餘裕：先依現有資料及 insight 提出具體候選，再由使用者裁定產品尺度。
-- 未定語法的 expected-value 邊界、共享修改來源權限及跨裝置衝突：沿用已接受內容；存在不同資料含義時用案例確認。
-- Fallback 頻率、可接受落後窗口與保留量：實作前提出可理解的產品方案；架構已提供獨立排程與失敗狀態。
-- 編輯器／WebView 大量參照的實際負荷，以及本機 API 的通訊成本：由 Windows 可操作流程驗證，不能由框架名稱推定達標。
-
-這些項目不阻擋本次模型與責任邊界建立；尚未取得的產品裁定不以預設數字或隱含政策代替。
+- S1 已接受 syntax profile、Windows／Portable 優先及暫定效能門檻，見現行 Implementation Plan；沒有需要重問才可開始的產品決策。
+- 最低 PC、真實資料／成長尺度及跨裝置能力依後期實測，不能由目前高階 PC 推論。
+- Fallback 落後窗口／保留政策、外部來源定案權限、跨裝置衝突及 Programming 權限在對應阶段确认，不阻擋 S1。
+- 本機完整端到端成本由 Windows 可操作流程驗證；不由框架名稱或架構圖推定達標。
 
 ## 11. 工程依據與證據界線
 
-- [模型決策](Decisions/Architecture-Model-v1.0.1.md) 記錄 Explicit Architecture 的採用範圍與取捨。
+- [模型決策](Decisions/Architecture-Model-v1.0.2.md) 記錄 Explicit Architecture 的採用範圍與取捨。
 - [Microsoft：Blazor Hybrid](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/?view=aspnetcore-10.0) 說明 Razor 在 native .NET 執行並經本機 interop 呈現；此架構據此區分 UI 宿主與資料後端。
 - [SQLite isolation](https://www.sqlite.org/isolation.html) 說明單一 writer 與 committed snapshot；[WAL](https://www.sqlite.org/wal.html) 說明讀寫併行及檔案系統限制。本文排程與攜帶方式是本專案設計，並非 SQLite 自動提供完整產品恢復。
 - [Prototype reference](../Reference/README.md) 保留 P0／M4 workload、成本歸因與未達 UX 目標的事實。
 
-本文件未執行 build、GUI、效能或 crash recovery 測試；驗證狀態仍為架構文件檢查。
+本文件不作產品驗證證據；build、GUI、效能與故障測試的實際結果由 EXECUTION-STATE 及當次驗證紀錄維護。

@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Architecture Model Decision
-version: 1.0.1
+version: 1.0.2
 updated: 2026-10-03
 status: selected-under-delegated-architecture-authority
 scope: product-adapted-explicit-architecture
-supersedes: Architecture-Model-v1.0.0.md
+supersedes: Architecture-Model-v1.0.1.md
 ---
 
 ## 決定與目的
@@ -13,9 +13,9 @@ supersedes: Architecture-Model-v1.0.0.md
 
 使用者於 2026-10-03 授權：若無必須由使用者裁定的問題，直接將模型調整為適合本產品的方案。本文件記錄此授權下的工程決定；不表示具體實作、性能或使用者操作驗收已完成。
 
-[產品架構](../GraspPortable-Architecture-v1.0.0-rc.2.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.1.1.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.7.md) 維持通用規劃方法。
+[產品架構](../GraspPortable-Architecture-v1.0.0-rc.3.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.1.2.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.8.md) 維持通用規劃方法。
 
-本專案使用 [自己的架構圖](../GraspPortable-Architecture-Diagrams-v1.0.0.md) 表達下列取捨；原文圖保留作概念來源。
+本專案使用 [自己的架構圖](../GraspPortable-Architecture-Diagrams-v1.1.0.md) 表達下列取捨；原文圖保留作概念來源。
 
 ## 相對原模型的取捨
 
@@ -43,7 +43,7 @@ supersedes: Architecture-Model-v1.0.0.md
 
 ## 決策與未定事項
 
-本次採用模型與責任安排所需的決策已具備，沒有需要使用者先補充的阻擋項。量化效能尺度、fallback 可接受落後窗口及尚未定義的語法／跨裝置衝突行為，留在對應產品決策；不在本次以工程假設補成產品規則。它們可能影響局部設計，若牽動資料語义或已承諾品質，提出具體案例再裁定。
+本次採用模型與責任安排所需的決策已具備，沒有需要使用者先補充的阻擋項。S1 語法及暫定效能尺度已接受；fallback 可接受落後窗口及跨裝置衝突行為，留在後期對應產品決策；不在本次以工程假設補成產品規則。它們可能影響局部設計，若牽動資料語义或已承諾品質，提出具體案例再裁定。
 
 ## 依據
 

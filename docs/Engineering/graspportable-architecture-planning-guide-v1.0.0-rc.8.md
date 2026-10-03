@@ -1,10 +1,10 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.7
+version: 1.0.0-rc.8
 updated: 2026-10-03
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.6.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.7.md
 ---
 
 ## 執行目標
@@ -46,6 +46,16 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.6.md
 ### 自主選擇模組內部方法
 
 依問題評估 OOP／FP 的互補：解析、計算、驗證與計畫等轉換可採純函式；生命週期、資源與可變狀態可採具封裝邊界的物件。將其視為方法選項，依實際品質選擇 class、function 與內部分工。
+
+### 目錄與 Project 的搭建原則
+
+以功能責任和 use case 作第一層導航，模組內才按實際需要分 Public、Model、Ports 或 adapters。不強制加上 Contexts／Features／UserInterface 包裝層；同一功能的 Razor、樣式、ViewModel、editor adapter 儘量相鄰，共用 transport／platform／組裝才集中。
+
+S1 四個產品 projects 為 App、Host、Core、Contracts，具體依賴由產品架構維護。Core 內公開接面位於 owner 的 Public 區，與程序間 wire Contracts 分開。同 assembly 的 namespace 不是編譯隔離，使用少量有意義的依賴檢查維護禁止引用。
+
+開始寫程式前須固定程序／資料權威／交易／依賴方向／公開接面及第一條流程；不需先決定每個 class、子資料夾或未來 module。只建立正在使用的目錄與抽象，不做 interface-per-class。目錄可在同一責任內移動；跨 owner、project 或資料權威的移動須重查依賴及驗收。實際出現獨立重用、建置或測試摩擦時，再抽出 project。
+
+MVVM 按需使用：CodeMirror 管高頻文字、selection、IME 與 local history；畫面狀態／協調在 ViewModel，傳輸及 editor 操作經小型 ports。Blazor dispatcher 套用畫面更新，dispose 取消無用查詢／訂閱；已接受的 durable operation 由 session 層持續追蹤，不隨 component dispose 冒充 rollback。
 
 ## 模組四維與紀錄
 
@@ -90,7 +100,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.6.md
 
 以完整、可驗證的成果安排工作段，允許涵蓋必要的多個檔案與模組。按 Importance 排序，再依 Environment 選擇可執行環境，依 Agent 安排推理能力。
 
-由高階 coordinator 負責架構、重大模糊問題、跨模組整合與最終整合判斷。Cloud 與 Local 均適時將邊界清楚、可獨立驗證的低判斷密度工作交給低階 subagent；由 coordinator 衡量分派與整合成本，並核對結果。
+主代理負責架構、共同契約、資料所有權、跨模組整合與最終判斷。每段開始主動評估能否委派獨立實作或有界審查；這項責任與 medium／high effort 無關。通常加 1–2 個 subagents，保持不重疊檔案責任、單一共用契約擁有者及明確驗收；模型／effort 預設沿用，不自動降級。完整協作及全局檢視規則由現行 Development Method 維護。
 
 ### 3. 驗證與整合
 

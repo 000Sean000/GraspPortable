@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Technology Selection
-version: 1.1.1
+version: 1.1.2
 updated: 2026-10-03
 status: accepted-direction-pending-implementation-validation
 scope: dotnet-rewrite-technology-selection-result
-supersedes: Technology-Selection-v1.1.0.md
+supersedes: Technology-Selection-v1.1.1.md
 ---
 
 ## 本次技術選擇結果
@@ -33,6 +33,6 @@ supersedes: Technology-Selection-v1.1.0.md
 
 Windows 採 MAUI Blazor Hybrid App 與獨立 ASP.NET Core 本機後端程序；App Client 以 loopback HTTP 傳遞 commands／queries，版本通知有可替換 channel。UI 的即時編輯狀態留在 editor，本機後端處理知識變更、計算與保存。
 
-Solution／project 配置、模組責任、一致性與工作排程見 [產品架構 rc.2](../GraspPortable-Architecture-v1.0.0-rc.2.md)。這些是本次授權下的設計決定；尚未建立程式，通知協定、封裝及具體平台整合仍待實作確認。
+Solution／project 配置、模組責任、一致性與工作排程見 [產品架構 rc.3](../GraspPortable-Architecture-v1.0.0-rc.3.md)。四產品 Projects、HTTP JSON／SSE 與本機 unpackaged 發行已列入接受的 S1 計畫；實際 build、操作與性能結果由 EXECUTION-STATE 維護，不能把技術方向當驗證證據。
 
 選定技術尚不構成效能達標證據。目標資料與成長規模、目標裝置、互動延遲及可接受資源使用，將作為具體架構與驗收的依據；現有 P0／M4 僅提供其已觀測的 insight，見 [參考索引](../../Reference/README.md)。

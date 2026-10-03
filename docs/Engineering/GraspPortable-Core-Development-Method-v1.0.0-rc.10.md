@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.9
+version: 1.0.0-rc.10
 updated: 2026-10-03
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.8.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.9.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -69,9 +69,9 @@ Binding 是 assignment 及 composition：raw literal 保存固定文字，litera
 
 ### 4.2 Grammar 實作前的校準
 
-已接受的是 raw literal＋串接方向，不是完整語法已通過 conformance。Plan 必須補齊真正影響同一原文含義的邊界，並以最小案例確認：
+S1 已整體接受 Syntax Review rc.3 profile；現行語法文件保存同一 profile 與必要明確化。接受規格不等於 parser 已通過 conformance。實作以少量 exact-value 案例保護下列邊界：
 
-- Binding 語法區的起始／終止、literal 優先權、statement 分隔、相鄰區域與未閉合錯誤；最新 `@code{ ... }` 草案需先檢查歧義，未定案前不直接建立 parser。
+- Binding 語法區的起始／終止、literal 優先權、statement 分隔、相鄰區域與未閉合錯誤；已接受 `@code{ ... }`，依現行語法文件的確定性邊界實作。
 - Assignment operator 與第一個 expression token 之間的排版空白／換行；opening marker 是否與 `=` 同行不得成為資料語意。
 - Opening／closing marker 的精確匹配、空值、內容恰含 delimiter；本版依使用者方向採單層起始及 marker 疊層，value 僅在 inline 邊界作局部 escape，block 原文保留。具體 profile 仍可替換。
 - Inline／block literal、結構換行、value 真正的首尾換行、空白、縮排、LF／CRLF 與空值狀態。
@@ -171,6 +171,22 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 4. Verify：只做足以驗證當次成果與重大風險的檢查；與 UX 有關時親自走使用者流程。Benchmark／profiling 只在性能本身是驗收目標或仍存在會改變決策的不確定性時使用。
 5. Checkpoint：完成 coherent segment 後，按本任務授權建立 Git checkpoint。進度及 exact next step 放工作狀態文件，不放長期 Seed。
 6. Deliver：達到該 Goal 的實際完成判準再交付；受環境或額度阻擋時明確標示未完成部分。
+
+### 主動 subagent 協作
+
+是否委派與主代理的 reasoning effort 無關；即使以 medium effort 工作，每個工作段開始也主動評估獨立實作及有界審查是否能節省時間或提高品質。有收益即可委派，不等待使用者逐次指定。
+
+通常由主代理加 1–2 個 subagents 協作；遵守執行環境的並行上限，目前共四個 agents，不為填滿名額拆工。主代理負責範圍、共同契約、資料所有權、交易邊界、跨模組整合與最終驗收。契約固定後，parser／codec fixtures、App editor／ViewModel 可獨立實作；交易、過期結果、rename、UI 更新可安排另一 agent 唯讀審查。
+
+每次交棒附：目標、可修改檔案、已批准契約、排除範圍、驗收方式及回報格式。共享工作目錄使用不重疊檔案責任；Contracts、DI、migration 維持單一擁有者，跨邊界修改先回報主代理。小工作或高度耦合工作順序處理，不強拆。
+
+模型與 effort 預設沿用；不依工作看似簡單就自動降低能力或切換 Reserve。Agent 四維欄位描述需求，不構成模型切換授權。主代理檢查差異、整合與必要端到端驗證，不把子代理的完成回覆直接當驗收結果；不重複全量探索及完整測試。
+
+### 全局檢視與有界驗證
+
+每個里程碑結束，同一問題連續兩輪修正無改善，或驗證成本接近產品改動成本時，暫停局部擴張，短記：距離下一個可體驗流程缺什麼、哪個假設被證據推翻、目前是否為主要風險，以及下一步繼續／簡化／調整邊界／延後的理由。
+
+先跑本次必要驗證，修正後重跑受影響項目。只有新失敗、契約變動或具體未解風險才擴大；不設覆蓋率配額、不以 benchmark 平台或統計認證替代產品成果。資料一致性失敗不得完成；UX／性能未達可交早期試用但必須標示失敗，不自行放寬門檻。普通 HOW 自行調整，產品語意、主要技術、部署或重大成本取捨才提具體選項。
 
 ### Git
 

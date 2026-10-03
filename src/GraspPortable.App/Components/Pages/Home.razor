@@ -1,0 +1,60 @@
+@page "/"
+@using GraspPortable.Contracts
+@using GraspPortable.App.Backend
+@using GraspPortable.App.PlatformServices
+@implements IAsyncDisposable
+@inject BackendSession Backend
+@inject WorkspaceFolderPicker FolderPicker
+@inject IJSRuntime JS
+<div class="application">
+<aside class="sidebar">
+ <div class="brand"><span class="brand-mark">G</span><div>GraspPortable<small>LOCAL WORKSPACE · S1</small></div></div>
+ <button class="workspace-button" @onclick="OpenWorkspaceDialog" title="@Backend.WorkspacePath"><span class="status-dot @(Backend.Connected?"online":"")"></span>@WorkspaceName <span>⌄</span></button>
+ <div class="sidebar-heading">筆記 <button class="icon-button" @onclick="ShowCreate" disabled="@(!Backend.Connected)" title="新增筆記">＋</button></div>
+ <input class="search" placeholder="搜尋筆記…" aria-label="搜尋筆記" value="@_search" @oninput="SearchChanged" />
+ <nav class="note-list">
+ @foreach(var item in _notes){<button class="note-item @(item.Id==_note?.Id?"selected":"")" @onclick="() => SelectNoteAsync(item.Id)" disabled="@_switching"><span>▤</span><span>@item.Title</span>@if(item.HasDraft){<span class="draft-dot">•</span>}</button>}
+ @if(_notes.Length==0){<p class="muted">建立筆記，開始定義與連結內容。</p>}
+ </nav>
+ <div class="sidebar-bottom"><button @onclick="ShowSettings" disabled="@(!Backend.Connected)">⚙ 解析設定</button><small>本機資料 · 獨立測試工作區</small></div>
+</aside>
+<main>
+ <header class="toolbar"><div class="breadcrumb">工作區 / @(_note?.Title??"開始使用")</div><div class="toolbar-actions">
+ <div class="mode-switch">
+ <button class="@(_mode=="source"?"active":"")" @onclick='() => ChangeModeAsync("source")'>原文</button>
+ <button class="@(_mode=="live"?"active":"")" @onclick='() => ChangeModeAsync("live")'>即時預覽</button>
+ <button class="@(_mode=="reading"?"active":"")" @onclick='() => ChangeModeAsync("reading")'>閱讀</button>
+ </div>
+ <button class="primary small" @onclick="SaveButtonAsync" disabled="@(_note is null||_saving)">儲存 <kbd>Ctrl S</kbd></button><button class="icon-button" @onclick="() => _showInspector=!_showInspector" title="內容面板">☷</button>
+ </div></header>
+ @if(_error is not null){<div class="notice error" role="alert"><span>@_error</span><button @onclick="() => _error=null">×</button></div>}
+ @if(_notice is not null){<div class="notice info"><span>@_notice</span><button @onclick="() => _notice=null">×</button></div>}
+ <div class="document-layout"><section class="document"><div class="document-heading">
+ @if(_note is not null){
+ <div class="eyebrow">NOTE · @(_note.Id[..Math.Min(8,_note.Id.Length)])</div><input class="note-title" disabled="@(_switching||Backend.Closing)" aria-label="筆記標題" value="@_title" @oninput="TitleChanged" @onblur="SaveButtonAsync" />
+ <div class="document-tools"><button @onclick="InsertExampleAsync" disabled="@(_mode=="reading")">＋ 定義範例</button><select aria-label="選擇定義" @bind="_insertName"><option value="">選擇定義…</option>@foreach(var d in _definitions){<option value="@d.Name">@d.Name</option>}</select><button @onclick="() => InsertReferenceAsync(false)" disabled="@(string.IsNullOrEmpty(_insertName)||_mode=="reading")">插入 [引用]</button><button @onclick="() => InsertReferenceAsync(true)" disabled="@(string.IsNullOrEmpty(_insertName)||_mode=="reading")">插入 [[引用]]</button></div>
+ }else{<div class="empty-state"><span class="empty-mark">G</span><h1>讓筆記中的內容彼此連動</h1><p>建立一篇筆記，定義內容，再從另一篇引用。<br />編輯、計算與儲存都在這台電腦完成。</p><button class="primary" @onclick="ShowCreate" disabled="@(!Backend.Connected)">建立第一篇筆記</button></div>}
+ </div><div id="note-editor" class="editor-surface @(_mode=="reading"||_note is null?"hidden":"")"></div><div id="note-reading" class="reading-surface @(_mode!="reading"||_note is null?"hidden":"")"></div></section>
+ @if(_showInspector){<aside class="inspector"><div class="inspector-heading">內容與關聯 <small>@_definitions.Length 個定義</small></div><section><h2>本篇定義</h2>
+ @if(_note?.Definitions.Length>0){@foreach(var definition in _note.Definitions){<button class="definition-card" @onclick="() => InspectDefinitionAsync(definition.Name)"><strong>@definition.Name</strong><span>@Preview(definition.Value??definition.LastGoodValue??"尚未解析")</span><small>@definition.Status</small></button>}}else{<p class="muted">在原文輸入 @@code{…} 來建立定義。</p>}
+ </section>
+ @if(_selectedDefinition is not null){<section><h2>@_selectedDefinition.Name</h2><div class="value-preview">@(_selectedDefinition.Value??_selectedDefinition.LastGoodValue??"尚無值")</div><div class="stack-actions"><button @onclick="LocateDefinitionAsync">前往定義</button><button @onclick="ShowSharedEditAsync" disabled="@(!_selectedDefinition.IsLiteral)">修改共享值…</button></div>@if(!_selectedDefinition.IsLiteral){<p class="muted">組合值請前往原文修改其組成。</p>}<h3>引用位置 · @_references.Length</h3>@foreach(var reference in _references){<button class="reference-link" @onclick="() => LocateReferenceAsync(reference)"><span>@NoteTitle(reference.NoteId)</span><small>@reference.Kind · @Preview(reference.CachedValue)</small></button>}</section>}
+ <section><h2>診斷 · @_diagnostics.Length</h2>@if(_diagnostics.Length==0){<p class="muted">目前沒有診斷。</p>}@foreach(var diagnostic in _diagnostics){<button class="diagnostic" @onclick="() => LocateDiagnosticAsync(diagnostic)"><strong>@diagnostic.Code</strong><span>@diagnostic.Message</span></button>}</section></aside>}
+ </div><footer><span class="@(IsDirty?"pending-status":"")">@_saveStatus</span><span>@Backend.Status</span><span>@_source.Length 字元 · revision @_knowledgeRevision</span></footer>
+</main></div>
+@if(_dialog is not null){<div class="modal-backdrop"><section class="modal @(_dialog=="conflict"?"wide":"")" role="dialog" aria-modal="true" aria-label="操作">
+ @if(_dialog=="create"){
+ <div class="eyebrow">NEW NOTE</div><h2>新增筆記</h2><label>標題<input @bind="_newTitle" @bind:event="oninput" autofocus /></label><div class="modal-actions"><button @onclick="CloseDialog">取消</button><button class="primary" @onclick="CreateNoteAsync" disabled="@_busy">建立筆記</button></div>
+ }else if(_dialog=="workspace"){
+ <div class="eyebrow">LOCAL WORKSPACE</div><h2>開啟工作區</h2><p>選擇獨立測試資料夾。新資料夾會建立資料庫，不會匯入或接管其他筆記。</p><label>工作區路徑<input @bind="_workspacePath" /></label><button @onclick="BrowseWorkspaceAsync">選擇資料夾…</button><div class="modal-actions"><button @onclick="CloseDialog">取消</button><button class="primary" @onclick="ChangeWorkspaceAsync" disabled="@_busy">開啟</button></div>
+ }else if(_dialog=="literal" && _selectedDefinition is not null){
+ <div class="eyebrow">SHARED VALUE</div><h2>修改 @_selectedDefinition.Name</h2><p>更新定義與所有相依引用。</p><label>共享文字<textarea class="literal-input" @bind="_literalValue"></textarea></label><div class="impact">@_impact?.Definitions 個定義 · @_impact?.References 個引用 · @_impact?.NoteIds.Length 篇筆記</div>@if(_impact?.HasDirtyDraft==true){<p class="warning-text">受影響筆記有未提交草稿，請先處理。</p>}<div class="modal-actions"><button @onclick="CloseDialog">取消</button><button class="primary" @onclick="ApplyLiteralAsync" disabled="@(_busy||_impact is null||_impact.HasDirtyDraft)">確認並更新共享值</button></div>
+ }else if(_dialog=="settings"){
+ <div class="eyebrow">WORKSPACE POLICY</div><h2>Grasp 解析範圍</h2><p>只有清單中的 code block 語言參與解析；其他語言保留為展示文字。</p><label class="checkbox"><input type="checkbox" @bind="_parseUnlabelled" @bind:after="ClearPolicyPreview" />解析未標語言的 code block</label><label>啟用語言（每行一個）<textarea @bind="_languageText" @bind:event="oninput" @bind:after="ClearPolicyPreview"></textarea></label><small>初始啟用 grasp；json、grasp-demo 和其他未列語言停用。</small>@if(_impact is not null){<div class="impact">影響 @_impact.NoteIds.Length 篇筆記、@_impact.Definitions 個定義、@_impact.References 個引用。@_impact.Message</div>}<div class="modal-actions"><button @onclick="CloseDialog">取消</button><button @onclick="PreviewPolicyAsync" disabled="@_busy">預覽影響</button><button class="primary" @onclick="ApplyPolicyAsync" disabled="@(_busy||_impact is null||_impact.HasDirtyDraft)">確認套用</button></div>
+ }else if(_dialog=="rename"){
+ <h2>名稱變更會影響其他引用</h2><p>@_confirmationResult?.Message</p><p>受影響筆記：@(_confirmationResult?.AffectedNoteIds?.Length??0)</p><div class="modal-actions"><button @onclick="CloseDialog">保留草稿</button><button class="primary" @onclick="ConfirmRenameAsync" disabled="@_busy">確認名稱變更</button></div>
+ }else if(_dialog=="conflict"){
+ <h2>保留草稿，確認合併內容</h2><p>左側顯示最新版本；确认後才以右側內容提交。</p><div class="merge-grid"><label>最新提交<textarea readonly value="@_conflictNote?.Source"></textarea></label><label>合併內容<textarea @bind="_mergeSource"></textarea></label></div><div class="modal-actions"><button @onclick="CloseDialog">稍後處理</button><button class="primary" @onclick="ApplyMergeAsync" disabled="@_busy">使用右側內容提交</button></div>
+ }
+ @if(_busy){<p class="muted">處理中…</p>}
+</section></div>}

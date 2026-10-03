@@ -4,6 +4,7 @@ node_modules/
 
 # Build output and IDE user state
 dist/
+artifacts/
 [Bb]in/
 [Oo]bj/
 .vs/

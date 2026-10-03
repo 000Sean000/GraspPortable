@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Binding Syntax and Parsing Policy Review
-version: 1.0.0-rc.3
+version: 1.0.0-rc.4
 updated: 2026-10-03
-status: layered-literal-direction-selected-boundary-details-proposed
+status: accepted-s1-syntax-profile
 scope: binding-syntax-markdown-policy-and-parser-replaceability
-supersedes: Binding-Syntax-Review-v1.0.0-rc.2.md
+supersedes: Binding-Syntax-Review-v1.0.0-rc.3.md
 ---
 
 ## 結論與決策狀態
@@ -13,9 +13,9 @@ supersedes: Binding-Syntax-Review-v1.0.0-rc.2.md
 
 已確認需用可設定的 code block 語言清單控制 Grasp parsing：未標語言及 grasp 啟用，json／grasp-demo 預設停用。Parser 要容易維護與替換 syntax。原先分號、允許點號兩側空白、強迫用多行隔開首尾 pipe 的建議均已撤回。
 
-使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；精確邊界補充仍待整體審閱。外層沿用使用者原提案 @code{ ... }；本轮沒有擅自移除容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.5.md)。
+使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；S1 已整體接受 rc.3 的精確邊界補充；rc.4 同步接受狀態及 reference／context 明確化。外層沿用使用者原提案 @code{ ... }；保留容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.6.md)。
 
-## 1. 組合後的候選外觀
+## 1. 已接受的組合外觀
 
 ~~~grasp-demo
 @code{
@@ -28,7 +28,7 @@ supersedes: Binding-Syntax-Review-v1.0.0-rc.2.md
 
 @ 只標記 assignment 左側；Fruit、Person.Job 是 RHS 取值。正文仍使用 [value](:ref:Identifier) 與 [[@Identifier|value]] 兩種既定 reference，wiki target 的 @ 不受此修改影響。
 
-@code 是 binding DSL 區域，初期只包含定義、literal、取值與串接，不執行 C#／JS。不要求固定 Note section；可以放多個區域。首輪不加入巢狀 Region 或 comment grammar，說明可寫在區域外。這些是保持首輪範圍的小型工程安排；外層容器尚待整體語法確認。
+@code 是 binding DSL 區域，初期只包含定義、literal、取值與串接，不執行 C#／JS。不要求固定 Note section；可以放多個區域。首輪不加入巢狀 Region 或 comment grammar，說明可寫在區域外。這些是保持首輪範圍的小型工程安排；外層容器已整體接受。
 
 ## 2. Identifier 與不使用分號的邊界
 
@@ -74,9 +74,9 @@ Literal 中的 @Name =、+、= 都是內容。名稱後的 token 識別只需順
 
 值依序為空字串、x、|x|、before {x} after、before {{x}} after、{...}。這裡的 layers 是 delimiter 長度，不是 JSON／程式語言的巢狀解析；literal 不做插值，不建立內層 definition 或 reference。
 
-### 建議補齊的確定性規則
+### 已接受的確定性規則
 
-以下為落實已選方向的工程規格草案，尚非 parser 實測：
+以下為已接受 S1 profile 的工程規格；規格接受不代表 parser 已通過實測：
 
 1. 只在 Expression 需要 Atom 的位置，把連續左括弧當 literal opener；最大連續長度為 n，n ≥ 1。@code{ 的外層括弧由 Region 狀態處理。
 2. 普通 raw content 的左／右括弧各自按同方向連續長度計算，最大值為 m。選 n > m；不要求括弧平衡，也不解析 JSON quote。已明確標示的邊界 escape 不計入 raw run，因此 {\{...\}} 可以使用 n=1。
@@ -89,7 +89,7 @@ Literal 中的 @Name =、+、= 都是內容。名稱後的 token 識別只需順
 
 已接受的簡寫是 {\{...\}} → {...}。**撤回前版對整個 value 解码三種 escape 的提案**：不把一般 \\ 改成一根反斜線，不把 \n／\t 變成控制字元，也不全面替換 value 中間的 \{／\}。
 
-推薦的局部定界補充：
+已接受的局部定界規則：
 
 - Inline opener 後緊接的一串 \{ 是 leading-brace escape，每組得到一個 {。
 - Inline closer 前緊接的一串 \} 是 trailing-brace escape，每組得到一個 }；只有整串後面確實還有 n 個右括弧可作 closer 時才成立。先識別這個完整 suffix，再按普通 closer 處理，不能先全域 unescape。
@@ -105,7 +105,7 @@ source {\}}               → value }
 source {{a \{x\} b}}      → value a \{x\} b
 ~~~
 
-最後一例中的 escape 外觀在 value 中間，保留反斜線；n=2 避開其中單個括弧。這些少量邊界優先序仍需整體審閱，不把使用者接受疊層方向當作逐條批准上述補充。
+最後一例中的 escape 外觀在 value 中間，保留反斜線；n=2 避開其中單個括弧。本輪使用者已選擇整組 rc.3 作 S1 基準，以上邊界優先序隨之接受。
 
 ## 4. 多行 literal：JSON 原文與 marker 分行
 
@@ -145,7 +145,7 @@ JSON 首尾的括弧與 marker 用換行隔開；JSON 裡的括弧靠較長 mark
 
 ## 5. Code block 的 parsing allowlist
 
-Workspace 持久設定的起始提案：
+Workspace 持久設定的起始值：
 
 ~~~json
 {
@@ -167,11 +167,11 @@ Workspace 持久設定的起始提案：
 
 「啟用 parsing」仍須匹配 Grasp 語法；首輪仍寫 @code{ ... }，不把 grasp fence 自動視為另一種可省容器的 assignment grammar，也不執行真實程式。Enabled fence 中的 managed references 可辨識／更新；literal value 與 reference 的 cached value 內不再遞迴建立定義。Disabled fence 中不建立 definitions、references、dependency edges，也不作 rename／cache 回寫；它是完整展示區，不只是停止計算。
 
-宿主先辨識 fence 的真正範圍。CommonMark 使用相同字元、至少同長的 closing fence；info string 的首詞通常作語言，但規範不強制它的意義。**以下 allowlist 行為是 Grasp 政策**：取 info string 第一個空白分隔詞，以 ASCII lowercase 比對清單；grasp-demo 不是 grasp 的 prefix match，grasp extra 取 grasp。空 info string 取空字串。語言標籤的正規化不影響 identifier 大小寫。[CommonMark fenced code blocks](https://spec.commonmark.org/0.31.2/#fenced-code-blocks)
+Scanner 按當前宿主 context 辨識 fence 的真正範圍；已成功辨識的 Grasp literal／reference value 為 opaque，不因內容看似 fence 而二次切割。CommonMark 使用相同字元、至少同長的 closing fence；info string 的首詞通常作語言，但規範不強制它的意義。**以下 allowlist 行為是 Grasp 政策**：取 info string 第一個空白分隔詞，以 ASCII lowercase 比對清單；grasp-demo 不是 grasp 的 prefix match，grasp extra 取 grasp。空 info string 取空字串。語言標籤的正規化不影響 identifier 大小寫。[CommonMark fenced code blocks](https://spec.commonmark.org/0.31.2/#fenced-code-blocks)
 
 Disabled 外層 fence 永不遞迴啟用內部看起來像 grasp fence 的文字。展示完整含三個 backticks 的示例時，用四個或更長的 grasp-demo 外層 fence；若 literal 要含 Markdown fence 原文，可放在足夠長的 enabled grasp 外層 fence，使內部短 fence 保持內容。
 
-Grasp Region／literal 不可跨越 Markdown fence 邊界去吞掉另一塊停用示例。未闭合在該可解析宿主範圍結尾產生診斷；普通跨段落 Region 可以在同一可解析正文範圍內延續。宿主語法的 list／quote prefix 和縮排保留 raw offset 映射，不以全篇 trim 或 Markdown rendered text 作權威來源。
+Grasp Region 不可跨越其所屬可解析宿主範圍的真正 closing fence 去吞掉另一塊停用示例。Enabled fence 的外層 delimiter 限定範圍；正文中已成功辨識的完整 literal／reference span 為 opaque，其 value 內的假 fence 不開啟新的宿主區域。未成功閉合的候選不得藉這項優先序越過已識別的停用區。未闭合在該可解析宿主範圍結尾產生診斷；普通跨段落 Region 可以在同一可解析正文範圍內延續。宿主語法的 list／quote prefix 和縮排保留 raw offset 映射，不以全篇 trim 或 Markdown rendered text 作權威來源。
 
 ### 修改清單如何影響既有定義
 
@@ -179,7 +179,37 @@ Allowlist 改變可能使既有定義消失或新增；不是單純上色設定�
 
 政策配置隨 workspace 保存，syntax version 與 policy revision 分開，export／restore 保存解析所需設定。普通 workspace 同時只有一份現行政策；不允許每個 editor 自作不同解讀。
 
-## 6. 維護與替換 syntax 的實作邊界
+## 6. 正文 Reference codec：多段落與局部定界
+
+兩種 reference 保留完整 logical value、真實 LF／CRLF／CR、空白及 raw UTF-16 ranges。S1 採 canonical wiki separator `|`，不加入舊版相容 adapter。Reference escaping 與 brace literal 不同：value 內只接受 `\\`、`\[`、`\]`、`\|` 四種局部 escape，解碼後各得到一個對應字元。Serializer 對這四個保留字元作可逆編碼，不能 general unescape 或把換行改成 `\n`。
+
+Pure reference 的第一個未 escape `]` 必須立即接 `(:ref:QualifiedName)`；wiki reference 的第一個未 escape `]` 必須再接 `]`。Value 內未 escape 的 `[`、非法 delimiter、unknown escape、名稱不合法或未閉合都保留原文與診斷，不建立可回寫 occurrence；不能跳過壞 closer 找更後面的合法 suffix。Scanner 向前恢復，不以整篇 regex 回溯。
+
+成功辨識後的整個 occurrence 是 opaque；cached value 裡看似 definition／reference／fence 的文字不建立新語意。UI 解碼並呈現值，也不重新啟用 Grasp parsing。多段落需由 Grasp range/rendering adapter 處理，不假定普通 Markdown link AST 可跨空行。
+
+~~~grasp-demo
+[第一段。
+
+第二段。](:ref:Description)
+
+[[@Description|第一段。
+
+第二段。]]
+~~~
+
+以下兩種表示同一個 value：`a]`、真實換行、`b|c`、一根反斜線。
+
+~~~grasp-demo
+[a\]
+b\|c\\](:ref:X)
+
+[[@X|a\]
+b\|c\\]]
+~~~
+
+這部分沿用新版 repository 內歷史 binding contract 的可用 reference insight，升為本次 S1 明示契約；歷史 literal grammar、授權與全面禁止 code parsing 不沿用。只加入本次相關的小型 fixtures，不重跑舊 M1 平台。
+
+## 7. 維護與替換 syntax 的實作邊界
 
 ~~~text
 MarkdownContextScanner → ParsePolicy → BindingSyntaxProfile
@@ -202,14 +232,14 @@ Source ranges 以 .NET／JS 一致的 UTF-16 offset、raw source revision 定義
 
 換 marker 主要變動 codec／editor affordance，資料 migration 仍不能假裝零成本。既有 raw source 按記錄版本讀取，需轉換時先預覽，保留 IDs、logical values、composition、cached values、來源與 fallback；不能把舊 pipe 文字直接用 brace grammar 重讀。首輪只實作批准的一份可寫 profile；歷史 import adapter 按實際需求另做。
 
-## 7. 錯誤、即時更新與有界驗證
+## 8. 錯誤、即時更新與有界驗證
 
 退出編輯立即 flush 最後有效文字並觸發更新，不等 idle debounce；IME composition 正常結束後送出最终 snapshot。錯誤或未閉合只存可恢復 draft，不发布部分 definitions，不把 last committed 值標為最新成功。完整語法的 missing／cycle 按既有契約保存帶診斷 committed state。Note source 與所有受影響 bindings／results／reference caches 仍按計畫原子提交。
 
-本輪只推演語法與更新文件，未建立 parser／測試平台。實作時用一個小型 table-driven fixture 集：兩筆無分號定義／缺 operand、ASCII／dot whitespace、pipe、brace／backslash、empty／多行 padding、四種使用者指定 fence、disabled 外層、未閉合、政策切換與 round-trip。數量隨具體反例增加，不做無限 syntax 組合測試。S1 從 UI 操作同組核心例子並重啟，確認展示區沒有意外建立資料。
+使用者已授權 S1 實作；實際完成與驗證結果以 EXECUTION-STATE 為準。使用一個小型 table-driven fixture 集：兩筆無分號定義／缺 operand、ASCII／dot whitespace、pipe、brace／backslash、empty／多行 padding、四種使用者指定 fence、disabled 外層、未閉合、政策切換與 round-trip。數量隨具體反例增加，不做無限 syntax 組合測試。S1 從 UI 操作同組核心例子並重啟，確認展示區沒有意外建立資料。
 
-## 8. 審閱停點
+## 9. 接受狀態與維護
 
-已定事項不再重問：ASCII／大小寫、點號無空白、@ 只在定義左側、無分號、可設定 code fence parsing、首輪多段引用、即時更新、Windows／Portable 優先與有界效能驗證。
+2026-10-03 使用者已整體接受 rc.3 profile，並明確授權實作 S0–S1；ASCII／大小寫、點號無空白、@ 左側、無分號、外層 @code、marker 疊層、空值、局部 escape／raw block、code fence allowlist 均不再重問。本文 rc.4 保存該 profile 及實作前必要的 reference／宿主掃描明確化，不新增另一套可寫語法。
 
-單層起始／marker 疊層／分行 JSON／僅邊界 escape 已依使用者指示記錄，不再要求改選固定雙括弧或 pipe。第 3 節補充最長 opener、空值與局部 escape 的確定性優先序，包含 value 自己是反斜線＋括弧時使用 raw block 的例子，仍作待整體審閱的細節。外層 @code 草案保留。語法確認之後，仍須使用者明確授權才開始 S0／S1 程式。
+實作、必要驗證與使用者接受分開記錄。若新反例會改變同一原文的產品含義，先提出精確 input／expected value 與最小調整；普通 codec 結構、錯誤復原與測試安排由工程自行處理。S1 完成後停在使用者體驗，不自動擴張後期語言能力。

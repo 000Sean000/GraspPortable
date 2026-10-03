@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.9
+version: 1.0.0-rc.10
 updated: 2026-10-03
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.8.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.9.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -17,7 +17,7 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.8.md
 
 ### 核心使用模型
 
-1. Note 是正常 Markdown；binding 可依使用者習慣放在筆記中方便的位置，不要求固定 Binding section。最新外層語法草案為 `@code{ ... }`；已確認只有定義左側使用 `@Name =`，取值不加 `@`，不用分號。Literal 已選預設 `{value}`，依內容括弧 run 增加 marker 層數；value 原文優先保留，只有貼著 marker 的首尾括弧作局部 escape，精確定界補充仍待整體審閱，舊版「不允許要求 outer container」不再作本輪設計限制。Assignment 是 binding；真正程式仍由另一個 compiler／runtime 層處理。
+1. Note 是正常 Markdown；binding 可依使用者習慣放在筆記中方便的位置，不要求固定 Binding section。已接受外層語法為 `@code{ ... }`；已確認只有定義左側使用 `@Name =`，取值不加 `@`，不用分號。Literal 已選預設 `{value}`，依內容括弧 run 增加 marker 層數；value 原文優先保留，只有貼著 marker 的首尾括弧作局部 escape，精確定界依已接受的 S1 syntax profile，舊版「不允許要求 outer container」不再作本輪設計限制。Assignment 是 binding；真正程式仍由另一個 compiler／runtime 層處理。
 2. 正文使用兩種 managed reference：`[value](:ref:Identifier)` 與 `[[@Identifier|value]]`。每個引用保存 identifier 與可讀的 rendered／cached value。
 3. Binding 使用 raw literal 與字串串接；literal 外的 identifier 代表取值，`+` 連接片段。Binding 的排版應容許不同習慣，例如 assignment operator 與 opening delimiter 可在同一行或跨行；排版空白不應被誤當成 logical value。
 4. Grasp 運作時以 DB 為 authority。使用者在 UI 修改共享 identifier／value，取得一致的共享結果、依賴與持久化引用值；實體 Markdown 依匯出或 checkpoint 產生。
@@ -48,7 +48,7 @@ Binding parser 依明確 syntax 辨識 statement，而不是依資料夾、headi
 
 Source、Live Preview、Reading View 分別服務完整原文編輯、同區編輯預覽、閱讀與直接操作。Obsidian 是主要互動參照；宿主呈現需以實際操作驗證。
 
-正文 inline reference 利用 Markdown link／wikilink 的 label 或 alias 顯示 value、弱化 identifier。Binding statement 本身可直接顯示供人閱讀編輯；`@code` 草案的目的是明確定界與自由排版，不是為了隱藏文字。
+正文 inline reference 利用 Markdown link／wikilink 的 label 或 alias 顯示 value、弱化 identifier。Binding statement 本身可直接顯示供人閱讀編輯；`@code` 的目的是明確定界與自由排版，不是為了隱藏文字。
 
 ### 2.2 寫作、導航與可讀性
 
@@ -116,13 +116,13 @@ DB 內的共享更新與 filesystem 輸出分開：正常編輯完成，不表�
 
 Assignment 是 binding：把 identifier 與 literal value 或 composition 連結。Note 中的 binding 由 App Runtime 解析與求值，使 desktop、iPhone／iPad 的日常筆記可使用同一組資料關係。
 
-Binding 不要求集中於專屬 section。外層 `@code{ ... }` 區域是目前待確認草案，可分布於 Note 各處；它與「整篇只能有一個固定 Binding 區」不同。區域邊界定案前不開始 parser 實作。
+Binding 不要求集中於專屬 section。外層 `@code{ ... }` 區域已接受，可分布於 Note 各處；它與「整篇只能有一個固定 Binding 區」不同。區域不建立 Note-local namespace。
 
 真正 code 屬真實程式語言及對應 compiler／runtime 的責任；binding 不因為可以組合字串，就等同一段任意可執行程式。Fenced code block 依第 2.1 節清單決定是否解析；停用的展示文字完全不參與 Grasp 資料關係。
 
 ### 4.2 已選的 Binding 表達方向
 
-已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，精確 lexical 邊界補充待整體審閱；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.3.md)維護。
+已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，已整體接受相應的精確 lexical 邊界；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.4.md)維護。
 
 ~~~grasp-demo
 @code{
