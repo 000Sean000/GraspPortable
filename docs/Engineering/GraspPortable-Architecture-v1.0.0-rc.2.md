@@ -1,18 +1,21 @@
 ---
 title: GraspPortable — Product Architecture
-version: 1.0.0-rc.1
+version: 1.0.0-rc.2
 updated: 2026-10-03
 status: architecture-baseline-not-implemented
 scope: product-modules-runtime-and-data-boundaries
+supersedes: GraspPortable-Architecture-v1.0.0-rc.1.md
 ---
 
 ## 先讀這裡
 
-這份架構將 [Seed](../Project_Seed/README.md) 的完整產品方向放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.0.0.md)。第一個 Windows 可操作版本可以只實作其中一條流程；完整產品責任仍保留在這份架構中。
+這份架構將 [Seed](../Project_Seed/README.md) 的完整產品方向放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.0.1.md)。第一個 Windows 可操作版本可以只實作其中一條流程；完整產品責任仍保留在這份架構中。
 
 整體採用「功能模組 + 模組內部分層 + Ports／Adapters」。Windows App 負責即時互動，本機後端負責資料規則、計算、保存與交換。模組透過明確契約協作，共享修改集中提交，較慢的工作有獨立排程。
 
 最重要的成果是：能找出一項功能歸誰、修改影響何處、哪裡可替換，以及哪個執行路徑可能拖慢 UI。此文件是工程基準；所有模組尚待實作，效能與 GUI 仍待實測。
+
+[新版架構圖解](GraspPortable-Architecture-Diagrams-v1.0.0.md) 分開呈現程式碼依賴、Windows 執行配置與共享提交時序；原參考圖不作本專案的現行架構圖。
 
 ## 1. 產品責任地圖
 
@@ -48,24 +51,29 @@ Application 可以依賴 Domain 與 Ports；Adapters 依賴對應契約；Domain
 
 ```mermaid
 flowchart TD
-    subgraph UI["Windows App"]
-        E["CodeMirror／TypeScript"]
-        R["Razor 工作區與 App Client"]
-        E <-->|"局部編輯與呈現資料"| R
+    subgraph FRONT["Windows 前端宿主"]
+        E["CodeMirror／WebView"]
+        R["Razor 工作區"]
+        C["App Client"]
+        E <-->|"編輯 delta／呈現更新"| R
+        R <--> C
     end
-    subgraph Backend["本機 ASP.NET Core 後端程序"]
-        A["API／工作排程"]
-        K["應用核心與功能模組"]
-        P["SQLite／檔案 Adapters"]
-        A --> K
+    subgraph BACK["獨立 ASP.NET Core 後端程序"]
+        A["API／版本通知"]
+        K["核心模組／有界工作排程"]
+        P["SQLite Adapter"]
+        J["Exchange 背景工作"]
+        A <--> K
         K --> P
+        K -->|"已提交 revision"| J
+        J -->|"快照讀取"| P
     end
-    R <-->|"Commands／Queries／版本通知"| A
+    C <-->|"Loopback HTTP／通知 channel"| A
     P --> D[("Workspace DB")]
-    P --> F["Markdown／附件／Fallback"]
+    J --> F["Markdown／附件／Fallback"]
 ```
 
-圖示是執行通訊，並非 source dependency。UI 與後端是不同 OS 程序；後端內的功能模組在同一程序以公開契約直接協作。
+圖示是執行通訊，並非 source dependency。前端宿主包含 MAUI App 及 WebView 引擎，圖中不展開引擎自身的 OS 程序配置；本機後端是獨立程序，後端內的功能模組以公開契約直接協作。
 
 MAUI App 啟動並管理本機後端。API 僅綁 loopback，使用每次啟動建立的 session credential，核對後端版本與 workspace 身分；其他本機網頁不能僅因可連 loopback 就取得修改權。結束時等待已接受提交收尾，長工作按狀態取消或恢復。
 
@@ -172,7 +180,7 @@ Programming Integration 透過同一查詢／修改契約接觸知識。真正�
 
 ## 11. 工程依據與證據界線
 
-- [模型決策](Decisions/Architecture-Model-v1.0.0.md) 記錄 Explicit Architecture 的採用範圍與取捨。
+- [模型決策](Decisions/Architecture-Model-v1.0.1.md) 記錄 Explicit Architecture 的採用範圍與取捨。
 - [Microsoft：Blazor Hybrid](https://learn.microsoft.com/en-us/aspnet/core/blazor/hybrid/?view=aspnetcore-10.0) 說明 Razor 在 native .NET 執行並經本機 interop 呈現；此架構據此區分 UI 宿主與資料後端。
 - [SQLite isolation](https://www.sqlite.org/isolation.html) 說明單一 writer 與 committed snapshot；[WAL](https://www.sqlite.org/wal.html) 說明讀寫併行及檔案系統限制。本文排程與攜帶方式是本專案設計，並非 SQLite 自動提供完整產品恢復。
 - [Prototype reference](../Reference/README.md) 保留 P0／M4 workload、成本歸因與未達 UX 目標的事實。
