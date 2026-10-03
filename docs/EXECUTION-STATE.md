@@ -1,60 +1,60 @@
 ---
-title: GraspPortable — Rewrite Preparation State
-version: 1.4.0
+title: GraspPortable — Environment and Implementation Planning State
+version: 1.5.0
 updated: 2026-10-03
 scope: rewrite-decisions-and-current-authorization
 ---
 
-## 目前成果
+## 目前成果與授權
 
-`rewrite/dotnet` 是文件準備分支，已選取現行 Seed 與有用的 Prototype 參考文件。新版架構初版已完成文件規劃，程式尚未開始。GitHub default branch 已確認為 rewrite/dotnet。
+`rewrite/dotnet` 的現行需求、方法、模型、技術、產品架構及圖解已形成文件基準。2026-10-03 本輪完成新版 Workspace／repository 確認、根目錄指示與 Windows 實作規劃。**新版程式尚未開始；本輪只授權環境與規劃文件，停在等待使用者審閱，不能自動接續 coding。**
 
-本次使用者授權：將 Explicit Architecture 調整成適合產品的方案；若無阻擋性的使用者決策則直接完成。本次涵蓋模型取捨、產品架構及文件同步；後續依要求補上本產品專用架構圖，區分與原提案的差異。尚未授權開始程式實作。
+先看 [Windows 實作規劃 rc.1](Engineering/Implementation-Plan-v1.0.0-rc.1.md)，第 8 節是第一個可操作 UI，第 10 節是 D1–D4 決策；[環境紀錄](Engineering/Development-Environment.md)保存本機實況。候選語法、部署與效能數值未被自動接受。
 
-Preflight 結果：現有需求足以決定此輪架構基準；沒有必須先由使用者補充的阻擋項。量化效能尺度及未定產品語義保持待決，具體清單見產品架構。
+## 已接受且仍有效的基準
 
-## 已接受決策
+- 新版從零實作，沿用文件與有效 insight；舊程式作歷史參考。
+- 先交付 Windows PC，盡量保留其他裝置相容。沒有其他平台的實作／效能證據。
+- 已選 C#／.NET 10、MAUI Blazor Hybrid／Razor、CodeMirror 6／TypeScript、獨立本機 ASP.NET Core Host、SQLite；見 [Technology Selection](Engineering/Decisions/Technology-Selection-v1.1.1.md)。Class Library 組織邏輯，Host 承擔可執行後端。
+- 採[產品適配的 Explicit Architecture](Engineering/Decisions/Architecture-Model-v1.0.1.md)：功能模組、Ports／Adapters、明示公開契約依賴、單一共享提交與可恢復通知；[架構 rc.2](Engineering/GraspPortable-Architecture-v1.0.0-rc.2.md)及[圖解](Engineering/GraspPortable-Architecture-Diagrams-v1.0.0.md)保持基準。
+- Excel 類型高互動依賴、真實資料 UI 流暢、未來成長餘裕三項要求均保留。「仍可操作」及寬鬆 regression gate 不代表達標。
+- Seed 保存完整 WHAT／WHY，Engineering 分開保存整體方法、模型、stack、架構及實作計畫；進度／授權放本文件。
+- UI／UX 試用用於校準需求和技術；實作完成、必要驗證通過與使用者接受分開記錄。
 
-- 新版在新 branch 從零設計與撰寫。沿用資產是文件與有效 insight；舊程式留在原分支供參考。
-- 本次已選技術與其適用範圍獨立記錄於 [Technology Selection](Engineering/Decisions/Technology-Selection-v1.1.1.md)；整體方法策略由 [Engineering](Engineering/README.md) 路由。
-- 目前交付 Windows PC 可用版本，盡量保持其他裝置相容與可攜性。Windows 交付範圍不構成產品只能使用 Windows 的限制；其他平台完成度依實際驗證記錄。
-- 技術選擇依產品需求、效能餘裕、安全與長期適配判斷；沿用舊成果不計為選型加分。
-- UI 流暢與資料安全是交付條件。功能／測試通過與實際 UX 達標分別判定。
-- [Project Seed](Project_Seed/README.md) 保存所有產品需求與願望；完成／未完成、階段與 release 範圍屬工作文件。
-- P0 僅提供能幫助選型與架構的既有發現；本次沒有重跑 benchmark。
-- 已依本輪授權選用 [產品適配的 Explicit Architecture](Engineering/Decisions/Architecture-Model-v1.0.1.md)：功能模組、Ports／Adapters、受控公開契約依賴、單一共享提交與可恢復通知。
-- UI／UX 原型用於校準需求與技術，安排在架構之後；目前仍是文件階段。
+## 本機初始化已完成的範圍
 
-## 歷史文件的使用
+Workspace 維持 `C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`；repository 是其中 `GraspPortable/`。現有 origin 為 `https://github.com/000Sean000/GraspPortable.git`、branch 為 `rewrite/dotnet`，起始工作目錄乾淨；HEAD 與即時 `ls-remote` 均為 `0e08a4899647ee8d5f10b9cc21af9848eedcaba5`，因此沿用，無 clone／搬移／reset。
 
-[參考索引](Reference/README.md) 收錄語法、共享、projection 契約以及 M1–M4／P0 紀錄。來源固定為 `5ca1373dca91e16d9e161de498bf8fcaebac1031`。
+Workspace 及適用父層未有 AGENTS.md，已建立根目錄指示，記錄新版搜尋只指定 GraspPortable、根目錄設定定點讀取及 Legacy1 不作指示來源。**根目錄 AGENTS.md 在 repository 外，未受其 Git 追蹤。**
 
-舊契約中「已接受」「候選」「工程建議」與觀測結果維持原有區別。與目前使用者決策及現行 Seed 衝突時，以現行決策為準。歷史測試 HOW、next step、舊 source map 或執行命令屬原版本背景；新版的實作順序與驗證範圍由新計畫建立。
+使用者已告知 Legacy1 完整保存舊 repo、未追蹤檔、驗收、暫存與舊環境文件；本輪未盤點或修改封存。先前關於 4,597 項 changes 的本機清理待辦已過時，由本輪明確範圍取代，不再要求先清理或建立封存索引。
 
-P0 報告部分段落早於最後停工紀錄：舊 EXECUTION-STATE 頂部記載 Trial-1R measurement 為 complete-with-measured-failures，matched recovery passed；P0 整體仍 partial，沒有完整三輪 baseline／最終 aggregate。Private raw evidence 只保留其既有 locator，本分支沒有取得或複製那些私人資料。
+本機已觀測 .NET SDK 10.0.401、MAUI Windows workload、Node／npm、WebView2，未安裝新套件。Windows SDK／Windows App SDK 的實際 build 相容性尚未驗證；S0 才建立產品 projects 並 restore／build。一般 sandbox 啟動錯誤與受審核指令替代結果見環境紀錄，不宣稱 sandbox 已修復。
 
-## 文件歸屬與來源
+## 規劃結果與覆蓋
 
-[Project Seed](Project_Seed/README.md) 保留 WHAT／WHY；[Engineering](Engineering/README.md) 承載 HOW。[原始來源索引](Reference/Originals/README.md) 保留 repo 最早可查的两份 rc.1 原文與 Git 來源；原始文字未修改。Core Requirements rc.6 明確保留三項效能要求並整理需求／方法邊界；工程方法移除舊 runtime 指名及程式沿用預設，前次移入的工作規則已整合到對應章節。既有技術方向由獨立決策文件維護；[產品架構 rc.2](Engineering/GraspPortable-Architecture-v1.0.0-rc.2.md) 已補上模組、執行與一致性設計。
+Implementation Plan 對應現行架構的七個 projects，補齊模組 source／tests 預定入口、四維狀態、UI／Host／平台程序與部署、command/query、owner、draft／共享提交交易、解析與增量計算、取消、stale result、局部更新及重啟流程。
 
-## 本次結果與驗證
+第一個完整成果 S1 為可操作 Windows UI：建立測試 workspace／Note，真實中文編輯，literal／composition、兩種 reference、definition／references 導航、共享修改／rename、相依更新、draft／commit 狀態與關閉後重新載入。S0 僅是此成果的內部啟動里程碑，不以空殼 UI 作第一階段交付。
 
-模型與技術選擇分開保存，通用方法保持獨立。產品架構涵蓋整體功能地圖、Windows UI／本機後端程序、資料 owner、共享修改 transaction、增量工作與排程、匯出恢復、跨平台接面及 solution／project 配置。
+後續 S2 真實資料及日常 UX、S3 export／fallback／restore、S4 records／完整 PC 流程、S5 跨裝置／程式接面，各自有完成判準。Seed 的完整目標未刪除，也不因寫入本計畫自動授權所有階段。
 
-本次檢查文件路由、需求覆蓋、版本、資料一致性流程與文件間狀態；沒有建立程式或執行產品測試。架構文件的性能與復原安排仍待實作驗證。
+待審閱 D1 語法／命名與提交操作、D2 首輪 multiline reference 範圍、D3 unpackaged／MSIX 部署、D4 效能候選與資料尺度；具體樣本、推薦及替代在計畫第 6／9／10 節。這些不妨礙交付規劃，但受影響的程式工作需先取得決策。
 
-已建立 [專案架構圖解](Engineering/GraspPortable-Architecture-Diagrams-v1.0.0.md)，原參考文章圖只作概念來源。三張圖分別標明依賴、執行通訊及提交先後，不互相替代。
+## 歷史參考與證據限制
 
-## 本機環境整理待完成
+[Reference](Reference/README.md)的 Prototype 副本來源固定為 `5ca1373dca91e16d9e161de498bf8fcaebac1031`；[Originals](Reference/Originals/README.md)保存最早可查 rc.1 原文。歷史授權、HOW、next step 不作新版指示。
 
-2026-10-03 使用者回報：checkout 後 VS Code 顯示 4,597 項 changes，截圖可見 .cache/npm 與 .cache/playwright 項目標示 U；這些可見項目是未追蹤檔，全部項目的實際分類仍待本機盤點。
+本輪僅定點讀取新版內的 binding／shared／reference-host 語義參考與現有 P0／M4 insight 摘要，沒有讀 Legacy1、私人 evidence 或舊程式。P0 Trial-1R 曾 complete-with-measured-failures，matched recovery passed；P0 整體仍 partial，未有完整三輪 baseline／最終 aggregate。本輪沒有重跑或重新認證它們。
 
-新分支建立時遺漏 .gitignore；本次補回適用的 cache、build、依賴、私人 workspace 與驗收資料排除規則，規則依原分支 .gitignore 篩選。Ignore 僅管理 Git 呈現及加入行為，未刪除本機資料、未解除任何既有 tracked file，亦未完成外部環境清理。
+## 本輪驗證與 Git
 
-截圖顯示 repo 位於 GraspPortableWorkspace/GraspPortable；同層另有 Acceptance、Scratch、AGENTS.md、README-驗收.md 及兩個驗收啟動 .cmd。完整絕對路徑、檔案用途、父層指示、Git hooks／IDE tasks 及背景程序由本機 Codex 查明，不依名稱推定可以刪除。
+檢查範圍為 repository identity／起始狀態、遠端 SHA、本機工具觀測、文件版本／入口／相對連結及 diff whitespace。未建立程式、未執行產品 build／tests／GUI／benchmark；規劃不構成性能或恢復通過證據。
 
-先完成本機環境盤點與可逆整理，再進行實作規劃。已知的舊資料可保持原位隔離或移到 repo 外的歷史區，須保留來源對照；私人原始 Vault、驗收副本與唯一證據不得因位於 Scratch／cache 就推定可重建。確認是衍生快取的資料才可安排清除。父層 AGENTS.md 先讀取並遵守；針對過期的 Prototype 專案內容更新有效範圍，保留有效規則，不藉清理改寫權限。
+本輪保留未提交文件供審閱，不 stage／commit／push；使用者手動提交時建議 `docs: initialize workspace guidance and plan Windows implementation`。這個 repository commit 不包含外層 AGENTS.md。
 
-## 下一步
+額度來源為 Codex account usage tool；規劃前觀測 7 日窗口 usedPercent=8（未擷取精確時刻），2026-10-03 約 16:28 Asia/Taipei 收尾核對仍為 8，同一 reset Unix=1791604086。顯示差值為 0 個百分點，不代表本輪零用量；這是帳戶共享整數百分比，不是本任務計費。成果為環境／規劃文件，未建立 commit 關聯。
 
-本機環境整理完成後，先由 Codex 接續實作規劃；依使用者後續實作授權，將這份架構落實為 Windows 可操作的 UI／UX 驗證流程。先用既有資料與 insight 提出代表性 workload 與產品尺度，處理該流程真正涉及的未定語義，再實作必要模組；以操作回饋更新需求、技術決策與受影響的架構。
+## Exact next step
+
+等待使用者審閱計畫並明確授權。若接受推薦方案開始 S1：先核對最新 Git 狀態與本輪文件，將批准的產品語義及部署選項升版寫回各自現行來源，更新入口與計畫接受狀態，再從 S0 工具鏈固定／Windows build 開始完成整條 S1。若修改選項，先只修訂受影響計畫，不越過授權開始產品程式。

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Engineering Entry
-version: 1.3.0
+version: 1.4.0
 updated: 2026-10-03
 scope: strategy-architecture-and-decision-routing
 ---
@@ -17,6 +17,10 @@ scope: strategy-architecture-and-decision-routing
 | 產品架構 | [GraspPortable Architecture rc.2](GraspPortable-Architecture-v1.0.0-rc.2.md) | 模組、Windows 執行、資料一致性、效能與 project 配置 |
 | 專案架構圖解 | [Architecture Diagrams v1.0.0](GraspPortable-Architecture-Diagrams-v1.0.0.md) | 程式碼依賴、Windows 執行配置與提交時序 |
 | 實際技術選擇結果 | [Technology Selection v1.1.1](Decisions/Technology-Selection-v1.1.1.md) | 本次 stack、執行配置及待驗證事項 |
+| 實作規劃（待審閱） | [Implementation Plan rc.1](Implementation-Plan-v1.0.0-rc.1.md) | Projects／接面、主要流程、第一個 UI、分期、效能候選及待決選項 |
+| 本機開發環境 | [Development Environment](Development-Environment.md) | Workspace／repository 邊界、Git 基底、工具鏈實況及未驗證項 |
 | 動態工作狀態 | [工作狀態](../EXECUTION-STATE.md) | 目前授權、進度與下一步 |
 
 表內文件各自維護：改變 stack 不必重写通用方法；產品語義改變則回到 Seed 處理。架構目前為文件基準，所有模組尚待實作。
+
+目前只授權環境初始化與規劃文件；Implementation Plan 的候選未自動成為已接受需求。審閱後再依使用者明確授權開始實作。
