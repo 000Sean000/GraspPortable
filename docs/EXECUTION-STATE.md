@@ -1,62 +1,34 @@
-# Current Working State — GraspPortable
+---
+title: GraspPortable — Rewrite Preparation State
+version: 1.0.0
+updated: 2026-10-03
+scope: rewrite-decisions-and-current-authorization
+---
 
-Updated 2026-09-30 Asia/Taipei (2026-09-29 UTC). **STOPPED by the user's latest explicit instruction:「別做了」. This supersedes the earlier 16:16 UTC instruction to close Trial-1R and continue P1, and all continuation instructions below or in linked plans. Do not resume development, testing, benchmarking, or report preparation without a new user instruction.** P1 has not started; Trial-2 and Trial-3 are cancelled. P0 remains partial, not a complete three-trial baseline. Existing source is saved at local checkpoint `a7dc7ecf08b06cafd90e01a97707c37c4abb6940`; three documentation files have uncommitted changes. No push was performed.
+## 目前成果
 
-Minimum stop verification: the controller and its correctness child have exited, with no active child or second/third trial. Trial-1R measurement finished `complete-with-measured-failures`; its matched recovery check passed at 2026-09-29T16:23:31.644Z, verifying 2,821 original notes, two recovery generations, standalone fresh-DB rebuild/restart, and all 506 attachment hashes. Private evidence remains under `Scratch/Performance-P0-20260929/`, specifically `Evidence/2026-09-29T15-58-21-849Z-trial-1r-7e69e7e1/report.json` and `Trial-1R-correctness/correctness.json`. The controller's generic `stopped-on-incomplete-evidence` outcome is the deliberate documentation-change guard stopping continuation after this check. Final aggregate/report and final full-tree recheck of the original Acceptance source were not performed. Preserve all existing evidence; no further closeout work is scheduled.
+`rewrite/dotnet` 是文件準備分支，已選取現行 Seed 與有用的 Prototype 參考文件。新版架構尚未完成，程式尚未開始。
 
-## Authority and authorization
+本次使用者授權：建立新 branch、複製仍適用的文件；先別寫程式。本次工作完成後停止在這個文件起點。
 
-[Seed](Project_Seed/README.md), Requirements/Development Method rc.3, [architecture guide](Project_Seed/graspportable-architecture-planning-guide-v1.0.0-rc.3.md), [accepted P0/later plan](PERFORMANCE-ISOLATION-PLAN.md), [binding](BINDING-EDITING-CONTRACT.md), [shared](SHARED-VALUE-CONTRACT.md), [projection](PROJECTION-CONTRACT.md), [implementation map](IMPLEMENTATION-CONTRACT.md). Current source is implementation authority. Preserve DB/identity/shared atomicity/undo/draft/dirty/recovery contracts.
+## 已接受決策
 
-Authorized P0: observation-only instrumentation, immutable evidence-output overrides, current-publisher runner, tests/build, three complete independent Scratch trials, documentation/local checkpoints. No worker relocation, optimization, timeout changes, tabs/panes or Acceptance deployment. No new remote push authorization inferred from prior E1. Prior E1-only restrictions and10% closeout condition belonged to that handoff, not this P0. Normal high-capability quota discipline continues; no Reserve/reset use.
+- 新版在新 branch 從零設計與撰寫。沿用資產是文件與有效 insight；舊程式留在原分支供參考。
+- 技術方向：C#／.NET 10、本機 SQLite；MAUI Blazor Hybrid 前端，以 Razor 呈現工作區，CodeMirror 6／TypeScript 作編輯器方向；Windows 本機 ASP.NET Core 後端。App／Host／Core／Persistence 是待架構設計細化的責任草案。
+- 目前交付 Windows PC 可用版本，盡量保持其他裝置相容與可攜性。Windows 交付範圍不構成產品只能使用 Windows 的限制；其他平台完成度依實際驗證記錄。
+- 技術選擇依產品需求、效能餘裕、安全與長期適配判斷；沿用舊成果不計為選型加分。
+- UI 流暢與資料安全是交付條件。功能／測試通過與實際 UX 達標分別判定。
+- [Project Seed](Project_Seed/README.md) 保存所有產品需求與願望；完成／未完成、階段與 release 範圍屬工作文件。
+- P0 僅提供能幫助選型與架構的既有發現。架構規劃與新版開發依下一次授權開始。
 
-The paragraph above is the original P0 authorization. Current additional authorization is P1: cached status, background job handles, independent Files status/list/verification, locate ready/pending/blocked, and immediate panel presentation with held-response/cancellation/late-reply/workspace guards. Product CPU execution ownership remains in-process; do not claim Worker isolation. Preserve authoritative apply/review guards and data/recovery contracts. No P2–P5 or remote push authorization is implied.
+## 歷史文件的使用
 
-**Run control (stopped):** controller PID36484/session50346 and correctness child PID30976 exited; the recovery check had already started before the documentation change and completed before the controller guard stopped continuation at 16:23:31.790 UTC. Do not restart the controller or launch further checks. Product source/build during the measured run remain a7dc7ec/64c2ca32-167c-4e11-a2ef-e1193ea0f006; only documentation changed. Trial-2/3 remain unused. Later sections retain historical progress and proposed next steps; the stop instruction above governs.
+[參考索引](Reference/README.md) 收錄語法、共享、projection 契約以及 M1–M4／P0 紀錄。來源固定為 `5ca1373dca91e16d9e161de498bf8fcaebac1031`。
 
-MainVault, Acceptance/MainVault-Source and original Acceptance stay read-only. Complete copies/private artifacts live outside Git under Scratch. Trial mutations only synthetic acceptance notes. Browser evidence does not establish native Explorer/IME success.
+舊契約中「已接受」「候選」「工程建議」與觀測結果維持原有區別。與目前使用者決策及 rc.4 Seed 衝突時，以現行決策為準。歷史測試 HOW、next step、舊 source map 或執行命令屬原版本背景；新版的實作順序與驗證範圍由新計畫建立。
 
-## Preflight / implementation baseline
+P0 報告部分段落早於最後停工紀錄：舊 EXECUTION-STATE 頂部記載 Trial-1R measurement 為 complete-with-measured-failures，matched recovery passed；P0 整體仍 partial，沒有完整三輪 baseline／最終 aggregate。Private raw evidence 只保留其既有 locator，本分支沒有取得或複製那些私人資料。
 
-Actual repo SandboxRoot/GraspPortable, master -> origin/master, confirmed remote https://github.com/000Sean000/GraspPortable.git. Initial HEAD dd98b21d2bf9da2b267a3a779790e9a41250db59. Supplied architecture guide was the only untracked file; preserved unchanged and included as accepted planning dependency. Sandbox fetch could not connect; escalated git fetch origin succeeded; HEAD/upstream0/0, no pull needed. Existing product0.3.2/dist874a5a4b is historical, not instrumented baseline.
+## 下一步
 
-Accepted plan saved in local continuity checkpoint `010064390fbf42698d267e4960c07ee21b6e43d2`. Instrumentation, artifact overrides, production harness and full-copy/recovery tools saved in `0b4dd586ffc521b3799b30283d480cba7f1ad322`. No formal performance baseline has been completed. Old file benchmark still uses legacy WorkspaceFiles, not active ProjectionWorkspaceFiles. Historical report/JSON overwrite gaps are recorded in plan.
-
-## Work and next steps
-
-Coordinator owns plan/state/Git/integration/full copies/final report. Host agent: opt-in server instrumentation. Browser agent: browser/runtime instrumentation. Runner agent: production baseline harness and evidence-output overrides. [Observation interface and reproduction](PERFORMANCE-INSTRUMENTATION.md). Formal benchmarks serial after integration, without concurrent suites.
-
-Complete source freeze and three independent trials passed preparation: 40,016 files, 3,144 directories, 8,027,848,074 bytes; DB schema5/revision53, 2,821 notes,244folders,506attachments/433unique blobs. SQLite readonly online backup and all SQL rows/blobs compared; original tree unchanged during freeze. Frozen/trial fingerprint `bf3b87d5217a5719f8d9ac30bf45010fc5013ed10e3316f976ec8173ae5f64a9`. Private manifest: `Scratch/Performance-P0-20260929/fixture-summary.json`. Trial-1 was used by an excluded run; Trial-1R is a new independent frozen copy, verified15:13UTC in replacement-trial-summary.json. Trial-1R/Trial-2/Trial-3 remain pristine for the repaired protocol. Source final recheck remains required after trials.
-
-Integration unit suite:47files/589tests PASS (2026-09-29 14:33UTC). Production build77c39e00-579e-40ad-aa13-f720f69e8c59 and45production browser regressions PASS. Later changes are measurement scripts/tests/docs only. Historical tracked reports unchanged. [Current report](PERFORMANCE-BASELINE-P0.md) records evidence locators and remaining coverage. Valid formal trials0/3.
-
-Small smoke completed with no trace loss and orderly host exit. First full smoke stopped before workloads due initial hydration resetting a too-early search; harness now waits for observed hydration. Second full smoke completed all7cells under `Evidence/2026-09-29T13-58-20-755Z-smoke-full2-14d6e904/`:3,866,695host events,0loss/sink errors/open spans,184actual publication overlaps, original data unchanged and orderly exit. It used the earlier loaded harness: a roughly300s Node fetch transport ceiling and no sustained post-burst input; preserve its diagnostics but do not certify it as formal baseline. Current source uses explicit-deadline node:http transport, durable active-cell progress, shell-only panel samples in selected load cells and bounded ongoing input against real pending jobs;14focused tests PASS. No product timeouts changed. Post-measurement recovery verification passed under `Smoke-full-correctness/`; correctness.json records the result.
-
-Full smoke correctness passed at14:28UTC:2same-workspace valid recovery generations,standalone fallback,freshDB rebuild/reopen,506attachment hashes, alloriginals unchanged. Failed small validation runs remain preserved. Old full-count small run `Evidence/2026-09-29T14-40-13-740Z-fullcounts-ready-19f146ed/` has useful diagnostic observations, but its completeness claim is withdrawn by the fixture audit below. Aggregator has fixed privacy allowlists and successful real smoke evidence ingestion.
-
-**2026-09-29 15:09UTC audit supersedes the earlier harness completeness claim:** source checkpoint5f3103fb00db52e3a5dae60147966bc8e6b5b02b/build460b1220-cd3a-4312-80b1-8a80c25b42e9 ran Trial-1 under `Evidence/2026-09-29T14-44-27-998Z-trial-1-83f8c9c8/`. It ended normally with3,807,093host events,0loss/open spans,7,688publication overlaps and unchanged originals, but its extreme fixture PUT returnedHTTP422. The harness swallowed that required mutation failure and declared planned dimensions; its reported measurementCoverageComplete is insufficient and this run is EXCLUDED from formal acceptance. Its new audit.json retains this correction beside the unmodified original report. Earlier small full-count reports have the same certification limitation. No valid formal trial is complete yet.
-
-**15:38UTC diagnostic audit:** `Evidence/2026-09-29T15-15-03-131Z-verified-extreme-ba33419d/` proved actual Graph1,000/5,000 and Extreme1,750,000-byte/10,000/50,000 dimensions through mutation response and independent stored readback. Source typing0/30 delivered versus Live20/20 exposed an inert-editor preparation race. Its600,000ms shutdown deadline expired; hard-stopped host, missing footer and6open spans make it incomplete. Both owned processes exited; audit.json preserves corrections. New protocol uses measured per-mode readiness and direct-input gates, plus the already-supported1,800,000ms harness request/shutdown ceiling for every formal trial. Product timeouts remain unchanged.
-
-**15:53UTC measurement gate passed:** source28e1a7069c4b160a4d86b502d674f6f4566e69b3/build950113f6-807e-4c98-ac28-7cc431b1b1d8 ran fresh synthetic `Smoke-final-method` with full counts/1,800,000ms deadline. Evidence `2026-09-29T15-42-49-891Z-final-method-501aaa93` is complete-with-measured-failures: Source30/30 andLive20/20 delivered,2,288,731host events,0loss/open spans,complete footer/orderlyexit,5,838actual publication overlap samples, unchanged originals.2,083ordinary typing attempts,45search/navigation/selection,53mode,15panel,23save; one navigation timeout and53availability timeouts retained. This is a synthetic harness gate, not MainVault acceptance.
-
-Fixture/source-size ACK/mode-delivery repairs are committed28e1a70. Subsequent aggregation-only work includes initial-session s0 ACK correlation and complete numeric browser/Worker/JSON/apply summaries. Real synthetic aggregation under `Smoke-final-method-aggregate/` passed extraction; only missing matched correctness prevents formal eligibility, as intended for this diagnostic. Final combined focused suite34tests (runner19/aggregator8/browser helper7),TypeScript andbuild PASS. No product or runner changes after the successful synthetic gate.
-
-Next (revised16:16UTC): let Trial-1R safely finish. The deliberate scope-document changes make existing controller stop at its post-child guard; inspect `formal-trials-controller.json` and preserve its exact run report. Do not restart the controller or consume Trial-2/3. Perform necessary matched recovery/original-source verification and one-run sanitized report, then save scope/P0 continuity checkpoint. Agents prepare bounded P1 API/projection/browser design read-only now; release P1 source edits only after that checkpoint and Git preflight. No builds/copies/tests alongside the active timed run. Complete and validate P1 then stop before P2, recording its in-process CPU limitation. P0 stays partial even if Trial-1R passes; no replacement measurement runs are planned.
-
-## Locators / independent native gap
-
-Paths relative to SandboxRoot; private absolute locators remain local.
-
-| Locator | Use |
-|---|---|
-| Acceptance/MainVault-Source/ | Read-only original source snapshot |
-| Acceptance/MainVault-Grasp-v0.3/ | Complete accepted workspace, read-only copy source after verification |
-| Scratch/Performance-P0-20260929/ | Verified P0 frozen copies, trials and private evidence |
-| Scratch/Chat-Handoff-20260928-1818/ | Prior E1 copy/evidence, no assertion about live PID |
-
-[E1 evidence](E1-WINDOWS-VERIFICATION.md) and [prior UI task index](UI-REPAIR-VERIFICATION.md#chat-單題接手) retain native selection unverified: launcher/host passed, browser observation blocked before note/reveal. P0 does not fix/retry Computer Use or substitute API/browser success for Explorer. EPERM cause unknown. New P0 workloads on new copies are authorized measurements, not old E1 retry.
-
-## Saving / usage
-
-P0 start2026-09-29 around13:20UTC: normal codex7%used/93%remaining,10080-minute window/reset1791200482, ordinaryUsageAllowed=true. Latest15:54UTC50%used/50%remaining, same window; account-wide, not task-exclusive. See [usage log](USAGE-LOG.md). Local checkpoints0100643,0b4dd58,5f3103f,28e1a70 saved; final aggregation checkpoint being recorded, nothing pushed. Fetch origin succeeded15:54UTC; master4ahead/0behind, upstream unchanged. Latest containing-document SHA comes from Git history; do not self-reference. Update this entry at milestones and final stop.
+在下一次架構規劃授權下，依 Seed、已接受技術方向及相關 insight，定義模組責任、資料歸屬、執行／通訊、排程與 UI 響應、保存／故障復原及平台邊界。接著形成實作計畫。
