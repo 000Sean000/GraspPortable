@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Rewrite Preparation State
-version: 1.1.0
+version: 1.2.0
 updated: 2026-10-03
 scope: rewrite-decisions-and-current-authorization
 ---
@@ -9,12 +9,12 @@ scope: rewrite-decisions-and-current-authorization
 
 `rewrite/dotnet` 是文件準備分支，已選取現行 Seed 與有用的 Prototype 參考文件。新版架構尚未完成，程式尚未開始。
 
-本次使用者授權：建立新 branch、複製仍適用的文件；先別寫程式。後續補充授權：Project Seed 只放產品需求與 WHY；HOW 移至 Seed 外，核對並保留最早文件。本次仍為文件整理。
+本次使用者授權：建立新 branch、複製仍適用的文件；先別寫程式。後續補充授權：Project Seed 只放產品需求與 WHY；HOW 移至 Seed 外，核對並保留最早文件。最新補充：Seed 明確保留 Excel 類型的高互動依賴關係、真實資料下 UI 流暢及未來成長的效能餘裕；整體方法策略與實際技術選擇結果分開。本次仍為文件整理。
 
 ## 已接受決策
 
 - 新版在新 branch 從零設計與撰寫。沿用資產是文件與有效 insight；舊程式留在原分支供參考。
-- 技術方向：C#／.NET 10、本機 SQLite；MAUI Blazor Hybrid 前端，以 Razor 呈現工作區，CodeMirror 6／TypeScript 作編輯器方向；Windows 本機 ASP.NET Core 後端。App／Host／Core／Persistence 是待架構設計細化的責任草案。
+- 本次已選技術與其適用範圍獨立記錄於 [Technology Selection](Engineering/Decisions/Technology-Selection-v1.0.0.md)；整體方法策略由 [Engineering](Engineering/README.md) 路由。
 - 目前交付 Windows PC 可用版本，盡量保持其他裝置相容與可攜性。Windows 交付範圍不構成產品只能使用 Windows 的限制；其他平台完成度依實際驗證記錄。
 - 技術選擇依產品需求、效能餘裕、安全與長期適配判斷；沿用舊成果不計為選型加分。
 - UI 流暢與資料安全是交付條件。功能／測試通過與實際 UX 達標分別判定。
@@ -31,7 +31,7 @@ P0 報告部分段落早於最後停工紀錄：舊 EXECUTION-STATE 頂部記載
 
 ## 文件歸屬與來源
 
-[Project Seed](Project_Seed/README.md) 保留 WHAT／WHY；[Engineering](Engineering/README.md) 承載 HOW。[原始來源索引](Reference/Originals/README.md) 保留 repo 最早可查的两份 rc.1 原文與 Git 來源；原始文字未修改。Core Requirements rc.5 由 rc.4 移出工作規則，未新增技術選型或恢復舊語法。
+[Project Seed](Project_Seed/README.md) 保留 WHAT／WHY；[Engineering](Engineering/README.md) 承載 HOW。[原始來源索引](Reference/Originals/README.md) 保留 repo 最早可查的两份 rc.1 原文與 Git 來源；原始文字未修改。Core Requirements rc.6 明確保留三項效能要求並整理需求／方法邊界；工程方法移除舊 runtime 指名及程式沿用預設，前次移入的工作規則已整合到對應章節。既有技術方向移到獨立決策文件，尚未完成具體架構。
 
 ## 下一步
 

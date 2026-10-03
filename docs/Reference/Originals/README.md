@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Earliest Repository Sources
-version: 1.0.0
+version: 1.0.1
 updated: 2026-10-03
 scope: original-document-provenance
 ---
@@ -34,4 +34,4 @@ Core Requirements rc.1 已明確記載：
 
 ## 後續整理文件的定位
 
-現行 rc.4 是後續修訂基底；本次 rc.5 只整理 WHAT／WHY 與 HOW 歸屬。Architecture Planning Guide 不在上述最早 commit 的 Seed 中，應歸為後續工程指引。Prototype contracts、P0／M1–M4 是後續工程與驗證資料，詳見 [參考索引](../README.md)。
+rc.4 是後續修訂基底；rc.5 整理 WHAT／WHY 與 HOW 歸屬；rc.6 明確保留效能要求並分開整體方法與實際技術決策。Architecture Planning Guide 不在上述最早 commit 的 Seed 中，應歸為後續工程指引。Prototype contracts、P0／M1–M4 是後續工程與驗證資料，詳見 [參考索引](../README.md)。

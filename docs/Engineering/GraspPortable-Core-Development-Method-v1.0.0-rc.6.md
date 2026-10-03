@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.5
+version: 1.0.0-rc.6
 updated: 2026-10-03
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.4.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.5.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -13,7 +13,7 @@ supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.4.md
 
 依 Core Requirements 的 WHY、產品行為與已接受的 scope，將使用者的心力集中在重要取捨，將已授權的工程工作交由 Codex 持續完成。
 
-產品 WHAT／WHY 由 [Project Seed](../Project_Seed/README.md) 指定；開發方法與架構規劃由 [Engineering 入口](README.md) 指定。本文件承載 HOW；當前授權與交付範圍見 [工作狀態](../EXECUTION-STATE.md)。
+產品 WHAT／WHY 由 [Project Seed](../Project_Seed/README.md) 指定；開發方法與架構規劃由 [Engineering 入口](README.md) 指定。本文件承載整體方法策略；實際選型結果由 Engineering 入口連到獨立的技術決策文件。當前授權與交付範圍見 [工作狀態](../EXECUTION-STATE.md)。
 
 ### 工作模式
 
@@ -33,7 +33,9 @@ Note 的正文 Reference、可自然分布於 Note 各處的 Binding statement�
 
 每個工程決策先問：它能否更直接完成使用者要操作的結果？
 
-選擇成熟、來源可取得且維護成本合理的 implementation；研究與 spike 只在能降低當前重大不確定性時進行。保留已有正確行為、測試與可用模組，不因技術偏好全面重寫。
+選擇成熟、來源可取得且維護成本合理的 implementation；研究與 spike 只在能降低當前重大不確定性時進行。依已接受的重寫或維護範圍安排工作；既有成果是否可沿用，以當前決策為準。先完成可操作成果，再依真實使用摩擦局部改善；以責任可替換及問題可定位控制長期成本。
+
+產品完整需求與單次交付範圍分開；每次依已接受 scope 確認可操作成果、受影響契約及完成判準。實作完成、必要驗證通過與使用者接受分別記錄，效能及平台結果只陳述實際確認範圍。
 
 Plan 與 Goal 有不同完成條件。Plan 的成果是可供決策的計畫；Goal 的成果是已接受 scope 內完整、可驗證、可操作的產品流程。
 
@@ -115,6 +117,10 @@ PC 程式接面的能力、版本及執行權限由其獨立計畫承接。Mobil
 
 ## 7. Performance 與驗證成本
 
+依 Seed 的互動品質與成長要求，先界定代表性 workload、預期成長、裝置與延遲門檻，再評估端到端成本及 CPU／記憶體／I/O 餘裕。分別記錄已觀測結果與成長推估，避免只用目前樣本或單一計算階段代替整體品質。
+
+依 binding 關係建立 dependency graph，值變更只重算受影響部分。依當次風險檢查 deep chain、wide fan-out、shared dependencies、反覆小改、cycle、missing、取消與舊結果拒絕，同時確認編輯互動。
+
 先定義使用者可感知的 UX／性能要求，再以最低必要成本確認產品是否達成。測試、benchmark、profiling 與 instrumentation 是手段，不是產品交付物；除非使用者明確要求，不把性能工作擴張成全面量測平台、統計認證或多輪實驗工程。
 
 若已有產品使用摩擦、既有量測、workload 特性或架構事實足以支持下一個決策，就直接做該決策所需的比較或實作。只有當「不知道瓶頸在哪裡」會實質改變解法時，才深入 profiling。
@@ -123,7 +129,7 @@ PC 程式接面的能力、版本及執行權限由其獨立計畫承接。Mobil
 
 ## 8. Technology Selection Rule
 
-技術選擇以產品 workload、長期平台方向、維護成本、可替換性、migration 成本、source／license 與合理的性能預期共同判斷。既有 implementation 可保留時保留，但不因已存在就取得預設優先權。
+技術選擇以產品 workload、長期平台方向、維護成本、可替換性、migration 成本、source／license 與合理的性能預期共同判斷。沿用舊成果不計為技術選型加分。選型方法與實際決策分開保存：本節描述評估方式，獨立決策文件記錄本次選擇、適用範圍、理由與待確認事項。
 
 當 application host、runtime、storage 或其他基礎技術已成為長期架構選擇，可以直接比較候選 stack 與 migration surface；不需要先證明現有 stack 已經無法修復，也不需要先完成 exhaustive benchmark。
 
@@ -131,7 +137,7 @@ PC 程式接面的能力、版本及執行權限由其獨立計畫承接。Mobil
 
 ## 9. Portability 與後續平台
 
-Desktop、Apple mobile 共用能合理共用的 domain／editor／calculation contracts，Node、OS、filesystem 與裝置生命週期透過 adapter 處理。
+Desktop、Apple mobile 共用能合理共用的 domain／editor／calculation contracts，宿主 runtime、OS、filesystem 與裝置生命週期透過 adapter 處理。
 
 Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向不使目前 Goal 自動擴張。雲端 provider 的 bytes 傳輸、Grasp 的版本／衝突／交易套用，是不同驗證責任。
 
@@ -151,13 +157,13 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 驗證強度與變更風險相稱。資料語義、共享修改原子性、身份、外部 dirty 保護、fallback／recovery 等被本次變更觸及時，必須保留相應 correctness；未觸及的層面不因一般工程慣例自動擴張成完整測試矩陣。
 
-優先重用現有 tests 與可操作驗收。新增測試只覆蓋本次新增／修改的 contract、已發現 regression 或具有實質資料風險的邊界。不得為了「證明測試本身可信」無限遞迴擴張測試工程；若驗證成本開始接近或超過產品改動本身，先重新判斷其決策價值。
+在已接受的程式沿用範圍內使用現有 tests 與可操作驗收；從零重寫時，沿用文件中的需求與有效反例，再驗證新的實作。新增測試只覆蓋本次新增／修改的 contract、已發現 regression 或具有實質資料風險的邊界。不得為了「證明測試本身可信」無限遞迴擴張測試工程；若驗證成本開始接近或超過產品改動本身，先重新判斷其決策價值。
 
 原始 MainVault 與指定 Source snapshot 保持唯讀；需要寫入的實驗使用獨立副本。私人資料、驗收 workspace 與大量生成 evidence 不進 Git。
 
 ## 12. Authorized Goal Workflow
 
-1. Rehydrate：讀目前 Seed 入口、已接受的 Plan、repo instructions、實際 source／tests／build 與最新工作停點。
+1. Rehydrate：讀目前 Seed 入口、Engineering 入口所指的整體方法與技術決策、已接受的 Plan、repo instructions、實際 source／tests／build 與最新工作停點。
 2. Reconcile：確認版本、有效決策及當前工作；未解的重大語義回 Plan，普通 HOW 自主處理。
 3. Build：完成已授權的完整 vertical slice，保留有效在製成果，必要的新功能與重構服務該結果。
 4. Verify：只做足以驗證當次成果與重大風險的檢查；與 UX 有關時親自走使用者流程。Benchmark／profiling 只在性能本身是驗收目標或仍存在會改變決策的不確定性時使用。
@@ -191,53 +197,3 @@ Repo 內保留 source、真正需要的 tests、短 architecture／debug map 與
 測試通過與使用者接受分開記錄。Seed 更新只保存產品需求與 WHY；方法更新保存在 Engineering；不改寫歷史測試結果，也不宣稱 App 已經實作新的資料契約。
 
 [返回 Interface](#interfaceplan-先確認方向goal-再完成實作)
-
-## 從 Core Requirements rc.4 移入的工作規則
-
-本次只調整文件歸屬。下列原文保留供查核；其中重複的產品語句仍以現行 Seed 為準，當前授權以工作狀態及使用者決策為準。
-
-### WHY 後的開發次序
-
-產品要降低使用者的管理與校正負擔。先取得完整可操作的成果，再依真實使用摩擦局部改善；模組可替換、問題可定位，比預先設計所有功能重要。
-
-### 共用 exporter
-
-按需匯出與 fallback checkpoint 共用資料語義及 exporter。
-
-### 需求與授權
-
-本文件保存產品方向，不代表語法、平台或功能已驗證完成，也不自動授權實作。每次 Goal 以使用者接受的範圍及驗收結果為準。
-
-### UX 分期
-
-個別 Goal 可先完成阻擋當次流程的部分，再分期完成整體 UX。
-
-### 效能驗證方法
-
-具體延遲門檻由當前產品 UX contract 或 Goal 定義。只需要足以判斷是否達成該 contract 的驗證；benchmark、profiling、synthetic workload、重複 trial 與細部 attribution 都是 task-specific HOW，不是 Core Requirement 的固定前置工作。
-
-當產品 workload、平台方向、維護成本或既有事實已足以支持重新比較 architecture／technology 時，可直接評估候選方案；不要求先完整證明現行 implementation 的每個 hotspot。
-
-### Adapter 方法
-
-第三方型別留在 adapter。替換是否便宜，依實際影響面與資料遷移成本判斷，不以 interface 數量判斷。
-
-### Goal 工作方法
-
-## 12. 需求與單次 Goal 的關係
-
-本文件的產品範圍不等於單次 Goal 的工作量。每次先確認可操作成果、影響的 contracts、重要取捨及完成判準，再授權對應的實作段落。
-
-資料與語法方向的採用，不等於所有邊界已證明正確；需要改變同一合法資料含義的選擇，先以版本化範例討論。進度、實作現況及開放決策分別留在工作計畫／狀態文件。
-
-### 驗收範圍管理
-
-個別 Goal 依已接受範圍驗證下列相關成果：
-
-### 平台與效能報告規則
-
-8. 效能與平台結果只陳述實際確認範圍；未確認部分明示。
-
-### 交付狀態判讀
-
-產品已做出、測試已通過、使用者已接受，是不同狀態。

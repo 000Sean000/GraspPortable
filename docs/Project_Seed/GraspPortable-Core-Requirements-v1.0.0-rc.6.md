@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.5
+version: 1.0.0-rc.6
 updated: 2026-10-03
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.4.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.5.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -13,7 +13,7 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.4.md
 
 現成工具無法同時滿足自然筆記、可追溯的值引用、集中資料管理及低負擔的跨工具使用。GraspPortable 以筆記為中心，讓人自然書寫，讓程式以明確結構維護資料；大量 identifiers 可以分別存在 DB 中，而不必各自占一個實體檔案。
 
-產品要降低使用者的管理與校正負擔。
+產品要降低使用者的管理與校正負擔。高度巢狀與交互引用必須支援真實知識工作；資料與依賴關係持續成長時，使用者仍能流暢書寫與操作。
 
 ### 核心使用模型
 
@@ -145,7 +145,7 @@ Raw literal 使用 opening／closing marker。Literal 內的引號、`+`、`=`�
 
 Assignment operator 與第一個 expression token 之間的排版空白／換行屬結構分隔，不自動成為 value。Expression 內 literal 自己保存的空白與換行才屬 logical string。
 
-遇到內容與 closing marker 衝突時，由 serializer 選擇不碰撞的 marker 層級，例如 `<||...||>`。使用者輸入的反斜線仍可能是真正內容；避免以全域 escape／unescape 破壞它。
+內容含有 closing marker 時，仍可使用不碰撞的 marker 層級無損表達，例如 `<||...||>`。使用者輸入的反斜線若屬真正內容，必須保持原意。
 
 複合文字的 composition 集中在 binding，正文僅引用單一 identifier 與其保存值。
 
@@ -170,15 +170,15 @@ Binding literal 可保存真實換行：
 
 此 block 表達方向中，開頭 marker 後與 closing marker 前的邊界換行不作為內容；中間換行與內容空白保留。若 value 本身需要首尾換行，也必須能無損表達。
 
-Raw source、logical string、literal／reference composition 及宿主 escaping 分層處理。一般 Note 本文直接保留 Markdown；只有 binding 的字串片段需要 literal 定界。
+Raw source、logical string 與 literal／reference composition 保持各自含義，宿主 escaping 不改變內容。一般 Note 本文直接保留 Markdown；只有 binding 的字串片段需要 literal 定界。
 
-精確詞法邊界、不同 delimiter 層級、空值、換行／縮排、statement 結束、相鄰 binding 與不同 Markdown context 須以配套 grammar 與 expected-value 案例補齊。不存在一個必須選定的「Binding 區 outer container」。多行 binding 的支援，也不等於兩種 inline reference 已驗證能直接容納所有多段落結果。
+精確詞法邊界、delimiter 層級、空值、換行／縮排、statement 結束及相鄰 binding 必須有一致的資料含義。多行 binding 與正文 inline reference 是不同表示；多段落 value 在正文 reference 的呈現與交換行為仍待定義。
 
 ### 4.4 Dependency 計算
 
-模型保持 literal fragments 與 identifier references 的順序及身分。從 bindings 建立 dependency graph；值變更後只重算受影響部分。
+Binding 保留 literal fragments 與 identifier references 的順序及身分。值變更後，受影響的巢狀與共享引用結果保持一致。
 
-驗證 deep chain、wide fan-out、shared dependencies、反覆小改、cycle、missing、取消及舊結果拒絕。正常編輯與重算期間，editor 仍可操作。
+Value Sync 須支援 Excel 類型的高互動依賴關係，包括深層相依、大量相依者、共享依賴及頻繁小幅修改。循環、缺失、取消及過期結果有明確狀態；過期結果不覆蓋新資料。重算期間，編輯器與日常互動維持流暢。
 
 [返回 Interface](#interface目標需求與重要界線)
 
@@ -234,7 +234,15 @@ App Runtime 涵蓋筆記編輯／閱讀、binding／reference、value sync、查
 
 ## 8. Performance 與 UX Requirement
 
-GraspPortable 的效能要求以使用者可感知的互動品質為主：一般寫作、選取、導航、搜尋、切換視圖與其他無關操作，不應被長時間背景工作不必要地阻塞。大型計算、匯出、checkpoint 或重建可以較久，但應與互動路徑適當隔離並提供可理解的狀態。
+效能是產品品質要求，包含以下三項：
+
+1. Excel 類型的高互動依賴關係：在高度巢狀、交互引用、廣泛連動與反覆小改的情境下，持續得到一致結果並保持流暢互動。
+2. 真實資料下 UI 流暢：以實際 Vault／workspace 的日常使用為準，中文輸入、游標、選取、捲動、導航、搜尋及視圖切換保持及時回應；高延遲到像當機，即未達產品要求，不能以「仍可操作」判定完成。
+3. 未來成長的效能餘裕：除目前資料外，也能承受預期的筆記量、identifier／reference 數量、依賴深度與連動範圍成長，並維持約定的互動品質。只解決目前瓶頸、剛好跑完當前資料，尚不足以滿足此要求。
+
+大型計算、匯出、checkpoint 或重建可以耗時較久；進行時，日常互動仍須流暢，並呈現可理解的進度與狀態。
+
+目標資料規模、預期成長範圍、目標裝置及互動延遲門檻是這些需求的具體尺度，目前尚待定義。
 
 ## 9. Replaceability Requirement
 
@@ -246,7 +254,7 @@ Grasp 擁有自己的 identity、binding、reference、value、change 與 projec
 
 iPhone／iPad 的目標是完整本機 App Runtime 與離線資料。跨裝置同步優先採成熟儲存／同步服務，Grasp 處理自己需要的版本、衝突與一致套用語義。Provider、同步格式及平台實作由後續計畫確認。
 
-可攜驗證需涵蓋目標 filesystem 與中斷復原，不能只憑 Windows 本機一次成功就宣稱所有隨身碟可用。
+Workspace 在支援的目標 filesystem 上可攜帶，並能在寫入中斷後恢復一致狀態。
 
 ## 11. 外部匯出策略協作
 
@@ -266,5 +274,6 @@ Contract 須能表達資料身分、基底版本、提供的審視範圍、成�
 4. 原始資料經確定性匯入、保存及重啟後保持內容與來源對照。
 5. 使用者能審查／調整匯出策略；獨立 rows 可共用檔案而不失去 identity。
 6. 匯出資料可在 App 外直接取得及閱讀；完整 fallback 可重建內容、關係和必要狀態。
-7. Literal、delimiter pairing／autocomplete、escaping、LF／CRLF、首尾空白／換行及宿主 context 有精確 round-trip 案例。
+7. Literal、delimiter pairing／autocomplete、escaping、LF／CRLF、首尾空白／換行及宿主 context 在保存與往返交換後保有正確內容與資料含義。
 8. 功能由清楚的模組完成，替換點及 debug 入口可理解。
+9. 真實資料及預期成長規模下，Excel 類型的高互動依賴關係、UI 流暢度與效能餘裕達成第 8 節要求。

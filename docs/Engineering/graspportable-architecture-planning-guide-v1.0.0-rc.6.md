@@ -1,10 +1,10 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.5
+version: 1.0.0-rc.6
 updated: 2026-10-03
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.4.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.5.md
 ---
 
 ## 執行目標
@@ -14,6 +14,8 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.4.md
 讓不依賴指定本機或裝置的工作能在 Cloud 接續。為每個模組維護 Importance、Status、Environment、Agent 四個獨立維度，分別安排開發順序、實作狀態、執行環境與 agent 能力。
 
 維持已接受的產品語義與替換邊界。長程工作開始前集中確認重大決策；交棒後自主選擇實作方法、適時委派、做足以保護當次成果的必要驗證，並留下可跨 thread 與環境接續的 repo 工作狀態。
+
+本文件描述整體架構規劃方法。實際技術選擇由 [Engineering 入口](README.md) 連至獨立決策；已接受的具体模組與實作映射由後續架構文件承載。
 
 ## 架構責任與邊界
 
@@ -29,9 +31,9 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.4.md
 
 將 Port 定義在 Application Core。由 Driving Adapter 將外部操作轉成核心 use case；由 Driven Adapter 實作核心所需的 Port，連接儲存、檔案及其他外部工具。
 
-保持原始碼依賴朝向內部。執行流程需要呼叫外部工具時，核心仍依賴自己的 Port；CodeMirror、SQLite、OS 等具體型別與操作留在相應 adapter。
+保持原始碼依賴朝向內部。執行流程需要呼叫外部工具時，核心仍依賴自己的 Port；編輯器套件、儲存引擎、OS 等具體型別與操作留在相應 adapter。
 
-按實際需求選用直接呼叫、Command／Query Bus 等配置。依必要責任決定結構與實作規模，沿用可工作的程式與測試，逐步修正實際的耦合與替換障礙。
+按實際需求選用直接呼叫、Command／Query Bus 等配置。依必要責任決定結構與實作規模，按已接受的重寫或維護範圍建立接面，處理實際的耦合與替換障礙。
 
 ### 明確管理跨模組協作
 
@@ -92,7 +94,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.4.md
 
 ### 3. 驗證與整合
 
-驗證服務產品決策與交付，不自行成為新的開發主線。先依本次變更的 contract、資料風險與使用者可感知結果決定最小充分驗證，再重用既有 build／tests／操作流程。
+驗證服務產品決策與交付，不自行成為新的開發主線。先依本次變更的 contract、資料風險與使用者可感知結果決定最小充分驗證，再依已授權範圍安排 build／tests／操作流程。
 
 只有實際改到相應邊界時才擴大到接面、整合、端到端或平台測試；benchmark／profiling 只有在性能是本次驗收目標，或其結果會改變架構／實作決策時才執行。不得僅因「工程上通常應該測」就建立新的大型 harness、重複 trial 或完整 evidence pipeline。
 
