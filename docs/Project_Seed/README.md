@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Project Seed Entry
-version: 2.5.0
+version: 2.5.1
 updated: 2026-10-04
 scope: product-what-and-why
 ---
@@ -11,7 +11,7 @@ Project Seed 保存產品要解決的問題、使用情境、期望行為與品�
 
 | 文件 | 用途 |
 | --- | --- |
-| [Core Requirements rc.11](GraspPortable-Core-Requirements-v1.0.0-rc.11.md) | 現行 WHAT／WHY、Markdown 共同編輯、Records／長文屬性、資料恢復及完成判準 |
+| [Core Requirements rc.12](GraspPortable-Core-Requirements-v1.0.0-rc.12.md) | 現行 WHAT／WHY、Markdown 共同編輯／實際檔案樹、Records／長文屬性、資料恢復及完成判準 |
 | [最早可查來源](../Reference/Originals/README.md) | 兩份 rc.1 原文及來源限制，供核對原始意圖 |
 
 語法、資料權威與可攜性若直接決定使用者得到的行為，仍屬產品需求。框架、模組實作、開發流程與驗證方法由 [Engineering](../Engineering/README.md) 承載；實際技術決策見 [Technology Selection](../Engineering/Decisions/Technology-Selection-v1.2.0.md)，目前授權見 [工作狀態](../EXECUTION-STATE.md)。

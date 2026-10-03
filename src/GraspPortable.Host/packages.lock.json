@@ -23,6 +23,12 @@
           "SQLitePCLRaw.config.e_sqlite3": "3.0.5"
         }
       },
+      "YamlDotNet": {
+        "type": "Direct",
+        "requested": "[18.1.0, )",
+        "resolved": "18.1.0",
+        "contentHash": "5K+9KFg2TdTl7VXv88Qzi/0lqK6JFoNP3lRuImPYGRV7K/QYklDyTrj4+A+KAki1JsQi6qKY+hDyY7d6WRqjrw=="
+      },
       "Microsoft.Data.Sqlite.Core": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -62,13 +68,6 @@
       },
       "graspportable.core": {
         "type": "Project"
-      }
-    },
-    "net10.0/win-x64": {
-      "SQLite": {
-        "type": "Transitive",
-        "resolved": "3.53.4",
-        "contentHash": "KN7jeWqgUPeBRe1FlcpZURzxomuKKEKHmBBQfg+Nx7NkY1LjKhzHvH+3ASkNvhayESE34nMBinL9CV21JfPRJw=="
       }
     }
   }

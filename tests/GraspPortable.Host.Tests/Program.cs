@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using GraspPortable.Contracts;
 
+try
+{
 var root = new DirectoryInfo(AppContext.BaseDirectory);
 while (root is not null && !File.Exists(Path.Combine(root.FullName, "GraspPortable.slnx"))) root = root.Parent;
 if (root is null) throw new InvalidOperationException("Run from the built repository test project.");
@@ -24,6 +26,7 @@ long committedRevision;
 CommitNoteRequest commitRequest;
 const string committedSource = "前文\n@code{ @Greeting = {你好 HTTP} }\n後文";
 const string unfinishedSource = "前文\n@code{ @Greeting = {未完成";
+const string newerDraftSource = unfinishedSource+"\n尚未保存的下一段";
 
 await using (var host = await HostProcess.StartAsync(hostDll, workspace))
 {
@@ -94,7 +97,12 @@ await using (var host = await HostProcess.StartAsync(hostDll, workspace))
     var saved = await host.PutAsync<OperationResult>("/api/notes/" + noteId + "/draft", new SaveDraftRequest("http-session", 2, beforeClose.Revision, beforeClose.Title, unfinishedSource));
     Check(saved.Status == "draft", "unfinished source is durably saved before process restart");
     var invalid = await host.PostAsync<OperationResult>("/api/notes/" + noteId + "/commit", new CommitNoteRequest(Op(), "http-session", 2, beforeClose.Revision, committedRevision));
-    Check(invalid.Status == "invalid" && invalid.Revision == committedRevision, "invalid HTTP commit leaves committed revision unchanged");
+    Check(invalid.Status == "source-saved" && invalid.Revision > committedRevision, "incomplete source is saved to Markdown without accepting partial semantics");
+    committedRevision=invalid.Revision;
+    var rawSaved=await host.GetAsync<NoteDto>("/api/notes/"+noteId);
+    Check(rawSaved.Source==unfinishedSource && rawSaved.SourceStatus=="invalid" && rawSaved.Draft is null
+        && File.ReadAllText(Path.Combine(workspace,rawSaved.RelativePath!)).EndsWith(unfinishedSource), "wire source and physical Markdown agree on incomplete raw text");
+    await host.PutAsync<OperationResult>("/api/notes/"+noteId+"/draft",new SaveDraftRequest("http-session",3,rawSaved.Revision,rawSaved.Title,newerDraftSource,rawSaved.SourceHash));
     await host.ShutdownAsync();
     Check(host.ExitCode == 0, "shutdown endpoint exits first Host cleanly");
 }
@@ -110,21 +118,50 @@ await using (var restarted = await HostProcess.StartAsync(hostDll, workspace))
         Check(denied.StatusCode == HttpStatusCode.Unauthorized, "restart rotates startup credential");
     }
     var restored = await restarted.GetAsync<NoteDto>("/api/notes/" + noteId);
-    Check(restored.Source == committedSource && restored.Definitions.Single().Value == "你好 HTTP", "restart restores committed source and definition");
-    Check(restored.Draft is { Revision: 2, SessionId: "http-session" } && restored.Draft.Source == unfinishedSource, "restart restores separate unfinished draft with its session and revision");
+    Check(restored.Source == unfinishedSource && restored.SourceStatus=="invalid" && restored.Definitions.Single().Status=="Stale"
+        && restored.Definitions.Single().LastGoodValue=="你好 HTTP", "restart restores saved raw and explicitly stale last accepted value");
+    Check(restored.Draft is { Revision: 3, SessionId: "http-session" } && restored.Draft.Source == newerDraftSource, "restart restores separate newer draft with its session and revision");
     var receipt = await restarted.GetAsync<OperationResult>("/api/receipts/" + commitRequest.OperationId);
     Check(receipt.Status == "committed", "operation receipt survives Host restart");
     var retry = await restarted.PostAsync<OperationResult>("/api/notes/" + noteId + "/commit", commitRequest);
     Check(retry.Status == "committed" && retry.Revision == receipt.Revision, "post-restart retry returns earlier receipt without changing recovered draft");
-    Check((await restarted.GetAsync<NoteDto>("/api/notes/" + noteId)).Draft?.Revision == 2, "old operation retry preserves newer recovered draft");
+    Check((await restarted.GetAsync<NoteDto>("/api/notes/" + noteId)).Draft?.Revision == 3, "old operation retry preserves newer recovered draft");
     await using (var events = await EventStream.OpenAsync(restarted.Client))
     {
         Check((await events.ReadAsync()).Revision == committedRevision, "restarted SSE stream reports persisted current revision");
+    }
+    var backupStatus = await restarted.GetAsync<BackupStatusDto>("/api/backups");
+    Check(backupStatus.Generations.Length > 0, "normal shutdown published a verified checkpoint");
+    var settings = await restarted.PostAsync<BackupResultDto>("/api/backups/settings", new BackupSettingsRequest(Op(), backupStatus.Options.Version, 7, 3));
+    Check(settings.Status == "updated", "HTTP backup settings accept the expected version");
+    var checkpoint = new CheckpointRequest(Op());
+    var captured = await restarted.PostAsync<BackupResultDto>("/api/backups/capture", checkpoint);
+    Check(captured.Status == "published" && captured.Path is not null, "HTTP checkpoint publishes source plus newer draft");
+    var capturedAgain = await restarted.PostAsync<BackupResultDto>("/api/backups/capture", checkpoint);
+    Check(capturedAgain.Path == captured.Path && capturedAgain.Status == "published", "HTTP checkpoint retry returns the same generation");
+    var restoreRequest = new RestoreBackupRequest(Op(), captured.Path!, workspace + "-restored");
+    var recovered = await restarted.PostAsync<BackupResultDto>("/api/backups/restore", restoreRequest);
+    Check(recovered.Status == "restored" && recovered.Path == restoreRequest.DestinationPath, "HTTP restore creates a new workspace");
+    var recoveredAgain = await restarted.PostAsync<BackupResultDto>("/api/backups/restore", restoreRequest);
+    Check(recoveredAgain.Path == recovered.Path && recoveredAgain.Status == "restored", "HTTP restore retry preserves its destination");
+    await using (var copy = await HostProcess.StartAsync(hostDll, recovered.Path!))
+    {
+        var copiedNote = await copy.GetAsync<NoteDto>("/api/notes/" + noteId);
+        Check(copiedNote.Source == unfinishedSource && copiedNote.Draft?.Source == newerDraftSource
+            && copiedNote.Definitions.Single().LastGoodValue == "你好 HTTP", "restored Host preserves invalid raw, newer draft and last-good identity");
+        Check((await copy.GetAsync<BackupStatusDto>("/api/backups")).Options.IntervalMinutes == 7, "restored Host preserves backup settings");
+        await copy.ShutdownAsync();
     }
     await restarted.ShutdownAsync();
     Check(restarted.ExitCode == 0, "restarted Host shuts down normally and releases workspace");
 }
 Console.WriteLine($"PASS: {passed} HTTP/process assertions. Workspace: {workspace}");
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine(error);
+    Environment.ExitCode = 1;
+}
 
 sealed record Handshake(int Port, string WorkspaceId, int ProtocolVersion);
 
@@ -158,7 +195,14 @@ sealed class HostProcess : IAsyncDisposable
             var handshake = JsonSerializer.Deserialize<Handshake>(line, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? throw new InvalidOperationException("Empty startup handshake.");
             return new(process, stderr, credential, handshake);
         }
-        catch { if (!process.HasExited) process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); process.Dispose(); throw; }
+        catch (Exception error)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            var diagnostic = await stderr.WaitAsync(TimeSpan.FromSeconds(5));
+            process.Dispose();
+            throw new InvalidOperationException("Host startup failed for " + workspace + ": " + diagnostic, error);
+        }
     }
     public async Task<T> GetAsync<T>(string path)
     {

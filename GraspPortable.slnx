@@ -9,5 +9,17 @@
     <Project Path="tests/GraspPortable.Core.Tests/GraspPortable.Core.Tests.csproj" />
     <Project Path="tests/GraspPortable.Host.Tests/GraspPortable.Host.Tests.csproj" />
     <Project Path="tests/GraspPortable.Integration.Tests/GraspPortable.Integration.Tests.csproj" />
+    <Project Path="tests/GraspPortable.FileOperations.Tests/GraspPortable.FileOperations.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Markdown.Tests/GraspPortable.Markdown.Tests.csproj" />
+    <Project Path="tests/GraspPortable.ExternalEdits.Tests/GraspPortable.ExternalEdits.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Sources.Tests/GraspPortable.Sources.Tests.csproj" />
+    <Project Path="tests/GraspPortable.MarkdownWorkspace.Tests/GraspPortable.MarkdownWorkspace.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Migration.Tests/GraspPortable.Migration.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Coordinator.Tests/GraspPortable.Coordinator.Tests.csproj" />
+    <Project Path="tests/GraspPortable.FileActions.Tests/GraspPortable.FileActions.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Backup.Tests/GraspPortable.Backup.Tests.csproj" />
+    <Project Path="tests/GraspPortable.BackupManager.Tests/GraspPortable.BackupManager.Tests.csproj" />
+    <Project Path="tests/GraspPortable.GroupedNotes.Tests/GraspPortable.GroupedNotes.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Records.Tests/GraspPortable.Records.Tests.csproj" />
   </Folder>
 </Solution>

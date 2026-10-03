@@ -13,7 +13,7 @@ supersedes: Architecture-Model-v1.0.2.md
 
 使用者於 2026-10-03 授權：若無必須由使用者裁定的問題，直接將模型調整為適合本產品的方案。本文件記錄此授權下的工程決定；不表示具體實作、性能或使用者操作驗收已完成。
 
-[產品架構](../GraspPortable-Architecture-v1.0.0-rc.4.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.2.0.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 維持通用規劃方法。
+[產品架構](../GraspPortable-Architecture-v1.0.0-rc.5.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.2.0.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 維持通用規劃方法。
 
 本專案使用 [自己的架構圖](../GraspPortable-Architecture-Diagrams-v1.2.0.md) 表達下列取捨；原文圖保留作概念來源。
 

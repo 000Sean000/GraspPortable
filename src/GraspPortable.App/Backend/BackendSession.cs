@@ -18,8 +18,14 @@ public sealed class BackendSession : IAsyncDisposable
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public WorkspaceInfo? Workspace { get; private set; }
     public string Status { get; private set; } = "尚未開啟工作區";
-    public string WorkspacePath { get; private set; } = Environment.GetEnvironmentVariable("GRASP_WORKSPACE")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GraspPortable", "FirstUI");
+    public string WorkspacePath { get; private set; } = InitialWorkspace();
+    private static string MigrationKey(string path) => "migration-"+Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(path).ToUpperInvariant())));
+    private static string InitialWorkspace()
+    {
+        var selected=Environment.GetEnvironmentVariable("GRASP_WORKSPACE")
+            ?? Microsoft.Maui.Storage.Preferences.Default.Get("last-workspace",Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GraspPortable", "FirstUI"));
+        return Microsoft.Maui.Storage.Preferences.Default.Get(MigrationKey(selected),selected);
+    }
     public bool Connected => http is not null && process is { HasExited: false };
     public event Action? Changed;
     public event Action<RevisionEvent>? RevisionReceived;
@@ -76,6 +82,9 @@ public sealed class BackendSession : IAsyncDisposable
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             Workspace = await GetAsync<WorkspaceInfo>("api/workspace");
             if (Workspace.WorkspaceId != hello.WorkspaceId) throw new InvalidOperationException("工作區握手不一致。");
+            WorkspacePath = Workspace.Path;
+            Microsoft.Maui.Storage.Preferences.Default.Set("last-workspace",WorkspacePath);
+            if(Workspace.MigratedFrom is { } source) Microsoft.Maui.Storage.Preferences.Default.Set(MigrationKey(source),WorkspacePath);
             Status = "本機後端已連線";
             feedStop = new CancellationTokenSource();
             feedTask = ListenAsync(http, feedStop.Token);
@@ -166,7 +175,7 @@ public sealed class BackendSession : IAsyncDisposable
         feedStop?.Cancel();
         if(http is not null)
         {
-            try { using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4)); await http.PostAsync("api/shutdown", null, deadline.Token); }
+            try { Status="正在完成工作區備份…"; Changed?.Invoke(); using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)); await http.PostAsync("api/shutdown", null, deadline.Token); }
             catch(Exception) { }
         }
         if(process is { HasExited: false })

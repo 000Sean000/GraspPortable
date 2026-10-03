@@ -27,6 +27,7 @@ public partial class Home
     private string _title="", _source="", _savedSource="", _savedTitle="", _sessionId=Guid.NewGuid().ToString("N");
     private string _search="", _newTitle="", _workspacePath="", _literalValue="", _languageText="grasp", _mergeSource="", _insertName="";
     private string _mode="live", _saveStatus="正在準備工作區…";
+    private string? _baseSourceHash;
     private string? _dialog, _error, _notice, _commitNotice;
     private long _draftRevision, _editorRevision, _contentVersion, _noteRevision, _knowledgeRevision, _contextGeneration;
     private bool _forceDraftSave, _hasDraft;
@@ -46,6 +47,11 @@ public partial class Home
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if(_focusFileDestination && _dialog=="file-action")
+        {
+            _focusFileDestination=false;
+            await _fileDestinationInput.FocusAsync();
+        }
         if(_focusNewTitle && _dialog=="create")
         {
             _focusNewTitle=false;
@@ -65,11 +71,20 @@ public partial class Home
         _ = InvokeAsync(async () =>
         {
             _knowledgeRevision=Math.Max(_knowledgeRevision,change.Revision);
+            _filesRefresh++;
             try
             {
                 await RefreshCollectionsAsync();
+                await RefreshSourceStatusAsync();
                 if(_note is not null && writes.CurrentCount != 0 && !_switching)
                 {
+                    if(!_notes.Any(n => n.Id == _note.Id))
+                    {
+                        if(IsDirty) { _notice="檔案已在外部刪除；目前編輯保留在畫面，請另存內容。"; return; }
+                        _note=null; _source=""; _title=""; _saveStatus="檔案已在外部刪除";
+                        await editor!.InvokeVoidAsync("setDocument","","",0,Array.Empty<ReferenceDto>(),true);
+                        StateHasChanged(); return;
+                    }
                     var baseline=_source; var version=_contentVersion; var generation=_contextGeneration;
                     var current=await Backend.GetAsync<NoteDto>("api/notes/"+_note.Id);
                     if(current.Id != _note?.Id) return;
@@ -88,12 +103,15 @@ public partial class Home
         _search=""; _insertName=""; _selectedDefinition=null; _references=[]; _diagnostics=[];
         _knowledgeRevision=Backend.Workspace?.Revision ?? 0;
         await RefreshCollectionsAsync();
+        await RefreshSourceStatusAsync();
         if(_notes.FirstOrDefault() is { } first) await LoadNoteAsync(first.Id);
         else
         {
             _note=null; _source=""; _title=""; _saveStatus="尚未建立筆記";
             if(editor is not null) await editor!.InvokeVoidAsync("setDocument","","",0,Array.Empty<ReferenceDto>(),true);
         }
+        if(Backend.Workspace?.MigratedFrom is { } previous)
+            _notice=$"已建立 Markdown 工作區：{Backend.WorkspacePath}。原工作區保留於 {previous}。";
     }
     private async Task RefreshCollectionsAsync()
     {
@@ -144,9 +162,10 @@ public partial class Home
         _note=note; _title=note.Draft?.Title??note.Title; _source=note.Draft?.Source??note.Source;
         _savedSource=_source; _savedTitle=_title; _noteRevision=note.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,note.KnowledgeRevision);
         _sessionId=note.Draft?.SessionId??Guid.NewGuid().ToString("N"); _draftRevision=note.Draft?.Revision??0;
+        _baseSourceHash=note.Draft?.BaseSourceHash??note.SourceHash;
         _hasDraft=note.Draft is not null; _forceDraftSave=false;
         _editorRevision=0; _contentVersion=0; _diagnostics=note.Diagnostics; _selectedDefinition=null; _references=[];
-        _saveStatus=note.Draft is null ? "已提交 · revision "+note.KnowledgeRevision : "草稿已恢復 · 尚未套用";
+        _saveStatus=note.Draft is null ? SavedStatus(note) : "草稿已恢復 · 尚未套用";
         await editor!.InvokeVoidAsync("setDocument",note.Id,_source,0,_source==note.Source?note.References:[],_mode=="live",_source==note.Source?note.Regions:[]);
         await RenderReadingAsync();
     }
@@ -206,7 +225,7 @@ public partial class Home
             if(_forceDraftSave || source!=_savedSource || title!=_savedTitle || _draftRevision==0)
             {
                 _draftRevision++;
-                var saved=await Backend.SendAsync<OperationResult>(HttpMethod.Put,"api/notes/"+id+"/draft",new SaveDraftRequest(_sessionId,_draftRevision,_noteRevision,title,source));
+                var saved=await Backend.SendAsync<OperationResult>(HttpMethod.Put,"api/notes/"+id+"/draft",new SaveDraftRequest(_sessionId,_draftRevision,_noteRevision,title,source,_baseSourceHash));
                 if(saved.Status is "conflict" or "rejected") { await ShowConflictAsync(saved.Message); return false; }
                 _savedSource=source; _savedTitle=title; _forceDraftSave=false; _hasDraft=true;
             }
@@ -227,7 +246,7 @@ public partial class Home
     {
         _diagnostics=result.Diagnostics??[];
         _knowledgeRevision=Math.Max(_knowledgeRevision,result.Revision);
-        if(result.Status=="committed")
+        if(result.Status is "committed" or "source-saved")
         {
             if(_notice==_commitNotice)_notice=null;
             _commitNotice=null;
@@ -263,7 +282,8 @@ public partial class Home
             if(applied && _contentVersion==expectedVersion)
             {
                 _source=fresh.Source; _title=fresh.Title; _savedSource=_source; _savedTitle=_title;
-                _saveStatus="已提交 · revision "+fresh.KnowledgeRevision;
+                _baseSourceHash=fresh.SourceHash;
+                _saveStatus=SavedStatus(fresh);
                 await RenderReadingAsync(); return;
             }
         }
@@ -282,6 +302,7 @@ public partial class Home
     {
         if(_conflictNote is null || _note?.Id!=_conflictNote.Id)return;
         _note=_conflictNote; _noteRevision=_conflictNote.Revision; _knowledgeRevision=_conflictNote.KnowledgeRevision;
+        _baseSourceHash=_conflictNote.SourceHash;
         _source=_mergeSource; _contentVersion++; _editorRevision=0; _forceDraftSave=true;
         await editor!.InvokeVoidAsync("setDocument",_note.Id,_source,0,Array.Empty<ReferenceDto>(),_mode=="live");
         _dialog=null; await SaveCurrentAsync();
@@ -313,14 +334,16 @@ public partial class Home
         if(editor is not null && _note is not null)
             await editor!.InvokeVoidAsync("renderReading","note-reading",_source,_source==_note.Source?_note.References:[],_source==_note.Source?_note.Regions:[]);
     }
-    private void ShowCreate() {_newTitle="";_dialog="create";_focusNewTitle=true;}
+    private void ShowCreate() { _newParent=""; ShowCreateAt(""); }
+    private void ShowCreateAt(string parent) {_newParent=parent;_newTitle="";_dialog="create";_focusNewTitle=true;}
     private async Task CreateNoteAsync() => await ModalActionAsync(async () =>
     {
         if(!await SaveCurrentAsync())return;
-        var command=new CreateNoteRequest(Guid.NewGuid().ToString("N"),string.IsNullOrWhiteSpace(_newTitle)?"未命名筆記":_newTitle.Trim());
+        var command=new CreateNoteRequest(Guid.NewGuid().ToString("N"),string.IsNullOrWhiteSpace(_newTitle)?"未命名筆記":_newTitle.Trim(),ParentPath:_newParent);
         var result=await Backend.CommandAsync("api/notes",command,command.OperationId);
         if(result.Status!="committed" || result.NoteId is null)throw new InvalidOperationException(result.Message??"建立筆記未完成。");
         _dialog=null; await RefreshCollectionsAsync(); await SelectNoteAsync(result.NoteId);
+        _filesRefresh++;
     });
     private void OpenWorkspaceDialog() {_workspacePath=Backend.WorkspacePath;_dialog="workspace";}
     private async Task BrowseWorkspaceAsync() => await GuardAsync(async () => {var path=await FolderPicker.PickAsync();if(path is not null)_workspacePath=path;});

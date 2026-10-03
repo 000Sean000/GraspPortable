@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Windows S1–S4 Goal Implementation Plan
-version: 1.0.0-rc.7
+version: 1.0.0-rc.8
 updated: 2026-10-04
 status: accepted-authorized-for-p0-through-s4
 scope: markdown-collaboration-recovery-records-and-bounded-verification
-supersedes: Implementation-Plan-v1.0.0-rc.6.md
+supersedes: Implementation-Plan-v1.0.0-rc.7.md
 ---
 
 ## 目標與完成條件
@@ -13,7 +13,7 @@ supersedes: Implementation-Plan-v1.0.0-rc.6.md
 
 只有功能、必要驗證、實際 Windows GUI、可啟動版本、驗收 workspace、操作說明、效能結果、文件同步及 commit／push 核對均完成，才能標記 Goal complete。實作、驗證及使用者接受分開；目前進度及 exact next step 只由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護，本文不是完成證據。
 
-[Seed rc.11](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.11.md) 保存 WHAT／WHY；[Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) 保存工程方法；[Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 保存目錄原則；[Architecture rc.4](GraspPortable-Architecture-v1.0.0-rc.4.md) 及 [圖解 v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) 保存 HOW；[Syntax Review rc.5](Binding-Syntax-Review-v1.0.0-rc.5.md) 延續已接受 rc.3 syntax profile。
+[Seed rc.12](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.12.md) 保存 WHAT／WHY；[Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) 保存工程方法；[Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 保存目錄原則；[Architecture rc.5](GraspPortable-Architecture-v1.0.0-rc.5.md) 及 [圖解 v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) 保存 HOW；[Syntax Review rc.5](Binding-Syntax-Review-v1.0.0-rc.5.md) 延續已接受 rc.3 syntax profile。
 
 S4 完成後停止等待使用者體驗。不自行擴展 mobile、同步、任意程式執行、rollup、通用公式、完整 Notion、共享語意 undo、專用 composition／rename UI 或乾淨電腦完整 Portable 認證。不承諾一晚完成，不降低驗收標準以結束 Goal。
 
@@ -36,6 +36,7 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 | 接面組 | 必要契約 |
 | --- | --- |
 | 文件／reconciliation | 文件 ID／path／hash／來源與共同基底版本；保存、語意接受、回寫及衝突分開回報 |
+| Workspace explorer／檔案操作 | 實際資料夾／檔案階層與搜尋；建立筆記／資料夾、改名／搬移的目標 path、IDs／expected versions、operation ID；複製路徑、開啟／reveal 的平台接面 |
 | Definition／write target | 手寫 literal／composition 與 record field 來源、raw UTF-16 range／版本、可寫位置，不混用 serializer |
 | Records／schema | collection、record／field／option IDs、key／display name、typed value／診斷、單／多關聯；欄位修改、schema 預覽／套用 |
 | Query／views | 分頁／總數或游標、record／field IDs、版本、搜尋／排序／篩選、欄序與凍結設定 |
@@ -65,6 +66,14 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 
 表格／完整角色卡／多 views 共用 source。表格固定欄位標題列、record 標題欄，凍結前列／欄數隨 view 保存；支援雙向捲動、排序、篩選、搜尋、欄序及顯示設定。長文摘要點開完整 editor；focus／pending edits 綁 IDs，不綁 row index；分頁／虛擬化控制 DOM，凍結區不遮 editor／menu／鍵盤焦點。
 
+### 1.5 S2 實際檔案樹與右鍵操作
+
+側邊欄參照 Obsidian／VS Code 顯示目前 workspace 實際資料夾及檔案，支援展開／收合與名稱／路徑搜尋；載入及更新依可見範圍處理，不為每次展開一次載入全庫。`.grasp`、`.git`、`artifacts` 等內部／生成路徑不進日常筆記樹。
+
+右鍵依目標類型提供新增筆記、新增資料夾、重新命名、搬移、複製路徑、開啟筆記及在系統檔案總管顯示。新增落在所選目錄；改名／搬移使用既有 IDs、expected versions、operation ID、journal／恢復管線，先核對目標與路徑衝突，更新可可靠辨識的引用，不能繞過 dirty／版本 guards 直接 shell 搬檔。成功或失敗後以最新文件狀態刷新樹，不用過期 row index 決定操作目標。
+
+檔案樹是檔案配置，Records views 是資料檢視，S3 分組是內容合併／拆分，三者分開；本階段不是完整 VS Code 功能複製。
+
 ## 2. 里程碑與可驗收成果
 
 【可體驗】是使用者可直接操作；【工程驗證】是必要完成條件。主要順序固定，暫時工具阻礙時可先做不依賴它的工作，但不能把未驗證階段標完成。
@@ -73,7 +82,7 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 | --- | --- | --- |
 | P0 續作基線 | 保留既有 UI 修正；歸檔最新決策；建立 Goal／可續作狀態 | 【工程驗證】舊 DB authority／S1 停點／Git 未授權不再是現行契約；入口、版本及差異核對 |
 | S1 完整筆記流程 | Reading／editor 修正、delimiter 配對／游標／marker 同步、既有完整 Grasp 流程收尾 | 【可體驗】以下筆記脚本；【工程驗證】原生 IME、草稿、版本、rename／政策及端到端品質 |
-| S2 Markdown 共同編輯 | 文件來源與版本、watcher／reconciliation、跨檔 journal、附件與普通連結、分頁清單 | 【可體驗】與 Obsidian 交替編輯；【工程驗證】不丟原文、不覆寫 dirty／第三方，無回寫循環、遺漏補查、中斷恢復、無 500 筆靜默截斷 |
+| S2 Markdown 共同編輯 | 文件來源、watcher／reconciliation、journal、附件／連結、分頁及實際檔案樹／右鍵選單 | 【可體驗】展開／搜尋／右鍵操作、與 Obsidian 交替編輯；【工程驗證】改名搬移保留 IDs／引用、不丟原文、不覆寫 dirty／第三方，無循環、遺漏補查、中斷恢復、無 500 筆靜默截斷 |
 | S3 整理／恢復 | 分組預覽／實際合併拆分、手動／自動 backup、restore | 【可體驗】三篇合併為一檔再拆回，取得備份還原新資料夾；【工程驗證】內容、ID、metadata、bindings、附件、策略及草稿恢復，失敗保留上次完整版本 |
 | S4a Records／欄位 | schema／record／各欄位型別／relation、cell 與角色卡 | 【可體驗】建立資料表、長文與關聯編輯；【工程驗證】單一 source、option／field rename 保留 ID、型別／空值 |
 | S4b 屬性／互通 | generated bindings、source write target、外部欄位修改 | 【可體驗】引用欄位屬性並從 Obsidian 修改；【工程驗證】相依、missing／cycle、衝突及不遞迴解析 |
@@ -87,7 +96,7 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 
 ### S2–S4 整合腳本
 
-1. 在獨立測試 Markdown workspace 由 Grasp／Obsidian 交替改正文、定義及引用值；外部移檔／改名，觀察更新與衝突。關閉 Grasp 後修改再重開，重現及辨識有效變動。
+1. 在獨立測試 Markdown workspace 展開實際檔案樹、搜尋，從右鍵新增筆記／資料夾、改名／搬移、複製路徑及開啟／reveal；核對 Explorer 的真實位置與引用。再由 Grasp／Obsidian 交替改正文、定義及引用值，外部移檔／改名後觀察更新；關閉 Grasp 後修改再重開，辨識有效變動與衝突。
 2. 預覽三篇合併／拆分，檢查連結與 metadata；在 Obsidian 閱讀修改合併檔，回 Grasp 保有成員身分。
 3. 建立角色及 Aura collections，編輯所有型別，打開長文角色卡，選單／多筆關聯，引用 `Characters.Triensa.Description` 觀察传遞更新。
 4. 切職責／氣場 views、排序篩選、凍結行列，長文編輯不中斷；舊 Markdown table 轉縱向 source，確認無 H1、未知內容及原文可找回。
@@ -104,9 +113,9 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 | 層面 | 必要案例 |
 | --- | --- |
 | Codec／graph | 已選 syntax、boundary escape、EOL／UTF-16、disabled context、round-trip、重複 operand、傳遞／diamond、missing／cycle；欄位含 headings／fence／空行／圖片／wikilink，多值與 H1 層級轉換 |
-| SQLite／filesystem | rollback、stale guard、重試／receipt、已提交回覆遺失、草稿恢復；自身／重複／遺漏事件、同時修改、部分檔案寫入中斷、重啟、重複 ID、附件缺失、分組／restore |
+| SQLite／filesystem | rollback、stale guard、重試／receipt、已提交回覆遺失、草稿恢復；自身／重複／遺漏事件、同時修改、部分檔案寫入中斷、重啟、重複 ID、附件缺失、分組／restore、檔案樹目標版本／路徑衝突、改名搬移後 IDs／引用 |
 | Records | generated／手寫名稱衝突、record／field／option rename、null／空字串／零／false、單／多關聯、屬性計算／source writeback、無效外部 typed values |
-| Windows GUI | 原生中文 IME、paste／undo、多段引用、快速操作、dirty／IME 保護、Source／Reading／Live、外部編輯、長文／relation、代表性縮放、排序中編輯／篩選後修改、凍結區焦點 |
+| Windows GUI | 原生中文 IME、paste／undo、多段引用、快速操作、dirty／IME 保護、Source／Reading／Live、外部編輯、長文／relation、代表性縮放、排序中編輯／篩選後修改、凍結區焦點、檔案樹展開／搜尋／右鍵操作及實際 reveal |
 
 指定資料是使用者提供的 `TestData/MainVault-Source` 副本，可按需求選取適量；工程上把試驗放獨立且忽略的驗收 workspace，保留比較基線。私人筆記、samples、credentials、大量 evidence 不進 Git。Legacy1 不在搜尋範圍，不因授權副本而無目的整庫測試。
 

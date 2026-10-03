@@ -1,0 +1,62 @@
+using GraspPortable.Contracts;
+
+namespace GraspPortable.App.Components.Pages;
+
+public partial class Home
+{
+    private BackupStatusDto? _backups;
+    private int _backupInterval=5, _backupRetention=3;
+    private string _restoreGeneration="", _restoreDestination="";
+    private string? _backupMessage;
+    private bool _restoreComplete;
+
+    private async Task ShowBackupsAsync() => await GuardAsync(async () => {
+        if(!await SaveCurrentAsync()) return;
+        _dialog="backups"; _backupMessage=null; _restoreComplete=false; _busy=true; StateHasChanged();
+        try
+        {
+            await ReadBackupStatusAsync();
+            _backupInterval=_backups!.Options.IntervalMinutes; _backupRetention=_backups.Options.RetainedCopies;
+            _restoreDestination=Backend.WorkspacePath+"-Restored-"+DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        }
+        finally { _busy=false; }
+    });
+
+    private async Task ReadBackupStatusAsync()
+    {
+        _backups=await Backend.GetAsync<BackupStatusDto>("api/backups");
+        if(!_backups.Generations.Any(g=>g.Path==_restoreGeneration)) _restoreGeneration=_backups.Generations.FirstOrDefault()?.Path??"";
+    }
+
+    private async Task CaptureBackupAsync() => await ModalActionAsync(async () => {
+        var result=await Backend.SendAsync<BackupResultDto>(HttpMethod.Post,"api/backups/capture",new CheckpointRequest(Guid.NewGuid().ToString("N")));
+        _backupMessage=result.Path is not null?"已建立完整備份："+result.Path:"備份狀態："+result.Status;
+        if(result.Issues.Length>0) _backupMessage+="\n"+string.Join("\n",result.Issues.Select(i=>i.Path+" "+i.Message));
+        await ReadBackupStatusAsync();
+    });
+
+    private async Task SaveBackupSettingsAsync() => await ModalActionAsync(async () => {
+        if(_backups is null) return;
+        var result=await Backend.SendAsync<BackupResultDto>(HttpMethod.Post,"api/backups/settings",
+            new BackupSettingsRequest(Guid.NewGuid().ToString("N"),_backups.Options.Version,_backupInterval,_backupRetention));
+        _backupMessage=result.Issues.Length==0?"備份設定已保存。":string.Join("\n",result.Issues.Select(i=>i.Message));
+        await ReadBackupStatusAsync();
+    });
+
+    private async Task RestoreBackupAsync() => await ModalActionAsync(async () => {
+        if(_restoreGeneration.Length==0||string.IsNullOrWhiteSpace(_restoreDestination))return;
+        var result=await Backend.SendAsync<BackupResultDto>(HttpMethod.Post,"api/backups/restore",
+            new RestoreBackupRequest(Guid.NewGuid().ToString("N"),_restoreGeneration,_restoreDestination.Trim()));
+        if(result.Path is null || result.Status!="restored") throw new InvalidOperationException(string.Join("\n",result.Issues.Select(i=>i.Message)));
+        _backupMessage="已還原至新工作區："+result.Path+"。可使用「開啟還原的工作區」檢查。";
+        _restoreDestination=result.Path;
+        _restoreComplete=true;
+        if(result.Issues.Length>0)_backupMessage+="\n"+string.Join("\n",result.Issues.Select(i=>i.Message));
+    });
+
+    private async Task OpenRestoredWorkspaceAsync()
+    {
+        _workspacePath=_restoreDestination;
+        await ChangeWorkspaceAsync();
+    }
+}

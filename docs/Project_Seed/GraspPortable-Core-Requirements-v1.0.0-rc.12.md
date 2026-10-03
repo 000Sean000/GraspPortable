@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.11
+version: 1.0.0-rc.12
 updated: 2026-10-04
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.10.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.11.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -54,7 +54,9 @@ Source、Live Preview、Reading View 分別服務完整原文編輯、同區編�
 
 中文 IME、選取、複製貼上、undo／redo、游標及長文輸入應保持自然。非編輯位置的 code fences、links、tables 應有相應閱讀效果；正文中的連結應可直接導航。
 
-長期導航提供可展開／收合且保留父層與兄弟項脈絡的階層、搜尋及前後導覽。側邊欄有清楚的捲動與空間分工；放大字體、125%／150% zoom 或縮窄視窗後，主要操作仍可讀、可用。
+S2 側邊欄參照 Obsidian／VS Code，顯示 workspace **實際的資料夾與檔案樹**，可展開／收合及搜尋，保留父層與兄弟項脈絡。這不是 Records view 的虛擬群組；資料夾搬移也不等於 S3 內容合併／拆分。前後導覽仍保留於長期導航方向。側邊欄有清楚的捲動與空間分工；放大字體、125%／150% zoom 或縮窄視窗後，主要操作仍可讀、可用。
+
+右鍵選單整合選中檔案／資料夾的常用快捷功能：新增筆記、新增資料夾、重新命名、搬移、複製路徑、開啟筆記及在系統檔案總管顯示。選單內容依目標類型提供，這個範圍不擴展成完整 VS Code clone。改名／移動後保留 canonical IDs 與可可靠辨識的引用／連結；版本衝突或部分失敗不丟資料。`.grasp`、`.git`、`artifacts` 等內部／生成內容不列入日常筆記樹。
 
 小型編輯優先在目標附近進行。高影響變更以能理解影響範圍的審查介面處理。
 
@@ -267,7 +269,7 @@ Contract 須能表達資料身分、基底版本、提供的審視範圍、成�
 
 產品完成判準：
 
-1. 可啟動、開啟 workspace、正常中文寫作、閱讀與導航；從實際畫面完成操作。
+1. 可啟動、開啟 workspace、正常中文寫作、閱讀與導航；從實際檔案樹展開／搜尋並以右鍵執行常用檔案操作，改名／搬移不失去身分及引用。
 2. 正文 reference 保存 identifier 與可讀值；binding 保存 raw literals、串接順序與 dependencies，且不要求固定 placement。
 3. 共享修改後，受影響資料與引用值一致；missing／cycle／stale 可觀察並保持資料。
 4. Grasp／Obsidian 交替編輯、保存及重啟後保持內容、身分與來源對照，衝突不丟資料。

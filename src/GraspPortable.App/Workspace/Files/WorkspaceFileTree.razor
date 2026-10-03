@@ -1,0 +1,100 @@
+@namespace GraspPortable.App.Workspace.Files
+@using GraspPortable.Contracts
+@using Microsoft.AspNetCore.Components.Web
+@implements IAsyncDisposable
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<section class="file-explorer" @ref="_root" aria-label="工作區檔案"
+         @oncontextmenu="e => OpenContext(RootEntry, e)" @oncontextmenu:preventDefault>
+    <div class="explorer-heading">
+        <button class="root-button" data-explorer-path="" title="工作區根目錄 · 右鍵開啟操作選單"
+                @onclick="() => ToggleAsync(RootEntry)" aria-expanded="@(!_rootCollapsed)">
+            <span aria-hidden="true">@(_rootCollapsed ? "▸" : "▾")</span> 檔案
+        </button>
+        <button class="quick-action" title="在根目錄新增筆記" aria-label="在根目錄新增筆記" @onclick='() => EmitAsync("new-note", RootEntry)'>＋</button>
+        <button class="quick-action" title="重新整理檔案" aria-label="重新整理檔案" @onclick="RefreshAsync">↻</button>
+    </div>
+    <input class="file-search" aria-label="搜尋檔案名稱或路徑" placeholder="搜尋檔案或路徑…"
+           value="@_searchText" @oninput="SearchChangedAsync" />
+    @if (_interopError is not null)
+    {
+        <p class="file-error" role="alert">@_interopError</p>
+    }
+    <div class="tree-scroll" role="tree" aria-label="@(IsSearching ? "檔案搜尋結果" : "實際資料夾與檔案")" aria-busy="@_searchPending">
+        @if (IsSearching)
+        {
+            @foreach (var entry in _searchResults.Entries)
+            {
+                <button @key="entry.RelativePath" class="entry search-result @(IsSelected(entry) ? "selected" : "") @(entry.IsMissing ? "missing" : "")"
+                        role="treeitem" aria-level="1" aria-selected="@IsSelected(entry)" data-explorer-path="@entry.RelativePath"
+                        title="@entry.RelativePath" @onclick="() => OpenSearchEntryAsync(entry)"
+                        @oncontextmenu="e => OpenContext(entry, e)" @oncontextmenu:stopPropagation>
+                    <span class="entry-icon" aria-hidden="true">@(entry.IsDirectory ? "▸" : "▤")</span>
+                    <span class="entry-label"><span>@entry.Name</span><small>@entry.RelativePath</small></span>
+                    @if (entry.IsMissing) { <span class="missing-label">缺失</span> }
+                </button>
+            }
+            @if (_searchPending) { <p class="tree-status" role="status">搜尋中…</p> }
+            else if (_searchResults.Error is not null) { <p class="file-error" role="alert">@_searchResults.Error</p><button class="load-more" @onclick="SearchAgainAsync">重試搜尋</button> }
+            else if (_searchResults.Total == 0) { <p class="tree-status">沒有符合「@_searchText」的檔案。</p> }
+            @if (_searchResults.Total > 0)
+            {
+                <div class="page-summary">已顯示 @_searchResults.Entries.Count / @_searchResults.Total 個結果</div>
+                @if (_searchResults.NextOffset < _searchResults.Total)
+                { <button class="load-more" disabled="@_searchPending" @onclick="LoadMoreSearchAsync">載入更多結果</button> }
+            }
+        }
+        else if (!_rootCollapsed)
+        {
+            @foreach (var row in VisibleRows("", 1))
+            {
+                @if (row.Entry is { } entry)
+                {
+                    <button @key="entry.RelativePath" class="entry @(IsSelected(entry) ? "selected" : "") @(entry.IsMissing ? "missing" : "")"
+                            style="@Indent(row.Depth)" role="treeitem" aria-level="@row.Depth" aria-selected="@IsSelected(entry)"
+                            aria-expanded="@(entry.IsDirectory ? _expanded.Contains(entry.RelativePath).ToString().ToLowerInvariant() : null)"
+                            data-explorer-path="@entry.RelativePath" title="@entry.RelativePath"
+                            @onclick="() => ActivateAsync(entry)" @oncontextmenu="e => OpenContext(entry, e)" @oncontextmenu:stopPropagation>
+                        <span class="entry-icon" aria-hidden="true">@(entry.IsDirectory ? (_expanded.Contains(entry.RelativePath) ? "▾" : "▸") : "▤")</span>
+                        <span class="entry-name">@entry.Name</span>
+                        @if (entry.IsMissing) { <span class="missing-label">缺失</span> }
+                    </button>
+                }
+                else if (row.Page is { } branch)
+                {
+                    <div class="branch-status" style="@Indent(row.Depth)" role="none">
+                        @if (branch.Loading) { <p class="tree-status" role="status">載入中…</p> }
+                        @if (branch.Error is not null) { <p class="file-error" role="alert">@branch.Error</p><button class="load-more" @onclick="() => LoadDirectoryAsync(row.Parent, false)">重試</button> }
+                        else if (!branch.Loading && branch.Total == 0) { <p class="tree-status">@(row.Parent.Length == 0 ? "此工作區還沒有檔案。右鍵或按 ＋ 建立筆記。" : "空資料夾")</p> }
+                        @if (branch.Total > branch.Entries.Count)
+                        {
+                            <div class="page-summary">已顯示 @branch.Entries.Count / @branch.Total 個項目</div>
+                            @if (branch.NextOffset < branch.Total)
+                            { <button class="load-more" disabled="@branch.Loading" @onclick="() => LoadDirectoryAsync(row.Parent, true)">載入更多</button> }
+                        }
+                    </div>
+                }
+            }
+        }
+    </div>
+</section>
+@if (_menuTarget is { } target)
+{
+    <div class="menu-dismiss" @onpointerdown="CloseMenuAsync" @oncontextmenu="CloseMenuAsync" @oncontextmenu:preventDefault></div>
+    <div class="explorer-menu" @ref="_menu" role="menu" aria-label="@(target.RelativePath.Length == 0 ? "工作區操作" : target.Name + " 操作")"
+         @oncontextmenu:preventDefault>
+        <div class="menu-target">@(target.RelativePath.Length == 0 ? "工作區根目錄" : target.Name)</div>
+        <button role="menuitem" @onclick='() => MenuActionAsync("open")'>@(target.IsDirectory ? "開啟資料夾" : "開啟")</button>
+        <button role="menuitem" @onclick='() => MenuActionAsync("new-note")'>@(target.IsDirectory ? "在此新增筆記" : "在同層新增筆記")</button>
+        <button role="menuitem" @onclick='() => MenuActionAsync("new-folder")'>@(target.IsDirectory ? "在此新增資料夾" : "在同層新增資料夾")</button>
+        @if (target.RelativePath.Length > 0)
+        {
+            <div class="menu-separator" role="separator"></div>
+            <button role="menuitem" @onclick='() => MenuActionAsync("rename")'>重新命名…</button>
+            <button role="menuitem" @onclick='() => MenuActionAsync("move")'>移動到…</button>
+        }
+        <div class="menu-separator" role="separator"></div>
+        <button role="menuitem" @onclick='() => MenuActionAsync("copy-relative-path")'>複製相對路徑</button>
+        <button role="menuitem" @onclick='() => MenuActionAsync("reveal")'>在檔案總管顯示</button>
+    </div>
+}

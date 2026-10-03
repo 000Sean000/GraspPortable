@@ -1,15 +1,15 @@
 ---
 title: GraspPortable — Product Architecture
-version: 1.0.0-rc.4
+version: 1.0.0-rc.5
 updated: 2026-10-04
 status: accepted-architecture-baseline
 scope: markdown-workspace-records-runtime-and-recovery
-supersedes: GraspPortable-Architecture-v1.0.0-rc.3.md
+supersedes: GraspPortable-Architecture-v1.0.0-rc.4.md
 ---
 
 ## 架構基準
 
-本文件將 [Seed rc.11](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.11.md) 放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.1.0.md)。2026-10-04 接受的 P0–S4 計畫取代 DB 原文權威：**Markdown 保存原文，SQLite 支援索引、計算、版本、草稿及恢復日誌**。設計接受與實作／GUI／效能證據分開，後者由 [EXECUTION-STATE](../EXECUTION-STATE.md) 記錄。
+本文件將 [Seed rc.12](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.12.md) 放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.1.0.md)。2026-10-04 接受的 P0–S4 計畫取代 DB 原文權威：**Markdown 保存原文，SQLite 支援索引、計算、版本、草稿及恢復日誌**。設計接受與實作／GUI／效能證據分開，後者由 [EXECUTION-STATE](../EXECUTION-STATE.md) 記錄。
 
 保留功能模組、內部分層與 Ports／Adapters。Windows App 管即時互動，獨立 Host 管規則、計算、來源協調與持久化；較慢工作使用有界排程。[圖解 v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) 分別表達 source dependency、程序及可恢復提交。
 
@@ -30,8 +30,8 @@ Host 映射 wire DTO 與 Core 型別。Core 不依賴 UI／HTTP／SQLite／files
 | Authoring | transient editor state、版本化 durable draft、session、base revision、衝突呈現 | SaveDraft／ReadDraft／EditorSession／Navigate |
 | Knowledge | canonical IDs、名稱、definitions、references、records／schema／relations、來源版本及語意接受規則 | PrepareChange／CommitChange／ChangeReceipt／ReadSnapshot |
 | ValueEngine | context／policy、syntax codec、AST、相依、求值、診斷與可重建 graph | Parse／AnalyzeImpact／Evaluate，僅處理輸入快照 |
-| Query／Views | 分頁搜尋、導航、definition／references、表格投影與 view 設定 | QueryPage／Locate／ReadView，讀公開版本化 schema |
-| Exchange／Recovery | 文件對照、外部變更協調、分組策略、跨檔操作、backup generations／restore | Reconcile／PreviewGrouping／ApplyGrouping／Checkpoint／Restore |
+| Query／Views | 分頁搜尋、實際 workspace 檔案樹、導航、definition／references、表格投影與 view 設定 | QueryPage／ReadDirectory／Locate／ReadView，讀公開版本化文件／知識接面 |
+| Exchange／Recovery | 文件對照、外部變更協調、實際檔案建立／改名／搬移、分組策略、跨檔操作、backup generations／restore | Reconcile／FileOperation／PreviewGrouping／ApplyGrouping／Checkpoint／Restore |
 
 Knowledge 集中管理資料含義；Exchange 不建立競爭權威。Records 是 Knowledge 的功能分區，schema／欄位投影可依維護需要分檔，不新增一套獨立 value engine。Cross-device Continuity、Programming 只保留長期責任，本 Goal 不預建空模組。
 
@@ -78,6 +78,14 @@ Watcher 是變動提示，啟動與事件遺漏後用 reconciliation 補查。�
 
 外部 definition 修改自動進入同一管線；reference 顯示值修改依共同基底辨識為共享意圖。僅唯一 literal、有效版本且無矛盾時修改來源及其他引用。Composition 不 flatten，舊 cache 不當新意圖；重複 ID、無法配對身分、dirty source 或競爭變更保留所有資料並呈現衝突。移檔／改名／刪除均更新來源狀態，不能只處理 change events。
 
+### Workspace explorer
+
+App 的側邊欄／右鍵介面透過 Query／文件公開接面呈現實際資料夾／檔案樹，支援展開／收合及名稱／路徑搜尋；Host filesystem adapter 回報最新文件狀態，`.grasp`、`.git`、`artifacts` 等內部／生成內容不進日常筆記樹。實際樹不同於 Records views，也不由 S3 合併／拆分策略偽造目錄。
+
+建立筆記／資料夾、rename／move 經同一來源操作管線：穩定 IDs、expected source versions、path collision checks、operation ID、journal 及恢復，保留可可靠辨識的引用／連結。第三方新版本及 dirty draft 保護不因來自右鍵而略過。複製路徑、開啟筆記、在系統 Explorer 顯示由 App 平台 adapter 執行；reveal 的實際 GUI 效果需要原生驗證，不以 spawn 成功代替。
+
+樹查詢取消與回應版本核對、可見範圍載入／局部刷新沿用 Query 原則，選取與操作目標按 ID／版本，不依 row index。只提供本次指定常用快捷操作，不擴張完整 IDE。
+
 ## 4. Records、Markdown codec 與表格投影
 
 ### Definition 來源與寫回
@@ -116,7 +124,7 @@ Restore 在新 staging workspace 檢查完整性與格式，成功後才開啟�
 
 查詢分頁／取消；通知與畫面更新合併、按可見範圍處理；分批 I/O 及低優先 checkpoint 不阻塞輸入。大工作超過 200 ms 呈現 pending；限制資源時回報明確狀態，不靜默截斷值。`async`、不同 lane 或分程序本身不是流暢證據。
 
-量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.7](Implementation-Plan-v1.0.0-rc.7.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
+量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.8](Implementation-Plan-v1.0.0-rc.8.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
 
 ## 7. 入口與未納入範圍
 

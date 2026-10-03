@@ -7,7 +7,7 @@ using GraspPortable.Core.ValueEngine;
 namespace GraspPortable.Core.Knowledge;
 
 /// <summary>Owns committed identity and consistency. Prepare runs outside the single writer.</summary>
-public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposable
+public sealed partial class KnowledgeService(IWorkspaceRepository repository) : IDisposable
 {
     private Snapshot state = repository.Load();
     private readonly ConcurrentDictionary<string, Draft> drafts = new(repository.LoadDrafts().Select(d => new KeyValuePair<string, Draft>(d.NoteId, d)));
@@ -72,22 +72,30 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         if (!basis.Notes.TryGetValue(intent.NoteId, out var old) || !drafts.TryGetValue(intent.NoteId, out var draft))
             return Reject(intent.OperationId, hash, "rejected", "找不到筆記或草稿。", intent.NoteId);
         if (draft.SessionId != intent.SessionId || draft.Revision != intent.DraftRevision || draft.BaseNoteRevision != old.Revision
+            || draft.BaseSourceHash is not null && draft.BaseSourceHash != old.CurrentSourceHash
             || old.Revision != intent.ExpectedNoteRevision || basis.Revision != intent.ExpectedKnowledgeRevision)
             return Reject(intent.OperationId, hash, "conflict", "基底已更新；草稿保留，請重新讀取後核對。", intent.NoteId);
         var syntax = GraspParser.Parse(draft.Source, basis.Languages);
-        if (!syntax.IsValid) return Reject(intent.OperationId, hash, "invalid", "草稿已存；語法尚未完成，未更新共享值。", intent.NoteId, syntax.Diagnostics.ToArray());
+        if (!syntax.IsValid) return repository.UsesSavedSourceAuthority
+            ? await SaveUnacceptedDraftAsync(basis, draft, intent.OperationId, hash, "語法尚未完成，原文已保存，共享值保留過期狀態。", syntax.Diagnostics.ToArray(), token)
+            : Reject(intent.OperationId, hash, "invalid", "草稿已存；語法尚未完成，未更新共享值。", intent.NoteId, syntax.Diagnostics.ToArray());
         var renames = DetectRenames(old.Syntax, syntax);
-        if (renames is null) return Reject(intent.OperationId, hash, "invalid", "無法唯一識別此次改名，請分次改名並保持 expression 不變。", intent.NoteId);
+        if (renames is null) return repository.UsesSavedSourceAuthority
+            ? await SaveUnacceptedDraftAsync(basis, draft, intent.OperationId, hash, "無法唯一識別此次改名，已保存原文等待核對。", [], token)
+            : Reject(intent.OperationId, hash, "invalid", "無法唯一識別此次改名，請分次改名並保持 expression 不變。", intent.NoteId);
         var notes = basis.Notes.ToDictionary(p => p.Key, p => p.Value);
-        notes[intent.NoteId] = old with { Title = NormalizeTitle(draft.Title), Source = draft.Source, Syntax = syntax };
+        notes[intent.NoteId] = old with { Title = NormalizeTitle(draft.Title), Source = draft.Source, Syntax = syntax, SavedSource = null };
         if (renames.Count > 0)
         {
             var existingNames = basis.Definitions.Values.Where(d => d.NoteId != intent.NoteId).Select(d => d.Name).ToHashSet(StringComparer.Ordinal);
-            if (renames.Values.Any(existingNames.Contains)) return Reject(intent.OperationId, hash, "invalid", "改名會造成同 namespace 重名；未套用。", intent.NoteId);
+            if (renames.Values.Any(existingNames.Contains)) return repository.UsesSavedSourceAuthority
+                ? await SaveUnacceptedDraftAsync(basis, draft, intent.OperationId, hash, "改名會造成同 namespace 重名，原文已保存但共享值尚未接受。", [], token)
+                : Reject(intent.OperationId, hash, "invalid", "改名會造成同 namespace 重名；未套用。", intent.NoteId);
             var affected = notes.Values.Where(n => n.Syntax.References.Any(r => renames.ContainsKey(r.Name)) || n.Syntax.Definitions.Any(d => d.Parts.Any(p => p.Kind == PartKind.Identifier && renames.ContainsKey(p.Text)))).Select(n => n.Id).Append(intent.NoteId).Distinct().ToArray();
             if (!intent.ConfirmRename) return new(intent.OperationId, hash, "confirmation-required", basis.Revision, intent.NoteId, "改名將保留 ID，並更新相依與引用。", AffectedNoteIds: affected);
             foreach (var n in notes.Values.ToArray())
             {
+                if(n.IsSourceStale) continue;
                 var patches = n.Syntax.References.Where(r => renames.ContainsKey(r.Name)).Select(r => new SourcePatch(r.NameSpan, renames[r.Name]))
                     .Concat(n.Syntax.Definitions.SelectMany(d => d.Parts).Where(p => p.Kind == PartKind.Identifier && renames.ContainsKey(p.Text)).Select(p => new SourcePatch(p.Span, renames[p.Text]))).ToArray();
                 if (patches.Length == 0) continue;
@@ -96,7 +104,9 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
             }
         }
         var prepared = await PrepareAsync(basis, notes, basis.Languages, basis.PolicyRevision, renames, token);
-        if (prepared.Error is { } error) return Reject(intent.OperationId, hash, "invalid", error, intent.NoteId);
+        if (prepared.Error is { } error) return repository.UsesSavedSourceAuthority
+            ? await SaveUnacceptedDraftAsync(basis, draft, intent.OperationId, hash, error, [], token)
+            : Reject(intent.OperationId, hash, "invalid", error, intent.NoteId);
         return await PublishAsync(basis, prepared.State!, intent.OperationId, hash, intent.NoteId, draft, token);
     }
 
@@ -134,6 +144,7 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         if (basis.Revision != expectedRevision) return Reject(operationId, hash, "conflict", "影響範圍已更新，請重新檢視。 ");
         if (!basis.Definitions.TryGetValue(id, out var definition)) return Reject(operationId, hash, "rejected", "定義不存在。");
         if (!definition.IsLiteral) return Reject(operationId, hash, "rejected", "Composition 請前往來源編輯，不可攤平。", definition.NoteId);
+        if (basis.Notes[definition.NoteId].IsSourceStale) return Reject(operationId, hash, "conflict", "來源有尚未接受的原文，請先處理來源。", definition.NoteId);
         if (drafts.ContainsKey(definition.NoteId)) return Reject(operationId, hash, "conflict", "來源已有草稿，請前往來源編輯。", definition.NoteId);
         var note = basis.Notes[definition.NoteId];
         var syntax = note.Syntax.Definitions.Single(d => d.Name == definition.Name);
@@ -159,6 +170,7 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         if (Retry(operationId, hash) is { } retry) return retry;
         var basis = Current;
         if (basis.Revision != expectedRevision) return Reject(operationId, hash, "conflict", "設定基底已更新，請重新檢視影響。");
+        if(basis.Notes.Values.Any(n => n.IsSourceStale)) return Reject(operationId, hash, "conflict", "來源仍有未解決內容，請先處理再更換解析政策。");
         var notes = basis.Notes.ToDictionary(p => p.Key, p => p.Value with { Syntax = GraspParser.Parse(p.Value.Source, policy) });
         var prepared = await PrepareAsync(basis, notes, policy, basis.PolicyRevision + 1, null, token);
         if (prepared.Error is { } error) return Reject(operationId, hash, "invalid", error);
@@ -168,13 +180,15 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
     private static bool SameSyntax(ParseResult a, ParseResult b) => a.IsValid == b.IsValid && a.Definitions.Select(d => d.Name).SequenceEqual(b.Definitions.Select(d => d.Name)) && a.References.Select(r => (r.Name, r.Span)).SequenceEqual(b.References.Select(r => (r.Name, r.Span)));
     private static string NormalizeTitle(string title) => string.IsNullOrWhiteSpace(title) ? "未命名筆記" : title.Trim();
 
-    private async Task<(Snapshot? State, string? Error)> PrepareAsync(Snapshot basis, Dictionary<string, Note> notes, string[] languages, long policyRevision, Dictionary<string, string>? renames, CancellationToken token)
+    private async Task<(Snapshot? State, string? Error)> PrepareAsync(Snapshot basis, Dictionary<string, Note> notes, string[] languages, long policyRevision, Dictionary<string, string>? renames, CancellationToken token,
+        IReadOnlyDictionary<string, string>? definitionIds = null)
     {
         await workers.WaitAsync(token);
-        try { return await Task.Run(() => Prepare(basis, notes, languages, policyRevision, renames, token), token); }
+        try { return await Task.Run(() => Prepare(basis, notes, languages, policyRevision, renames, token, definitionIds), token); }
         finally { workers.Release(); }
     }
-    private static (Snapshot? State, string? Error) Prepare(Snapshot basis, Dictionary<string, Note> notes, string[] languages, long policyRevision, Dictionary<string, string>? renames, CancellationToken token)
+    private static (Snapshot? State, string? Error) Prepare(Snapshot basis, Dictionary<string, Note> notes, string[] languages, long policyRevision, Dictionary<string, string>? renames, CancellationToken token,
+        IReadOnlyDictionary<string, string>? definitionIds = null)
     {
         if (notes.Values.Any(n => !n.Syntax.IsValid)) return (null, "解析未完成，保留原設定與原 committed state。");
         var definitions = notes.Values.SelectMany(n => n.Syntax.Definitions).ToArray();
@@ -182,7 +196,8 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         var affected = AffectedNames(basis, definitions);
         var previousValues = basis.Definitions.Values.ToDictionary(d => d.Name,
             d => new EvaluatedValue(d.Value, Enum.Parse<EvaluationStatus>(d.Status)), StringComparer.Ordinal);
-        var evaluated = DependencyEvaluator.Evaluate(definitions, token, previousValues: previousValues, affectedNames: affected);
+        var unavailable = notes.Values.Where(n => n.IsSourceStale).SelectMany(n => n.Syntax.Definitions).Select(d => d.Name).ToHashSet(StringComparer.Ordinal);
+        var evaluated = DependencyEvaluator.Evaluate(definitions, token, previousValues: previousValues, affectedNames: affected, unavailableNames: unavailable);
         if (evaluated.Values.Values.Any(v => v.Status == EvaluationStatus.ResourceLimit))
             return (null, "展開值超過目前資源上限；草稿保留，未提交共享變更。");
         var revision = basis.Revision + 1;
@@ -192,26 +207,30 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         foreach (var entry in notes.Values.ToArray())
         {
             token.ThrowIfCancellationRequested();
-            var patches = entry.Syntax.References.Where(r => evaluated.Values.TryGetValue(r.Name, out var value) && value.Status == EvaluationStatus.Valid && value.Value != r.CachedValue)
+            var patches = entry.Syntax.References.Where(r => !entry.IsSourceStale && evaluated.Values.TryGetValue(r.Name, out var value) && value.Status == EvaluationStatus.Valid && value.Value != r.CachedValue)
                 .Select(r => new SourcePatch(r.ValueSpan, ReferenceCodec.Encode(evaluated.Values[r.Name].Value!))).ToArray();
             var source = patches.Length == 0 ? entry.Source : ReferenceCodec.ApplyPatches(entry.Source, patches);
             var parsed = source == entry.Source ? entry.Syntax : GraspParser.Parse(source, languages);
             if (!parsed.IsValid) return (null, "內部 codec 產生無效語法；提交已中止。 ");
-            var diagnostics = new List<ParseDiagnostic>();
+            var diagnostics = new List<ParseDiagnostic>(entry.SavedSource?.Diagnostics ?? []);
             foreach (var d in parsed.Definitions)
             {
                 var result = evaluated.Values[d.Name];
                 oldByName.TryGetValue(d.Name, out var old);
-                var id = old?.Id ?? Guid.NewGuid().ToString("N");
+                var suppliedId = definitionIds?.GetValueOrDefault(d.Name);
+                if(suppliedId is not null && old is not null && suppliedId != old.Id) return (null, "Definition 身分與既有名稱不一致，保留原文等待核對。");
+                var id = old?.Id ?? suppliedId ?? Guid.NewGuid().ToString("N");
+                if(nextDefinitions.ContainsKey(id)) return (null, "重複的 Definition ID，保留原文等待核對。");
                 nextDefinitions[id] = new(id, entry.Id, d.Name, result.Value, result.Status.ToString(), d.Parts.Count == 1 && d.Parts[0].Kind == PartKind.Literal,
                     d.Span, d.NameSpan, result.Status == EvaluationStatus.Valid ? result.Value : old?.LastGoodValue,
                     result.Status == EvaluationStatus.Valid ? old is not null && old.Status == "Valid" && old.Value == result.Value ? old.LastGoodRevision : revision : old?.LastGoodRevision);
-                if (result.Status != EvaluationStatus.Valid) diagnostics.Add(new(result.Status.ToString(), $"{d.Name}：{result.Status}；尚未產生新的有效值。", d.NameSpan));
+                if (result.Status != EvaluationStatus.Valid) diagnostics.Add(new(result.Status.ToString(), $"{d.Name}：{result.Status}；尚未產生新的有效值。", entry.IsSourceStale ? new(0, 0) : d.NameSpan));
             }
             foreach (var reference in parsed.References)
                 if (!evaluated.Values.TryGetValue(reference.Name, out var value) || value.Status != EvaluationStatus.Valid)
-                    diagnostics.Add(new(value?.Status.ToString() ?? "Missing", $"{reference.Name}：目前無有效值，引用保留先前文字。", reference.NameSpan));
-            var changed = !basis.Notes.TryGetValue(entry.Id, out var prior) || prior.Source != source || prior.Title != entry.Title || !prior.Diagnostics.SequenceEqual(diagnostics);
+                    diagnostics.Add(new(value?.Status.ToString() ?? "Missing", $"{reference.Name}：目前無有效值，引用保留先前文字。", entry.IsSourceStale ? new(0, 0) : reference.NameSpan));
+            var changed = !basis.Notes.TryGetValue(entry.Id, out var prior) || prior.Source != source || prior.Title != entry.Title
+                || prior.CurrentSource != entry.CurrentSource || prior.IsSourceStale != entry.IsSourceStale || !prior.Diagnostics.SequenceEqual(diagnostics);
             notes[entry.Id] = entry with { Source = source, Syntax = parsed, Diagnostics = diagnostics.ToArray(), Revision = changed ? revision : prior!.Revision };
         }
         return (new(basis.WorkspaceId, revision, policyRevision, languages, notes, nextDefinitions), null);
@@ -239,7 +258,8 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
         return affected;
     }
 
-    private async Task<Receipt> PublishAsync(Snapshot basis, Snapshot next, string operationId, string hash, string? noteId, Draft? consumedDraft, CancellationToken token, string? rejectDirtyNote = null)
+    private async Task<Receipt> PublishAsync(Snapshot basis, Snapshot next, string operationId, string hash, string? noteId, Draft? consumedDraft, CancellationToken token,
+        string? rejectDirtyNote = null, IReadOnlyDictionary<string, Draft?>? draftGuards = null, string successStatus = "committed")
     {
         await writer.WaitAsync(token);
         Receipt receipt;
@@ -250,9 +270,13 @@ public sealed class KnowledgeService(IWorkspaceRepository repository) : IDisposa
             if (consumedDraft is not null && (!drafts.TryGetValue(consumedDraft.NoteId, out var latest) || latest != consumedDraft))
                 return Reject(operationId, hash, "conflict", "較新草稿已抵達；未提交舊結果。", noteId);
             if (rejectDirtyNote is not null && drafts.ContainsKey(rejectDirtyNote)) return Reject(operationId, hash, "conflict", "來源已有草稿，請前往來源。", noteId);
+            if (draftGuards is not null && draftGuards.Any(pair => GetDraft(pair.Key) != pair.Value))
+                return Reject(operationId, hash, "conflict", "草稿狀態在來源核對期間改變，請重試觀測。", noteId);
             token.ThrowIfCancellationRequested();
-            var affected = next.Notes.Values.Where(n => !basis.Notes.TryGetValue(n.Id, out var old) || n.Revision != old.Revision).Select(n => n.Id).ToArray();
-            receipt = new(operationId, hash, "committed", next.Revision, noteId, "已儲存並更新共享值。", AffectedNoteIds: affected);
+            var affected = next.Notes.Values.Where(n => !basis.Notes.TryGetValue(n.Id, out var old) || n.Revision != old.Revision).Select(n => n.Id)
+                .Concat(basis.Notes.Keys.Where(id => !next.Notes.ContainsKey(id))).ToArray();
+            receipt = new(operationId, hash, successStatus, next.Revision, noteId,
+                successStatus == "committed" ? "已儲存並更新共享值。" : "已保存來源觀測；未接受內容保留診斷及最後有效狀態。", AffectedNoteIds: affected);
             // No cancellation once the transaction begins. Receipt and all caches are durable together.
             repository.Commit(basis, next, receipt, consumedDraft?.NoteId);
             Volatile.Write(ref state, next);

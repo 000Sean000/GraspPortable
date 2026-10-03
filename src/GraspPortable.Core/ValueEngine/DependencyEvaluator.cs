@@ -13,7 +13,8 @@ public static class DependencyEvaluator
         CancellationToken cancellationToken = default, int maxValueLength = 4_000_000,
         long maxTotalValueLength = 32_000_000,
         IReadOnlyDictionary<string, EvaluatedValue>? previousValues = null,
-        IReadOnlySet<string>? affectedNames = null)
+        IReadOnlySet<string>? affectedNames = null,
+        IReadOnlySet<string>? unavailableNames = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxValueLength);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTotalValueLength);
@@ -28,6 +29,11 @@ public static class DependencyEvaluator
             values[definition.Name] = new(null, EvaluationStatus.Duplicate);
             diagnostics.Add(new("duplicate", $"{definition.Name} 有多個 definition。", definition.NameSpan));
         }
+        // A document with unaccepted saved text retains its old identity/name,
+        // but its last-good value is not a fresh input for downstream evaluation.
+        foreach (var name in unavailableNames ?? new HashSet<string>())
+            if (nodes.ContainsKey(name) && !values.ContainsKey(name))
+                values[name] = new(null, EvaluationStatus.Stale);
         var dependencies = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var dependants = nodes.Keys.ToDictionary(key => key, _ => new List<string>(), StringComparer.Ordinal);
         foreach (var (name, definition) in nodes)

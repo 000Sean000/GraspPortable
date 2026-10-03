@@ -9,7 +9,7 @@ public readonly record struct SourceSpan(int Start, int Length)
 
 public enum PartKind { Literal, Identifier }
 public enum ReferenceKind { Pure, Wiki }
-public enum EvaluationStatus { Valid, Missing, Cycle, DependencyError, ResourceLimit, Duplicate }
+public enum EvaluationStatus { Valid, Missing, Cycle, DependencyError, ResourceLimit, Duplicate, Stale }
 
 public sealed record BindingPart(PartKind Kind, string Text, SourceSpan Span);
 public sealed record Definition(string Name, SourceSpan NameSpan, SourceSpan Span,

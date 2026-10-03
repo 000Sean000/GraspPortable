@@ -11,6 +11,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'SQLite integration checks failed.' }
         dotnet run --project tests/GraspPortable.Host.Tests -c Release
         if ($LASTEXITCODE -ne 0) { throw 'Host HTTP/process checks failed.' }
+        foreach ($suite in @('FileOperations', 'Markdown', 'ExternalEdits', 'Sources', 'MarkdownWorkspace', 'Migration', 'Coordinator', 'FileActions', 'Backup', 'BackupManager', 'GroupedNotes', 'Records')) {
+            dotnet run --project "tests/GraspPortable.$suite.Tests" -c Release
+            if ($LASTEXITCODE -ne 0) { throw "$suite checks failed." }
+        }
     }
     dotnet publish src/GraspPortable.Host -c Release -r win-x64 --self-contained false -o artifacts/FirstUI/Host
     if ($LASTEXITCODE -ne 0) { throw 'Host publish failed.' }
