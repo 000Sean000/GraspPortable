@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Rewrite Preparation State
-version: 1.3.1
+version: 1.4.0
 updated: 2026-10-03
 scope: rewrite-decisions-and-current-authorization
 ---
@@ -45,6 +45,16 @@ P0 報告部分段落早於最後停工紀錄：舊 EXECUTION-STATE 頂部記載
 
 已建立 [專案架構圖解](Engineering/GraspPortable-Architecture-Diagrams-v1.0.0.md)，原參考文章圖只作概念來源。三張圖分別標明依賴、執行通訊及提交先後，不互相替代。
 
+## 本機環境整理待完成
+
+2026-10-03 使用者回報：checkout 後 VS Code 顯示 4,597 項 changes，截圖可見 .cache/npm 與 .cache/playwright 項目標示 U；這些可見項目是未追蹤檔，全部項目的實際分類仍待本機盤點。
+
+新分支建立時遺漏 .gitignore；本次補回適用的 cache、build、依賴、私人 workspace 與驗收資料排除規則，規則依原分支 .gitignore 篩選。Ignore 僅管理 Git 呈現及加入行為，未刪除本機資料、未解除任何既有 tracked file，亦未完成外部環境清理。
+
+截圖顯示 repo 位於 GraspPortableWorkspace/GraspPortable；同層另有 Acceptance、Scratch、AGENTS.md、README-驗收.md 及兩個驗收啟動 .cmd。完整絕對路徑、檔案用途、父層指示、Git hooks／IDE tasks 及背景程序由本機 Codex 查明，不依名稱推定可以刪除。
+
+先完成本機環境盤點與可逆整理，再進行實作規劃。已知的舊資料可保持原位隔離或移到 repo 外的歷史區，須保留來源對照；私人原始 Vault、驗收副本與唯一證據不得因位於 Scratch／cache 就推定可重建。確認是衍生快取的資料才可安排清除。父層 AGENTS.md 先讀取並遵守；針對過期的 Prototype 專案內容更新有效範圍，保留有效規則，不藉清理改寫權限。
+
 ## 下一步
 
-依使用者後續實作授權，將這份架構落實為 Windows 可操作的 UI／UX 驗證流程。先用既有資料與 insight 提出代表性 workload 與產品尺度，處理該流程真正涉及的未定語義，再實作必要模組；以操作回饋更新需求、技術決策與受影響的架構。
+本機環境整理完成後，先由 Codex 接續實作規劃；依使用者後續實作授權，將這份架構落實為 Windows 可操作的 UI／UX 驗證流程。先用既有資料與 insight 提出代表性 workload 與產品尺度，處理該流程真正涉及的未定語義，再實作必要模組；以操作回饋更新需求、技術決策與受影響的架構。

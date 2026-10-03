@@ -1,0 +1,36 @@
+# Local caches and generated dependencies
+.cache/
+node_modules/
+
+# Build output and IDE user state
+dist/
+[Bb]in/
+[Oo]bj/
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Generated verification output
+playwright-report/
+test-results/
+[Tt]est[Rr]esults/
+BenchmarkDotNet.Artifacts/
+
+# Private local workspaces and prototype acceptance data
+workspaces/
+gitignored/
+Acceptance/
+Scratch/
+MainVault-Source/
+MainVault-Grasp/
+
+# Prototype workspace databases, sidecars, attachments and backups
+*.grasp.db
+*.grasp.db-shm
+*.grasp.db-wal
+*.grasp.db.files/
+*.grasp.db.schema*-backup-*.db
