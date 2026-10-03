@@ -53,7 +53,8 @@ app.MapGet("/api/notes/{id}", (string id) =>
 {
     var s = knowledge.Current; var note = s.Notes[id]; var draft = knowledge.GetDraft(id);
     return new NoteDto(id, note.Title, note.Source, note.Revision, s.Revision, draft is null ? null : new(draft.SessionId, draft.Revision, draft.BaseNoteRevision, draft.Source, draft.Title),
-        s.Definitions.Values.Where(d => d.NoteId == id).Select(Definition).ToArray(), note.Syntax.References.Select(r => Reference(id, r)).ToArray(), note.Diagnostics.Select(Diag).ToArray());
+        s.Definitions.Values.Where(d => d.NoteId == id).Select(Definition).ToArray(), note.Syntax.References.Select(r => Reference(id, r)).ToArray(), note.Diagnostics.Select(Diag).ToArray(),
+        (note.Syntax.Regions ?? GraspPortable.Core.ValueEngine.GraspParser.Parse(note.Source, s.Languages).Regions ?? []).Select(r => new RegionDto(r.Span.Start, r.Span.Length, r.IsComplete)).ToArray());
 });
 app.MapPost("/api/notes", async (CreateNoteRequest request, HttpContext context) => Result(await knowledge.CreateNoteAsync(request.OperationId, request.Title, request.Source, context.RequestAborted)));
 app.MapPut("/api/notes/{id}/draft", async (string id, SaveDraftRequest request) => Result(await knowledge.SaveDraftAsync(new(id, request.SessionId, request.DraftRevision, request.BaseNoteRevision, request.Title, request.Source))));

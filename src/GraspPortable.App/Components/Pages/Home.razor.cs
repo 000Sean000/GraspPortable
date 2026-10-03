@@ -1,6 +1,8 @@
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using GraspPortable.Contracts;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 namespace GraspPortable.App.Components.Pages;
@@ -13,6 +15,9 @@ public partial class Home
     private readonly SemaphoreSlim patches = new(1,1);
     private CancellationTokenSource? debounce, searchCancellation;
     private NoteSummary[] _notes = [];
+    private NoteSummary[] _affectedDraftNotes = [];
+    private ElementReference _newTitleInput;
+    private bool _focusNewTitle;
     private DefinitionDto[] _definitions = [];
     private ReferenceDto[] _references = [];
     private DiagnosticDto[] _diagnostics = [];
@@ -22,7 +27,7 @@ public partial class Home
     private string _title="", _source="", _savedSource="", _savedTitle="", _sessionId=Guid.NewGuid().ToString("N");
     private string _search="", _newTitle="", _workspacePath="", _literalValue="", _languageText="grasp", _mergeSource="", _insertName="";
     private string _mode="live", _saveStatus="正在準備工作區…";
-    private string? _dialog, _error, _notice;
+    private string? _dialog, _error, _notice, _commitNotice;
     private long _draftRevision, _editorRevision, _contentVersion, _noteRevision, _knowledgeRevision, _contextGeneration;
     private bool _forceDraftSave, _hasDraft;
     private string _confirmationNoteId="", _confirmationSource="";
@@ -41,6 +46,11 @@ public partial class Home
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if(_focusNewTitle && _dialog=="create")
+        {
+            _focusNewTitle=false;
+            await _newTitleInput.FocusAsync();
+        }
         if(!firstRender) return;
         receiver=DotNetObjectReference.Create(this);
         editor=await JS.InvokeAsync<IJSObjectReference>("import","./editor.js");
@@ -74,9 +84,11 @@ public partial class Home
     private async Task LoadWorkspaceAsync()
     {
         _contextGeneration++;
+        searchCancellation?.Cancel();
+        _search=""; _insertName=""; _selectedDefinition=null; _references=[]; _diagnostics=[];
         _knowledgeRevision=Backend.Workspace?.Revision ?? 0;
         await RefreshCollectionsAsync();
-        if(_notes.FirstOrDefault() is { } first) await SelectNoteAsync(first.Id);
+        if(_notes.FirstOrDefault() is { } first) await LoadNoteAsync(first.Id);
         else
         {
             _note=null; _source=""; _title=""; _saveStatus="尚未建立筆記";
@@ -119,18 +131,24 @@ public partial class Home
         try { await GuardAsync(async () =>
         {
             if(!await SaveCurrentAsync()) return;
-            _contextGeneration++;
-            var note=await Backend.GetAsync<NoteDto>("api/notes/"+id);
-            _note=note; _title=note.Draft?.Title??note.Title; _source=note.Draft?.Source??note.Source;
-            _savedSource=_source; _savedTitle=_title; _noteRevision=note.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,note.KnowledgeRevision);
-            _sessionId=note.Draft?.SessionId??Guid.NewGuid().ToString("N"); _draftRevision=note.Draft?.Revision??0;
-            _hasDraft=note.Draft is not null; _forceDraftSave=false;
-            _editorRevision=0; _contentVersion=0; _diagnostics=note.Diagnostics; _selectedDefinition=null; _references=[];
-            _saveStatus=note.Draft is null ? "已提交 · revision "+note.KnowledgeRevision : "草稿已恢復 · 尚未套用";
-            await editor!.InvokeVoidAsync("setDocument",note.Id,_source,0,_source==note.Source?note.References:[],_mode=="live");
-            await RenderReadingAsync();
+            await LoadNoteAsync(id);
         }); }
         finally { _switching=false; await editor!.InvokeVoidAsync("freeze",false); StateHasChanged(); }
+    }
+    // The caller owns switching / saving. Workspace changes already hold that guard.
+    private async Task LoadNoteAsync(string id)
+    {
+        _contextGeneration++;
+        var note=await Backend.GetAsync<NoteDto>("api/notes/"+id);
+        _notice=null; _commitNotice=null;
+        _note=note; _title=note.Draft?.Title??note.Title; _source=note.Draft?.Source??note.Source;
+        _savedSource=_source; _savedTitle=_title; _noteRevision=note.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,note.KnowledgeRevision);
+        _sessionId=note.Draft?.SessionId??Guid.NewGuid().ToString("N"); _draftRevision=note.Draft?.Revision??0;
+        _hasDraft=note.Draft is not null; _forceDraftSave=false;
+        _editorRevision=0; _contentVersion=0; _diagnostics=note.Diagnostics; _selectedDefinition=null; _references=[];
+        _saveStatus=note.Draft is null ? "已提交 · revision "+note.KnowledgeRevision : "草稿已恢復 · 尚未套用";
+        await editor!.InvokeVoidAsync("setDocument",note.Id,_source,0,_source==note.Source?note.References:[],_mode=="live",_source==note.Source?note.Regions:[]);
+        await RenderReadingAsync();
     }
     [JSInvokable] public Task OnEditorChanged(string noteId,long revision,EditorDelta[] changes,bool composing) => InvokeAsync(() =>
     {
@@ -211,6 +229,8 @@ public partial class Home
         _knowledgeRevision=Math.Max(_knowledgeRevision,result.Revision);
         if(result.Status=="committed")
         {
+            if(_notice==_commitNotice)_notice=null;
+            _commitNotice=null;
             var fresh=await Backend.GetAsync<NoteDto>("api/notes/"+id);
             if(_note?.Id==id) await ApplyFreshNoteAsync(fresh,source,version);
             await RefreshCollectionsAsync(); return true;
@@ -219,7 +239,7 @@ public partial class Home
         if(result.Status is "draft" or "invalid")
         {
             _saveStatus="草稿已保存 · 語法尚未完成";
-            if(!string.IsNullOrWhiteSpace(result.Message)) _notice=result.Message;
+            if(!string.IsNullOrWhiteSpace(result.Message)) _notice=_commitNotice=result.Message;
             return true;
         }
         _saveStatus="草稿保留 · "+result.Status;
@@ -239,7 +259,7 @@ public partial class Home
         _hasDraft=fresh.Draft is not null;
         if(_contentVersion==expectedVersion && _source==expectedSource)
         {
-            var applied=await editor!.InvokeAsync<bool>("applyCommitted",expectedSource,fresh.Source,fresh.References);
+            var applied=await editor!.InvokeAsync<bool>("applyCommitted",expectedSource,fresh.Source,fresh.References,fresh.Regions);
             if(applied && _contentVersion==expectedVersion)
             {
                 _source=fresh.Source; _title=fresh.Title; _savedSource=_source; _savedTitle=_title;
@@ -291,9 +311,9 @@ public partial class Home
     private async Task RenderReadingAsync()
     {
         if(editor is not null && _note is not null)
-            await editor!.InvokeVoidAsync("renderReading","note-reading",_source,_source==_note.Source?_note.References:[]);
+            await editor!.InvokeVoidAsync("renderReading","note-reading",_source,_source==_note.Source?_note.References:[],_source==_note.Source?_note.Regions:[]);
     }
-    private void ShowCreate() {_newTitle="";_dialog="create";}
+    private void ShowCreate() {_newTitle="";_dialog="create";_focusNewTitle=true;}
     private async Task CreateNoteAsync() => await ModalActionAsync(async () =>
     {
         if(!await SaveCurrentAsync())return;
@@ -317,12 +337,20 @@ public partial class Home
         if(_selectedDefinition is null) {_notice="找不到 "+name+" 的定義。請查看診斷。";return;}
         _showInspector=true; _references=await Backend.GetAsync<ReferenceDto[]>("api/definitions/"+_selectedDefinition.Id+"/references");
     });
-    private async Task LocateDefinitionAsync()
+    private async Task LocateDefinitionAsync() => await GuardAsync(async () =>
     {
         if(_selectedDefinition is not { } selected)return;
-        await SelectNoteAsync(selected.NoteId); _selectedDefinition=selected;
-        if(_note?.Id==selected.NoteId){_mode="source";await editor!.InvokeVoidAsync("setMode",false);await editor!.InvokeVoidAsync("focusAt",selected.NameStart,selected.NameLength);}
-    }
+        await SelectNoteAsync(selected.NoteId);
+        if(_note?.Id!=selected.NoteId)return;
+        var current=_note.Definitions.FirstOrDefault(d=>d.Id==selected.Id);
+        if(current is null){_notice="這個定義已變更，請重新選擇。";return;}
+        _selectedDefinition=current;
+        _references=await Backend.GetAsync<ReferenceDto[]>("api/definitions/"+current.Id+"/references");
+        _mode="source"; StateHasChanged(); await editor!.InvokeVoidAsync("setMode",false);
+        // Committed source ranges are not valid inside an independently edited draft.
+        if(_source==_note.Source) await editor!.InvokeVoidAsync("focusAt",current.NameStart,current.NameLength);
+        else {await editor!.InvokeVoidAsync("focusAt",0,0);_notice=_commitNotice="已開啟來源草稿；請在保留的原文中修改定義。";}
+    });
     private async Task LocateReferenceAsync(ReferenceDto reference)
     {
         await SelectNoteAsync(reference.NoteId);
@@ -333,9 +361,28 @@ public partial class Home
     private async Task ShowSharedEditAsync() => await GuardAsync(async () =>
     {
         if(!await SaveCurrentAsync() || _selectedDefinition is null)return;
+        var owner=await Backend.GetAsync<NoteDto>("api/notes/"+_selectedDefinition.NoteId);
+        if(owner.Draft is not null)
+        {
+            await LocateDefinitionAsync();
+            if(_note?.Id==owner.Id)_notice=_commitNotice="來源已有未提交草稿，已開啟並保留草稿。請直接在原文修改共享定義。";
+            return;
+        }
         _impact=await Backend.GetAsync<ImpactDto>("api/definitions/"+_selectedDefinition.Id+"/impact");
+        _affectedDraftNotes=_impact.HasDirtyDraft
+            ? (await Backend.GetAsync<NoteSummary[]>("api/notes")).Where(n=>n.HasDraft && _impact.NoteIds.Contains(n.Id)).ToArray()
+            : [];
         _literalValue=_selectedDefinition.Value??"";_dialog="literal";
     });
+    private async Task OpenAffectedDraftAsync(string id)
+    {
+        _dialog=null;
+        await SelectNoteAsync(id);
+        if(_note?.Id!=id)return;
+        _mode="source";StateHasChanged();await editor!.InvokeVoidAsync("setMode",false);
+        await editor!.InvokeVoidAsync("focusAt",0,0);
+        _notice=_commitNotice="已開啟未提交草稿，請先處理原文，再重試共享修改。";
+    }
     private async Task ApplyLiteralAsync() => await ModalActionAsync(async () =>
     {
         if(_selectedDefinition is null || _impact is null)return;
@@ -372,7 +419,18 @@ public partial class Home
         await Backend.RefreshWorkspaceAsync();_knowledgeRevision=Backend.Workspace!.Revision; await RefreshCollectionsAsync();
         if(id is not null){var fresh=await Backend.GetAsync<NoteDto>("api/notes/"+id);await ApplyFreshNoteAsync(fresh,baseline,version,generation);}
     }
-    private Task InsertExampleAsync()=>editor!.InvokeVoidAsync("insertText","\n@code{\n    @Fruit = {apple}\n    @Description = {\n第一段。\n\n第二段。\n    }\n    @Slogan = {An } + Fruit + { a day.}\n}\n").AsTask();
+    private async Task InsertExampleAsync() => await GuardAsync(async () =>
+    {
+        if(!await CaptureEditorAsync())return;
+        var occupied=new HashSet<string>(_definitions.Select(d=>d.Name),StringComparer.Ordinal);
+        // Conservatively reserve draft assignment names, including incomplete / disabled examples.
+        foreach(Match match in Regex.Matches(_source,@"@([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*=",RegexOptions.CultureInvariant))
+            occupied.Add(match.Groups[1].Value);
+        var suffix="";
+        for(var n=2;new[]{"Fruit","Description","Slogan"}.Any(name=>occupied.Contains(name+suffix));n++)suffix=n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var fruit="Fruit"+suffix; var description="Description"+suffix; var slogan="Slogan"+suffix;
+        await editor!.InvokeVoidAsync("insertText","\n@code{\n    @"+fruit+" = {apple}\n    @"+description+" = {\n第一段。\n\n第二段。\n    }\n    @"+slogan+" = {An } + "+fruit+" + { a day.}\n}\n");
+    });
     private async Task InsertReferenceAsync(bool wiki)
     {
         var definition=_definitions.FirstOrDefault(d=>d.Name==_insertName);if(definition is null)return;

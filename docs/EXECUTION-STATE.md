@@ -1,74 +1,82 @@
 ---
-title: GraspPortable — S1 Implementation State
-version: 1.9.1
-updated: 2026-10-03
-scope: rewrite-decisions-and-current-authorization
+title: GraspPortable — P0–S4 Goal Execution State
+version: 1.12.0
+updated: 2026-10-04
+scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
-## 目前授權與停止位置
+## 目前授權與 Goal
 
-2026-10-03 使用者明確要求 **IMPLEMENT 已接受的完整 S1 計畫**。現已完成四 Projects、S1 功能程式與本機 Windows 發行，並由 launcher 啟動 App／WebView2／獨立 Host。**S1c 為部分驗證：Windows GUI、原生中文 IME 及端到端流暢度尚未驗收，S1 不標全部完成。** 現在交付試用、等待使用者操作與必要問題修正，不自動開始 S2。
+2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.7](Engineering/Implementation-Plan-v1.0.0-rc.7.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
 
-立即使用 [First UI 操作說明](Engineering/FirstUI-Quickstart.md)；[驗證紀錄](Engineering/S1-Validation.md)區分已通過工程檢查與 GUI 待驗項目。
+這次授權取代「S1 後停下／不自動 S2」「未授權 commit／push」舊停點。自行完成 coherent segment 的必要驗證、commit／push 至 `origin/rewrite/dotnet` 並核對；不 force push，不提交私人資料／credentials／驗收 workspace。每階段續作，只有 S4 全部完成條件成立才能標 Goal complete；使用者接受仍另記。
 
-[Implementation Plan rc.6](Engineering/Implementation-Plan-v1.0.0-rc.6.md)為本輪完成标准；[Engineering 入口](Engineering/README.md)路由現行方法、架構、圖解、語法與技術結果。先前「僅文件、等待語法／coding 授權」已由本次明確授權取代；規格接受不代表產品已完成。
+同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 已接受基準
+## 已接受的重大契約
 
-- Windows PC 必須交付；未來嘗試 iPhone／iPad，本輪不承諾 mobile。
-- .NET 10／C#、MAUI Blazor Hybrid／Razor、CodeMirror 6／TypeScript、独立本機 ASP.NET Core Host、SQLite。
-- 四 Projects：App → Contracts，Host → Core＋Contracts；Core／Contracts 不依賴其他產品 project。功能淺目錄、按需 MVVM／ports，避免空模組及過度拆分。
-- S1 包含真實編輯、兩層以上 composition、兩式多段引用、相依更新、navigation、共享 literal、原文 rename 保留 ID 並傳播、Source／Reading／一般段落 Live Preview、保存／重開及 parsing allowlist UI。
-- 專用 rename UI、composition 專用編輯器與 shared semantic undo 延後；一般 Ctrl+Z 保留。
-- 使用者已整體接受 Syntax Review rc.3 profile；[rc.4](Engineering/Binding-Syntax-Review-v1.0.0-rc.4.md)同步接受狀態及 reference／context 明確化。ASCII、case-sensitive、dot 無空白、@ 僅左側、無分號、@code、單層／疊層 marker、inline 邊界 escape／raw block 不再重問。
-- 同 workspace／namespace 同名 definition 唯一；disabled parsing 區不建立或回寫資料。即時更新且退出編輯略過 debounce；未完成語法保留草稿。
-- Portable 優先，先目前 PC unpackaged 方便試用；清潔電腦 runtime 完整攜帶後期驗證。單一 Host writer、版本 guard、原子共享提交及 receipt 不降級。
-- Excel 類型相依、真實資料流暢、未來成長餘裕仍是品質要求。S1 只驗證本階段代表資料，不把「仍可操作」或合成計算通過當成完整產品達標。
-- 暫定效能門檻已接受；成本有界，失敗如實記錄，不自動放寬。
-- 每個工作段主動評估 subagent，與 medium effort 無關；主代理保有契約／整合／驗收。模型／effort 預設沿用，不自動降級／Reserve。
+- Windows 為本次平台；iPhone／iPad、同步、Programming、rollup／通用公式不納入本次 Goal。
+- 四 Projects 與 .NET 10／MAUI Blazor Hybrid／Razor／CodeMirror／獨立 ASP.NET Core Host／SQLite 沿用，Portable 優先、先目前 PC unpackaged。
+- **Markdown 是已保存原文權威**；SQLite 管索引／計算／基底、durable drafts 及恢復日誌。原文保存、語意接受、跨檔回寫分開呈現；不完整語法保留原文及 last-good 狀態。
+- 外部一般存檔自動解析；reference 顯示值變更用共同基底判別共享意圖，唯一 literal 才可自動回寫。Composition 不 flatten；dirty／IME、版本／身分不明及矛盾修改保留資料。
+- YAML 保存必要 IDs／schema／定位，未知 metadata 保留。關閉 Host，重開 reconciliation；跨檔操作 journal／guards／receipt，不宣稱多檔 ACID。
+- 分組实际合併／拆分檔案，保留成員身分及 metadata，接受 Obsidian 以實體檔為筆記的差異。新輸出及恢復材料驗證後才移除舊檔。
+- 有變更每五分鐘及正常關閉 checkpoint，保留三份完整版本，可設定；新 generation 完整後才發布，restore 預設新 workspace。舊 DB-only 遷到新資料夾並保留原 DB。
+- S4 型別：Markdown／文字、數字、布林、date-only、單選、多選、tag、單／多關聯。Null／空字串／零／false 分開，無效外部值保留原文及診斷。
+- 欄位正文唯一來源；`RecordKey.FieldKey` 自動屬性提供計算後 Markdown，沿用名稱唯一性、相依、missing／cycle。Key 與中文顯示名分開，view 名不入 key，來源型別決定正確寫回位置。
+- 寬表採 H2／H3／H4 縱向，次選 nested list；轉換後 headings 無 H1、深度超限不壓平，保留轉換原文／mapping。表格可固定標題行列、凍結前列欄，focus 按 IDs，分頁／虛擬化。
+- 已接受 rc.3 syntax profile 由 [Syntax rc.5](Engineering/Binding-Syntax-Review-v1.0.0-rc.5.md) 維護，不重問既定語法；literal／reference cache／求值結果不遞迴解析。
+- 暫定效能門檻及有界測試維持，不因「仍可操作」降低要求。普通工程選擇自行決定；同一問題兩輪無改善或驗證成本失衡時回頭檢視全局。
 
-## Workspace、repository 與資料範圍
+## 目前進度
 
-Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`。
-Repository：上述目錄下 `GraspPortable/`；origin 為 `https://github.com/000Sean000/GraspPortable.git`，branch 為 `rewrite/dotnet`。本輪起始 HEAD `426e9c71759758131b1d9a3572ebd6bbf27b7b69`，起始工作目錄乾淨、與本機 upstream 同步；沒有 reset／搬移／重設 remote。動態改動以 Git status 為準。
-
-根目錄 `AGENTS.md` 已記錄目錄角色、搜尋限定 GraspPortable、root 設定定點讀取及 Legacy1 排除；本輪另加入 medium effort 也主動評估 subagent、檔案 owner 與里程碑檢視。它在 repository 外，不受此 Git 追蹤，交付另列。Legacy1 未盤點或修改，舊 4,597 changes 清理待辦不再適用。
-
-使用者另授權唯讀取用 Workspace `TestData/MainVault-Source` 的 Obsidian Vault：僅依測試缺口少量挑選，複製至 repository 忽略的測試區，原件不改、不 commit。這是指定來源的有界例外，不授權掃 Legacy1 或整庫匯入 S2。
-
-## 本輪進度與必要證據
-
-| 階段 | 實作狀態 | 必要驗證 | 使用者接受 |
+| 階段 | 實作 | 必要驗證 | 使用者接受 |
 | --- | --- | --- | --- |
-| 文件／決策同步 | 已歸檔已接受 S1、四 Projects、語法及協作原則 | 版本／入口／相對連結由本輪檢查 | 計畫已接受；本輪文件修訂待審閱 |
-| S0 | Implemented | 四 Projects Release build／publish、實際 App／Host 啟動、DB lock／HTTP handshake／shutdown 通過 | 尚未體驗 |
-| S1a | Implemented | 草稿／重開／stale 的工程檢查通過；Windows IME／切換操作待驗 | 尚未體驗 |
-| S1b | Implemented | codec／identity／graph／atomic／policy 及 editor 回歸通過；實際 Windows 呈現與互動待驗 | 尚未體驗 |
-| S1c | PARTIAL | 工程可靠性與 backend 有界性能通過；實際 GUI／端到端性能尚未驗證 | 尚未體驗 |
-| S2–S5 | WAITING_FOR_IMPLEMENTATION，未授權本輪推進 | 後期訂定／執行 | 尚未接受實作範圍 |
+| P0 | Implemented：Goal 已 active，文件整合完成；本段待 commit／push | 16 份現行文件／79 個本機 links、版本與 diff whitespace 核對通過 | 最新計畫已明確接受 |
+| S0 既有啟動主幹 | Implemented | 先前 build／publish／App＋Host 啟動及工程驗證 | 不等於 S1 UX 接受 |
+| S1 | PARTIAL：Reading 保留定義排版、delimiter 配對／同步與基本原生 IME 已驗 | Core 162、Host HTTP 34、editor 回歸、架構檢查、Host／App Release 發行通過；IME／dirty 競態、policy GUI、DPI、量化端到端仍待驗 | 尚未宣告接受 |
+| S2 | IN_PROGRESS：檔案 journal primitive 已開始 | 尚未整合 Markdown authority／共同編輯，不宣稱目標流程已通過 | 範圍已接受，成品未接受 |
+| S3 | WAITING_FOR_IMPLEMENTATION | 待分組、checkpoint／restore 與故障驗證 | 同上 |
+| S4a–c | WAITING_FOR_IMPLEMENTATION | 待 Records／屬性／凍結表格及真實樣本驗證 | 同上 |
 
-實作完成、必要驗證與使用者接受分開記錄。App 進程與 WebView2／Host 存活不是 UI 操作通過證據；不得據此自動改成 S1 完成。
+本表依 2026-10-04 本段 checkpoint 更新，主代理每完成實作段再接續。任何功能完成／測試 pass 需實際證據；文件升版不代表程式已切換資料權威。
 
-目前分工：主代理管理 Contracts／Host／Knowledge／整合；subagents 負責 parser／fixtures、App editor／畫面及文件同步，各自限定檔案。共用接面及 migration 單一 owner，跨邊界修改先協調。各里程碑或兩輪修正無改善時重新檢視完整流程，不因局部問題無限擴張測試。
+## 2026-10-04 實際 checkpoint
 
-### 已完成的工程驗證（非 S1 全部完成）
+主代理已重新通過 Core 162 fixtures（含 authoritative binding region 的 raw UTF-16 與宿主停用區排除）、Host HTTP 34 assertions、四專案架構檢查、Host／App Release publish，以及真 CodeMirror regression（含未閉合前綴的實體鍵事件）。本段沒有重測或更新先前 SQLite／後端性能數字。
 
-Core fixtures 161、SQLite integration 63、Host HTTP/process 34 assertions 通過；editor 的 1 組有界真 CodeMirror／headless Edge 回歸通過。App／Host 最終 Release 發行成功，App 最終 build 0 warnings／errors；四專案依賴檢查通過。SQLite 10.0.0 預設 native dependency 曾觸發 NU1903，已顯式更新 `SQLitePCLRaw.bundle_e_sqlite3` 至 3.0.5，lock file 記錄 native SQLite 3.53.4，後續 restore 無該 warning。
+經 sky 操作真實 Windows App，Reading 的 `@code` 定義區保留換行、縮排及多段空行。在 FirstUI 新筆記「S1 補完與 IME 1004」以中文注音按鍵 s／u／3 形成「你」，Enter 提交、Esc 取消未完成組字；以 Ctrl+Space 切英文後驗證 `{}` 補對、`{{}}` 兩端同步、一次 Ctrl+Z 撤回兩端，插入 `pair-pass` 時游標位於 literal 內。中文組字期間刻意不介入 delimiter 補完。
 
-最後一次增量失效接入後 backend prepare＋SQLite：30 次小改 p95=0.77 ms、deep chain 1,000=32.02 ms、fan-out 10,000=210.48 ms。這些只證明此次後端代表案例，**不是 HTTP、input-visible、Windows UI／IME、捲動或整個 S1 達標證據**。已修正靜態／獨立審查找到的 resource-limit、未知 schema 及 App 保存／refresh race；詳細覆蓋見驗證紀錄。
+完整語法提交後診斷清除；正常關閉／重開仍可見「你」與 `pair-pass`，Host 隨 App 正常關閉。前台已釋放。這是基本原生 IME 及有界編輯流程證據，**不是 IME／dirty 競態、allowlist GUI、DPI 或量化端到端全部通過**；S1 與 Goal 仍未完成。
 
-Windows GUI 工具初始化兩次（含 reset）均因 Windows sandbox helper 的 `helper_unknown_error: setup refresh had errors` 導致 kernel exited。實際 GUI／IME／Live Preview 操作仍未驗證，不以 headless 或 API 替代。已由受審核 shell 啟動實際 App，觀測原生視窗標題「GraspPortable · Windows 試用版」、Responding=true、WebView2 與 child Host；沒有宣稱看過畫面或執行完整操作。
+## 既有成果與證據（截至 2026-10-03）
 
-本機入口：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace\GraspPortable\Start-GraspPortable.cmd`。測試 workspace：同 repository `workspaces\FirstUI`，包含 20 bindings／100 occurrences 及指定 Vault 的三篇小型 Markdown 樣本（9,268 bytes），來源 SHA256 前後相同；私人資料及 sample manifest 均在忽略區。App／Host 發行目錄為 `artifacts\FirstUI\App`、`artifacts\FirstUI\Host`。
+Windows FirstUI 可由 launcher 啟動。四 Projects、Core／SQLite／HTTP、editor regression、Release 發行已有成功紀錄；原生 UI 已操作新增筆記、編輯／撤銷、三模式、多段引用、兩層相依共享更新、導航、原文 rename、來源草稿保護及關閉重開。已保留 App／editor 相關修正與驗證文件，不 reset 或重建專案。
 
-## 工具、Git 與額度
+[S1 Validation](Engineering/S1-Validation.md) 保存上述歷史與本輪新增證據；以下數字屬 2026-10-03 基線。既有 Core 161、SQLite 63、HTTP／process 34 assertions 及一組 editor 回歸紀錄保留。曾測 backend prepare＋SQLite 小改 p95 0.77 ms、chain 1,000 32.02 ms、fan-out 10,000 210.48 ms，**不是本次跨檔／GUI／IME 端到端通過證據**。
 
-本機工具觀測保存於 [Development Environment](Engineering/Development-Environment.md)。一般 sandbox 曾因 helper setup 錯誤無法啟動，受審核 shell 可執行；未修改 sandbox 設定，不宣稱已修復。產品 build 與 GUI 能力依本輪實際結果另外記錄。
+Computer Use 舊 runtime 阻塞先前已解除並取得上述操作證據；目前可用能力仍依每次工具觀測，不用 API、DOM 或程序存活替代原生操作。基本原生 IME 已在 2026-10-04 補驗；完整快速切換／IME／dirty 競態、解析政策 GUI、不同縮放與端到端流暢度仍未全部驗收。
 
-使用者未授權 commit／push，本輪不 stage／commit／push；保留可審閱變更，交付給建議 message。私人測試資料、credentials、依賴與 build outputs 不進 Git。
+現有入口：[FirstUI 操作說明](Engineering/FirstUI-Quickstart.md)。`Start-GraspPortable.cmd`、`workspaces/FirstUI`、`artifacts/FirstUI/App`／`Host` 是目前試用路徑；目前發行仍是既有 DB-based FirstUI，新 Markdown workspace 功能待 S2，勿將目標格式說成已支援。
 
-本輪開始 Codex 帳戶共享 7 日窗口 usedPercent=16%，reset Unix=1791604086，日期 2026-10-03 Asia/Taipei；精確起始時刻未記。收尾約 22:22 Asia/Taipei 為 26%，同一 reset，顯示增加 10 個百分點；僅為帳戶共享顯示值，不是本任務精確成本。未建立 commit 關聯，未切換 Reserve。
+## Workspace、資料與 Git 基線
+
+Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`。Repository：其下 `GraspPortable/`，origin `https://github.com/000Sean000/GraspPortable.git`，branch `rewrite/dotnet`。P0 文件整合讀取 HEAD `f4830e757007401489e169e989ad500ae69b9119`；已有八個文件／App／editor 未提交修改，保留有效成果。動態狀態以 Git 為準，未 reset／搬移 repository。
+
+根目錄 `AGENTS.md` 保存 Workspace／repository 角色、搜尋限定及主動協作，不在本 repository 追蹤。Legacy1 不盤點、不搜索、不修改；舊清理待辦無須接續。
+
+使用者指定 `TestData/MainVault-Source` 已是副本，可按測試需求取用適量，不设無意義硬性上限、不整庫過度測試；工程預設將所需樣本放獨立忽略 workspace 以保留比較基線。S4 計畫使用 15 位 Eternal Mentors、81 列 Aura、Triensa／Anria，尚不是完成測試聲明。私人內容及本機 sample manifest 不提交。
+
+目前分工：主代理擁有 Contracts／Host／Knowledge／跨檔一致性及整合；subagents 按指定不重疊檔案實作 editor 或歸檔文件。共享接面、DI、migration 單一 owner，主代理核對差異並執行必要整合驗證。
+
+## 額度與工具觀測
+
+2026-10-04 本輪起始主代理讀取帳戶共享七日窗口 usedPercent 約 37%，有兩張可用重置券；本輪尚未消耗。這是共享窗口快照，不是本任務精確成本。後續讀值、兌換、時間及 checkpoint 由主代理追加；不可用則明記 unavailable。
+
+2026-10-04 01:45（Asia/Taipei），主代理審查後成功啟動本次 Goal 的 12 小時隱藏額度監測；觀測 poll 為 `no_confirmed_exhaustion`，未使用重置券。GoalSupport 工具位於 repository 外，交付時另列，不視為已由產品 Git 追蹤。
+
+本機工具及先前故障由 [Development Environment](Engineering/Development-Environment.md) 保存。監測啟動及未耗盡輪詢成功不等於已驗證零額度後兌換／恢復平台回合。
 
 ## Exact next step
 
-由使用者依 FirstUI 操作說明體驗現有 Windows 試用版，或於 GUI 工具恢復後補實際操作／IME／流暢度證據；根據具體問題修正 S1，未全部通過前不標完成。現階段沒有需要重選的產品語法或技術方向。不得自動開始 S2、完整 Vault 匯入或擴大性能認證。建議人工 commit message：`feat: add Windows Grasp first UI with local host and durable bindings`。
+為已完成的 P0 整合與本段 S1 修正／驗證建立 commit／push checkpoint並核對結果；繼續 S1 的 IME／dirty 競態、allowlist GUI、DPI 及端到端量測，並推進 S2 文件版本／journal 與 Markdown authority 整合。S4 definition write-target 沿已接受接面處理，依計畫自動推進 S2、S3、S4。工具暫時阻塞某項驗證時先做不依賴它的工作，該項仍保留未驗證，不宣布 Goal 完成。

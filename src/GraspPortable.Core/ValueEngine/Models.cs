@@ -17,8 +17,10 @@ public sealed record Definition(string Name, SourceSpan NameSpan, SourceSpan Spa
 public sealed record ParsedReference(ReferenceKind Kind, string Name, SourceSpan NameSpan,
     SourceSpan ValueSpan, SourceSpan Span, string CachedValue);
 public sealed record ParseDiagnostic(string Code, string Message, SourceSpan Span);
+public sealed record ParsedRegion(SourceSpan Span, bool IsComplete);
 public sealed record ParseResult(IReadOnlyList<Definition> Definitions,
-    IReadOnlyList<ParsedReference> References, IReadOnlyList<ParseDiagnostic> Diagnostics)
+    IReadOnlyList<ParsedReference> References, IReadOnlyList<ParseDiagnostic> Diagnostics,
+    IReadOnlyList<ParsedRegion>? Regions = null)
 {
     public bool IsValid => Diagnostics.Count == 0;
 }

@@ -1,17 +1,17 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.10
-updated: 2026-10-03
+version: 1.0.0-rc.11
+updated: 2026-10-04
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.9.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.10.md
 ---
 
 ## Interface｜目標、需求與重要界線
 
 ### 為什麼做
 
-現成工具無法同時滿足自然筆記、可追溯的值引用、集中資料管理及低負擔的跨工具使用。GraspPortable 以筆記為中心，讓人自然書寫，讓程式以明確結構維護資料；大量 identifiers 可以分別存在 DB 中，而不必各自占一個實體檔案。
+現成工具無法同時滿足自然筆記、可追溯的值引用、集中資料管理及低負擔的跨工具使用。GraspPortable 以筆記為中心，讓人自然書寫，讓程式以明確結構維護資料；大量 identifiers 與 records 可以共用 Markdown 檔案，身分不必綁定一檔一筆。
 
 產品要降低使用者的管理與校正負擔。高度巢狀與交互引用必須支援真實知識工作；資料與依賴關係持續成長時，使用者仍能流暢書寫與操作。
 
@@ -20,17 +20,17 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.9.md
 1. Note 是正常 Markdown；binding 可依使用者習慣放在筆記中方便的位置，不要求固定 Binding section。已接受外層語法為 `@code{ ... }`；已確認只有定義左側使用 `@Name =`，取值不加 `@`，不用分號。Literal 已選預設 `{value}`，依內容括弧 run 增加 marker 層數；value 原文優先保留，只有貼著 marker 的首尾括弧作局部 escape，精確定界依已接受的 S1 syntax profile，舊版「不允許要求 outer container」不再作本輪設計限制。Assignment 是 binding；真正程式仍由另一個 compiler／runtime 層處理。
 2. 正文使用兩種 managed reference：`[value](:ref:Identifier)` 與 `[[@Identifier|value]]`。每個引用保存 identifier 與可讀的 rendered／cached value。
 3. Binding 使用 raw literal 與字串串接；literal 外的 identifier 代表取值，`+` 連接片段。Binding 的排版應容許不同習慣，例如 assignment operator 與 opening delimiter 可在同一行或跨行；排版空白不應被誤當成 logical value。
-4. Grasp 運作時以 DB 為 authority。使用者在 UI 修改共享 identifier／value，取得一致的共享結果、依賴與持久化引用值；實體 Markdown 依匯出或 checkpoint 產生。
-5. MainVault → DB 是確定性搬運；匯出策略才決定哪些獨立 rows 共用一份 Markdown。策略可由使用者編輯，或由外部協作者提出結構化方案後審查保存。
-6. 按需匯出與 fallback checkpoint 共用資料語義。輸出須可讀，完整 fallback 須能重建身分、bindings、依賴及附件。
+4. Markdown 是已保存原文的權威。Grasp 與 Obsidian 可交替編輯同一工作資料夾；Grasp 自動辨識外部修改，維護身分、相依及可讀引用。SQLite 承載可重建索引、計算結果、版本基底，以及不能任意丟棄的草稿與恢復日誌。
+5. 分組策略能實際合併／拆分工作檔案，保留各筆身分、metadata、bindings、附件與連結。資料表以縱向 Markdown 保存長文欄位，再由 Grasp 呈現可凍結行列的表格；不要求使用者閱讀擁擠的寬 Markdown table。
+6. 工作資料可直接取得及閱讀；完整 checkpoint 能恢復身分、內容、策略、附件及必要草稿。備份不代替日常保存。
 
 ### 產品使用路徑
 
-使用者先繼續以 Obsidian／Obsidian Sync 日用，Grasp 以副本驗證；正式切換後，各裝置使用本機 DB。Mobile 的目標是裝置可獨立離線工作，再利用成熟雲端儲存／同步服務延續資料。
+先使用授權副本驗證 Grasp／Obsidian 共用 Markdown 工作資料夾；未通過資料一致性驗證前不轉移正式日用資料。Mobile 的長期目標是獨立離線工作及跨裝置資料延續，provider 與同步策略另行確認。
 
 目標裝置至少包含 Windows PC，未來再嘗試擴充至 iPhone／iPad。Windows 是必要平台；mobile 是後續探索方向，不是首版同步交付承諾。
 
-[正文與互動](#2-note-first-authoring) · [Reference](#3-identifier-與-reference) · [Binding](#4-binding-與-value-sync) · [資料與匯出](#6-data-authority-與-markdown-交換) · [完成判準](#12-完成判準)
+[正文與互動](#2-note-first-authoring) · [Reference](#3-identifier-與-reference) · [Binding](#4-binding-與-value-sync) · [資料與匯出](#6-data-authority工作檔案與恢復) · [完成判準](#12-完成判準)
 
 ## 1. 產品定位
 
@@ -102,11 +102,11 @@ Value 在 alias；target 保留 `@`，用於確實需要實體筆記 target 及�
 
 UI 提供對共享 identifier／value 的語意操作，包括重新命名與從引用位置進入值的修改。一次有效操作完成後，共享定義、受影響的巢狀結果及持久引用快取整體一致。
 
-修改展開文字若不能唯一對應回 binding，介面引導編輯 literal 或 dependency。外部 Markdown 的變更經差異審查、來源／版本驗證及明確套用；來源角色的精確更新權限須由已接受的政策處理。
+外部編輯定義自動更新相依；外部把引用的顯示值由 apple 改成 banana，視為共享修改意圖。以共同基底辨識實際修改，只在能唯一對應 literal、版本有效且沒有矛盾修改時更新來源與其他引用。不能反推 composition 時導向來源，不把展開結果攤平。外部一般存檔不要求逐筆匯入確認；高影響、矛盾或身分不明的修改才呈現處理介面。
 
-DB 內的共享更新與 filesystem 輸出分開：正常編輯完成，不表示必須立即發布整棵 Markdown 樹。
+App 的 dirty draft 或 IME 組字不得被外部更新覆蓋。原文保存、語意接受與跨檔引用回寫是可觀察的不同狀態；跨檔中斷必須可恢復，不能把部分寫入稱為全部成功。
 
-修改應盡量像 Obsidian 一樣即時反映；至少退出編輯時，立即送出最終有效編輯並更新相依內容，不等待下一個 idle debounce。計算或保存尚未完成時明示 pending，不能把舊值標為最新成功；語法不完整則保留可恢復草稿並明示未套用。這是更新時機要求，不是承諾大型計算零耗時。
+修改應盡量像 Obsidian 一樣即時反映；至少退出編輯時，立即送出最終有效編輯並更新相依內容，不等待下一個 idle debounce。計算或保存尚未完成時明示 pending，不能把舊值標為最新成功；語法不完整仍保留最新原文及可恢復草稿，不發布部分 definitions，最後成功結果明示為過期。這是更新時機要求，不是承諾大型計算零耗時。
 
 [返回 Interface](#interface目標需求與重要界線)
 
@@ -122,7 +122,7 @@ Binding 不要求集中於專屬 section。外層 `@code{ ... }` 區域已接受
 
 ### 4.2 已選的 Binding 表達方向
 
-已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，已整體接受相應的精確 lexical 邊界；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.4.md)維護。
+已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，已整體接受相應的精確 lexical 邊界；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.5.md)維護。
 
 ~~~grasp-demo
 @code{
@@ -161,47 +161,65 @@ Value Sync 須支援 Excel 類型的高互動依賴關係，包括深層相依�
 
 [返回 Interface](#interface目標需求與重要界線)
 
-## 5. Structured Data
+## 5. Structured Data 與長文屬性
 
-同型知識可集中保存為 records，再產生表格或其他 views。每筆資料的 identity 與語意內容保留；row 數量與實體 Markdown 檔案數量分開。
+### 5.1 資料表與角色卡
 
-例如 Aura records 可分別搜尋、編輯、引用，在不同筆記產生 view，而匯出時依策略共用少量 Markdown 文件。使用者可以管理 collection、資料關係與輸出分組。
+同型知識保存為具有穩定 ID 的 records；一列可開成完整角色卡，多個 views 共用同一批資料，不複製欄位內容。每筆身分與名稱、檔案、表格及 view 分開。
 
-## 6. Data Authority 與 Markdown 交換
+支援文字／Markdown、數字、布林、日期、單選、多選、tag、單筆關聯及多筆關聯。日期先為 date-only，數字不靜默截斷，空值、空字串、零及 false 分開。多選選項由欄位管理，tag 可跨資料表搜尋。外部無效型別保留原值及診斷。關聯依 record ID 維持，正文保有可讀連結，缺失目標明示；本階段不包含 rollup、通用公式或任意關聯鏈求值。
 
-### 6.1 過渡與正式使用
+使用者可新增／編輯列及欄位、搜尋、排序、篩選、調整欄位顯示／順序及保存多個 views。長文 cell 先顯示摘要，點開後編輯完整 Markdown；角色卡可容納多段文字、圖片、清單、wikilink 及 Grasp 語法。
 
-過渡期繼續使用 Obsidian／Obsidian Sync 維持日用 Vault，Grasp 以副本和受控交換驗證。Grasp workspace 的 DB 管理自己的狀態，不代表日用 Vault 已經切換 authority。
+### 5.2 單一 Markdown 值與自動屬性
 
-正式使用 Grasp 後，以本機 DB 保存 authoritative notes、bindings、identifiers、records、關係、匯出策略與必要使用者狀態。外部檔案變更須經可理解的審查與版本核對。
+欄位正文是唯一可編輯值來源；YAML 保存必要 ID、schema、型別與定位資訊，SQLite 保存投影，不另生成第二份可獨立修改的 `@定義`。
 
-### 6.2 MainVault → DB
+自動屬性採 `RecordKey.FieldKey`，例如 `Characters.Triensa.Description`。Key 沿用 ASCII case-sensitive 規則，中文顯示名稱另存；表格／view 名稱不參與識別。可靠改 key 延續身分並更新引用，移檔、分組及換 view 不改 key。同 workspace 的自動屬性與手寫 binding 共用名稱唯一性。
 
-匯入是確定性搬運：逐筆保存內容、原始路徑、metadata、來源對照及能可靠辨識的關係。小檔案可各自形成獨立 row。
+引用欄位取得計算後的 Markdown。欄位內原始 source 的 Grasp 引用參與相依更新，並遵守停用 parsing 區、missing／cycle 及版本規則；求值結果、literal 及 reference cache 不再遞迴解析。修改欄位或共享值回到原 Markdown 區域，不把正文誤序列化為 literal。
 
-未知語法先保留 raw source 與診斷。減少輸出檔案的語意分組不是搬進 DB 的前提，也不是刪掉原始內容或合併 canonical identities 的理由。
+### 5.3 可讀的縱向保存與表格還原
 
-### 6.3 Markdown Projection Strategy
+過寬的二維 Markdown table 改成縱向表示。優先使用 H2 資料集、H3 record、H4 欄位；複雜內容或 heading 結構衝突時，次選階層式巢狀清單及明確縮排邊界。結構及轉換後實際 Markdown 標題不使用 H1。首次轉換預覽標題調整，深度超限改用巢狀清單而非壓平；保存轉換前原文及層級對應供恢復。後續編輯以新原文為準，不猜測舊層級意圖；code fence 內的 `#` 不是標題。
 
-匯出策略是 App 可解析、可保存及可由使用者編輯的資料，描述哪些實體共用一份 Markdown，以及必要的輸出位置、順序、呈現和定位。
+格式必須保留 record／field 身分、型別、順序、空值、多值與關聯，可重新建立 DB table。不能只把下一個 heading 當作任意長文結尾；結構不明時保留原文、停止自動改寫。
 
-策略一次接受後，後續匯出為確定性處理。使用者仍可調整群組、成員、獨立成檔與路徑；新增資料的未分配狀態須可觀察。
+Grasp render 成真正表格：固定欄位標題列及 record 標題欄，可依 view 設定凍結前幾列／欄，支援橫向／縱向捲動。排序、篩選及延遲回應不得把編輯套到其他 record；凍結區不能遮住 editor、選單或鍵盤焦點。大量資料以分頁／虛擬化保持流暢。
 
-多筆資料共用檔案，保留每筆 identity、說明、binding 與相依關係。引用位置保有可讀值；完整匯出保存重建所需的結構及定位。
+## 6. Data Authority、工作檔案與恢復
 
-### 6.4 按需匯出與 Fallback checkpoint
+### 6.1 同一資料夾共同編輯
 
-App 的階層瀏覽可完全來自 DB。需要帶走筆記、資料夾或 records 時，按需實體化 Markdown，顯示位置並提供檔案總管／平台檔案分享入口。
+Markdown 是已保存原文權威；正常原文保存不等待語法完整或整庫備份。Grasp 與 Obsidian 可交替修改同一工作資料夾，外部修改、移檔、改名、刪除均可辨識。關閉 Grasp 時結束後端，重開自動處理期間變動。未完成語法保存來源及診斷，不以舊內容覆寫。
 
-另以適當 checkpoint 留下可獨立閱讀、以 Obsidian 開啟及供 Grasp 重建的完整 Markdown。介面標示最後成功時間、資料版本及失敗／落後狀態。Fallback 在 App 故障時必須已有可用資料，不能只依賴故障後再啟動 App 匯出。
+SQLite 保存索引、計算結果、版本基底、草稿及恢復日誌；草稿與日誌不當成可任意清除的快取。身分與檔案路徑分離，必要 ID、schema、成員對應放 YAML frontmatter，保留使用者 metadata。普通 Markdown 沒有 Grasp metadata 仍可開啟，不因掃描就重寫整庫。
 
-兩個用途共用匯出策略與格式，不要求使用者管理兩套同義的完整文件樹。更新頻率、保留政策與可接受落後窗口由已接受的計畫及實測決定。
+既有 DB-only workspace 遷移到新資料夾並核對，原資料保留；新行為必須經實作驗證，不以文件接受代替完成。
 
-### 6.5 匯回與還原
+### 6.2 外部變動與身分
 
-外部修改 rendered value、binding、identifier 或一般正文，是不同類型的變更；匯入審查應呈現其實際影響。
+保存內容、來源路徑、metadata、可辨識關係及附件對照，未知語法保留原文。重複 ID、身分配對不唯一或共同基底缺失時，不無聲合併或覆寫；呈現需處理的衝突。
 
-單篇匯出首先滿足可讀與交換；完整 fallback 承諾恢復約定的內容、身分、bindings、依賴、匯出策略及附件。可讀、可導航、可重建是分開驗證的成果。
+來源變更與 Grasp 自己的回寫須可區分，避免更新循環。部分跨檔修改中斷後能恢復，已完成與待處理結果分開顯示。
+
+### 6.3 工作檔案分組
+
+策略是可保存、可編輯的結構資料，描述成員、順序、路徑、呈現與定位。實際套用可合併／拆分工作檔案，不僅是備份時改版面。預覽未知／漏分配／重複成員、路徑衝突、過期方案、metadata 及連結影響。
+
+合併保留每筆 ID、原 metadata、bindings、附件與定位；Grasp 仍辨識多筆，Obsidian 可視為一篇實體筆記。可可靠辨識的普通連結及 Grasp 引用更新到相應位置，未知連結列出限制。刪除舊檔前，先驗證新檔、連結更新與恢復材料；不把整理等同不可回復的刪除。
+
+### 6.4 備份與 Fallback checkpoint
+
+工作資料本身可在 App 外閱讀。另以手動備份及自動 checkpoint 留下獨立完整版本：有變更時每五分鐘啟動一次，正常關閉前補做，保留最近三份完整版本；頻率與保留數可設定。這是備份排程，不是日常保存延遲，也不保證每次備份零耗時。
+
+固定快照輸出新 generation，包含 Markdown、附件、身分、schema、解析設定、分組策略及必要草稿／恢復狀態；草稿與已接受內容分開。完整驗證後發布完成標記，失敗或取消保留上次成功版本。
+
+介面顯示最後成功時間、資料版本、進度、落後及缺件。App 故障時仍有已完成的可讀備份，不能依賴故障後啟動 App 才匯出。
+
+### 6.5 還原
+
+預設建立新 workspace，核對內容、身分、bindings、relations、策略、附件及必要狀態後才開啟，不覆寫目前資料。可讀、可導航、可重建分開驗證；遇到不相容格式或缺件時保留資料及診斷。
 
 [返回 Interface](#interface目標需求與重要界線)
 
@@ -231,7 +249,7 @@ Grasp 擁有自己的 identity、binding、reference、value、change 與 projec
 
 筆記庫、設定及可合理攜帶的使用者狀態可隨 workspace 帶走；App binary、compiler 與 runtime 可安裝於電腦。帳號 session 能否跨機續用須個別驗證。
 
-自由度與資料主權至少對標 Obsidian：資料位置由使用者控制，核心本機工作不依賴強制雲端帳號；資料可取得、可讀及可恢復。這與既有 DB runtime authority 並存，Markdown export／fallback 仍須完成，不能只因提供 Portable executable 就宣稱資料可攜已達標。正式安裝若非執行環境或功能必要，不將其作為啟動前提；優先評估 Portable 目錄發布，首版先方便目前 Windows PC 試用。
+自由度與資料主權至少對標 Obsidian：資料位置由使用者控制，核心本機工作不依賴強制雲端帳號；資料可取得、可讀及可恢復。Markdown 工作檔案、備份及還原共同承擔資料可攜，不能只因提供 Portable executable 就宣稱達標。正式安裝若非執行環境或功能必要，不將其作為啟動前提；優先評估 Portable 目錄發布，首版先方便目前 Windows PC 試用。
 
 iPhone／iPad 的目標是完整本機 App Runtime 與離線資料。跨裝置同步優先採成熟儲存／同步服務，Grasp 處理自己需要的版本、衝突與一致套用語義。Provider、同步格式及平台實作由後續計畫確認。
 
@@ -239,7 +257,7 @@ Workspace 在支援的目標 filesystem 上可攜帶，並能在寫入中斷後�
 
 ## 11. 外部匯出策略協作
 
-App 提供匯出規劃資料及結構化策略的匯入接面。使用者或外部 AI 可審視資料後，協助決定哪些 DB rows 共用 Markdown；App 負責解析、驗證、預覽、接受與保存策略。
+App 提供工作檔案分組規劃資料及結構化策略接面。使用者或外部 AI 可審視資料後，協助決定哪些獨立 records／notes 共用 Markdown；App 負責解析、驗證、預覽、接受與保存策略。
 
 Contract 須能表達資料身分、基底版本、提供的審視範圍、成員及輸出配置；未知成員、漏分配、重複分配、路徑衝突與過期提案須可識別。提出方案的自然語言理由可供人閱讀，執行部分必須是結構化資料。
 
@@ -252,9 +270,11 @@ Contract 須能表達資料身分、基底版本、提供的審視範圍、成�
 1. 可啟動、開啟 workspace、正常中文寫作、閱讀與導航；從實際畫面完成操作。
 2. 正文 reference 保存 identifier 與可讀值；binding 保存 raw literals、串接順序與 dependencies，且不要求固定 placement。
 3. 共享修改後，受影響資料與引用值一致；missing／cycle／stale 可觀察並保持資料。
-4. 原始資料經確定性匯入、保存及重啟後保持內容與來源對照。
-5. 使用者能審查／調整匯出策略；獨立 rows 可共用檔案而不失去 identity。
+4. Grasp／Obsidian 交替編輯、保存及重啟後保持內容、身分與來源對照，衝突不丟資料。
+5. 使用者能審查／調整分組策略；獨立 rows 可實際合併／拆分檔案而不失去 identity。
 6. 匯出資料可在 App 外直接取得及閱讀；完整 fallback 可重建內容、關係和必要狀態。
 7. Literal、delimiter pairing／autocomplete、escaping、LF／CRLF、首尾空白／換行及宿主 context 在保存與往返交換後保有正確內容與資料含義。
 8. 功能由清楚的模組完成，替換點及 debug 入口可理解。
 9. 真實資料及預期成長規模下，Excel 類型的高互動依賴關係、UI 流暢度與效能餘裕達成第 8 節要求。
+
+10. Records 的所有已選欄位、單／多關聯、自動屬性、縱向 Markdown、凍結行列與多 views 可操作，且外部編輯及還原後內容／身分一致。

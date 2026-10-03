@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.10
-updated: 2026-10-03
+version: 1.0.0-rc.11
+updated: 2026-10-04
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.9.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.10.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -27,7 +27,7 @@ Note 的正文 Reference、可自然分布於 Note 各處的 Binding 語法區�
 
 一般技術 HOW 由執行者依實務品質、成本與產品適合度決定；只有會改變當前決策或驗收結果時才補充研究、測試或量測。會改變資料含義、使用者工作流或造成不可逆影響的選擇，先以具體案例交由使用者裁定。
 
-[語法方法](#4-bindingreference-的實作方法) · [資料流程](#5-database-first-runtime-與資料交換) · [驗證](#11-correctness-and-data-safety) · [交付](#13-goal-deliverables)
+[語法方法](#4-bindingreference-的實作方法) · [資料流程](#5-markdown-工作資料與恢復) · [驗證](#11-correctness-and-data-safety) · [交付](#13-goal-deliverables)
 
 ## 1. Goal-driven Development
 
@@ -99,17 +99,15 @@ Raw literal marker 不容易手打，因此 Editor 應提供 paired-delimiter au
 
 舊稿的 forms、comment context、RHS 規則或 update policy，只有在本次已接受的決策仍適用時才沿用。歷史讀取／轉換 adapter 與新版可撰寫的語法分開。
 
-## 5. Database-first Runtime 與資料交換
+## 5. Markdown 工作資料與恢復
 
-Grasp workspace 的 DB 是 runtime authority。正式切換前，日用 Obsidian Vault 與 Grasp 測試副本各自有明確資料歸屬，交換經審查。
+以現行 Seed 的資料權威為準：Markdown 是已保存原文，SQLite 承載索引、計算、版本基底、durable drafts 與恢復日誌。草稿與日誌不是可任意丟棄的快取；改寫來源前核對共同基底，任何失敗都不能把新原文替換成舊成功結果。
 
-MainVault → DB 使用確定性搬運，逐筆保存內容、路徑、metadata、可解析關係與 lineage。小檔案各自成 row；匯出分組不作為匯入前置條件。
+檔案 watcher 提供線索，reconciliation 才核對真實來源。Grasp 回寫、外部引用值修改與普通編輯分開辨識；依現行產品政策自動接受一般外部修改，只對衝突／不明身分要求處理。資料庫短交易與跨檔恢復日誌分開驗證，不用 ACID 宣稱多檔同時原子更新。
 
-DB → Markdown 依保存的 Projection Strategy 分組輸出。使用者可編輯策略；外部協作只透過規劃資料與結構化策略接面。App 驗證 identity、基底版本、範圍、漏分配、重複、路徑衝突、過期提案與套用影響。
+工作檔案合併／拆分、Markdown table 轉縱向 records 及舊 DB workspace 遷移，先預覽並保留可恢復材料。已接受的來源／schema／屬性規則不可由 serializer 或表格 UI 自行重定義。
 
-按需匯出與 fallback checkpoint 共用 exporter 及重建語義。日常 DB 更新不要求逐次整庫 filesystem 發布。Checkpoint 政策根據使用者可接受的落後窗口與目標裝置實測決定；保留最後成功版本與中斷可恢復性。
-
-外部修改經 preview／validation／explicit apply。快取文字、binding、identifier 與普通正文分開識別，避免把一次局部文字修改誤當成整體定義更新。
+備份／checkpoint 使用固定快照及完整 generation；日常保存不等待備份。頻率、保留數及還原政策以 Seed／實作計畫的已接受設定實作，不再重問已定案的取捨。
 
 ## 6. Runtime Separation
 
@@ -157,11 +155,11 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 ## 11. Correctness and Data Safety
 
-驗證強度與變更風險相稱。資料語義、共享修改原子性、身份、外部 dirty 保護、fallback／recovery 等被本次變更觸及時，必須保留相應 correctness；未觸及的層面不因一般工程慣例自動擴張成完整測試矩陣。
+驗證強度與變更風險相稱。資料語義、DB 交易／跨檔恢復邊界、身份、外部 dirty 保護、fallback／recovery 等被本次變更觸及時，必須保留相應 correctness；未觸及的層面不因一般工程慣例自動擴張成完整測試矩陣。
 
 在已接受的程式沿用範圍內使用現有 tests 與可操作驗收；從零重寫時，沿用文件中的需求與有效反例，再驗證新的實作。新增測試只覆蓋本次新增／修改的 contract、已發現 regression 或具有實質資料風險的邊界。不得為了「證明測試本身可信」無限遞迴擴張測試工程；若驗證成本開始接近或超過產品改動本身，先重新判斷其決策價值。
 
-原始 MainVault 與指定 Source snapshot 保持唯讀；需要寫入的實驗使用獨立副本。私人資料、驗收 workspace 與大量生成 evidence 不進 Git。
+使用者指定 TestData 是可供測試的副本，依需求選適量樣本；工程預設把試驗放獨立 workspace 保留比較基線，不據此增加整庫測試。私人資料、驗收 workspace 與大量生成 evidence 不進 Git。Legacy1 不在日常搜尋範圍。
 
 ## 12. Authorized Goal Workflow
 
@@ -198,7 +196,9 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 主要 milestone 前後記錄實際可取得的 quota snapshot、來源、時間、window、差值、成果及 commit 關聯。只在同一額度窗口計算差值；帳戶總量不冒充單任務精確計費。無法讀值就記 unavailable，不估 token。
 
-正常高能力額度耗盡時停止實質工作，不改以 Luna／Reserve 繼續。工作中持續保存 checkpoint，使突然失去額度時仍可恢復；剩餘權限／額度允許時只做最低必要收尾，不保證零額度後還能跑完整驗證。記錄未完成、blocker、exact next step，等新的明確授權或正常續作條件。
+正常額度不足時依當次已授權政策處理。本次 Goal 已授權：正式回應確認正常額度耗盡後，才以正式支援介面使用可用重置券；同一邏輯重試沿用 idempotency key，兌換後重讀額度。不能把網路錯誤當耗盡，不購買額度、不自動降模型或切換 Reserve。監測僅服務本次 Goal，完成或使用者停止時一併結束。正式工具不可用或零額度後續跑未驗證時如實記錄，不繞過平台限制、不承諾必定自動恢復。
+
+每個工作段持續保存 checkpoint、驗證範圍及 exact next step，使突然失去額度時仍可恢復。Goal 只在完成條件成立時標 complete；阻礙時先推進不受影響工作，真正無法續作才按工具的阻礙規則處理。不自行暫停或以單次回合結束冒充完成。
 
 ## 13. Goal Deliverables
 

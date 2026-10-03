@@ -1,7 +1,7 @@
 ---
 title: GraspPortable — Development Environment
-version: 1.0.6
-updated: 2026-10-03
+version: 1.0.7
+updated: 2026-10-04
 scope: current-workspace-and-local-toolchain
 ---
 
@@ -44,7 +44,7 @@ Legacy1 的完整封存狀態依本輪使用者告知；僅確認根目錄有該
 
 起始檢查時，Windows SDK 的常見 Include 路徑及 registry locator 未回傳安裝版本；本輪已用實際 .NET 10 MAUI project 完成 Windows Release build／publish（0 warnings／errors），並啟動原生視窗、WebView2 與獨立 Host。這確認本機建置／啟動路徑，沒有宣稱 GUI 操作或移機部署通過。
 
-規劃起始尚無 solution、project、`global.json` 或 npm package；本輪已進入 S0–S1 實作，這項歷史觀測不代表現在仍未建立程式。工具鏈與套件以實際 restore／build 相容後鎖定；進度與驗證結果見 EXECUTION-STATE，部署邊界見[實作規劃](Implementation-Plan-v1.0.0-rc.6.md)。
+規劃起始尚無 solution、project、`global.json` 或 npm package；本輪已進入 S0–S1 實作，這項歷史觀測不代表現在仍未建立程式。工具鏈與套件以實際 restore／build 相容後鎖定；進度與驗證結果見 EXECUTION-STATE，部署邊界見[實作規劃](Implementation-Plan-v1.0.0-rc.7.md)。
 
 ## 日常使用
 
@@ -61,10 +61,10 @@ rg -n '要查的內容' GraspPortable/docs/Engineering
 
 已成功執行 `scripts/Build-FirstUI.ps1 -SkipTests`（必要 runners 已個別通過）及 `Start-GraspPortable.ps1`。最後一項 UI 修正後另重新 publish App；`global.json` 固定 SDK 10.0.401，MAUI packages 10.0.20、SQLite bundle 3.0.5，NuGet／npm locks 保留確切解析版本。詳見 [First UI](FirstUI-Quickstart.md) 與 [S1 Validation](S1-Validation.md)。
 
-一般 shell 與 node_repl 在本次 session 曾因 `helper_unknown_error: setup refresh had errors` 無法啟動。經受審核的 shell 執行已完成讀取、工具鏈與 Git 檢查；未變更 sandbox 設定。這是工具執行環境問題，不是 repository 故障或產品 build 失敗。一般 sandbox 路徑是否恢復，尚未確認。
+一般 shell 與 node_repl 在本次 session 曾因 `helper_unknown_error: setup refresh had errors` 無法啟動。經受審核的 shell 執行已完成讀取、工具鏈與 Git 檢查；未變更 sandbox 設定。這是工具執行環境問題，不是 repository 故障或產品 build 失敗。這是初次工程驗證時的歷史觀測；之後已取得實際 Windows 操作證據，見 S1 Validation。每次續作仍依工具當下回應確認可用表面，不沿用舊故障作為永久阻礙。
 
 ## 後續接手
 
-先讀根目錄 AGENTS.md 與[工作狀態](../EXECUTION-STATE.md)，再沿[Engineering 入口](README.md)取得現行計畫。使用者已明確授權 S0–S1；文件已同步接受基準，持續完成工具鏈、產品流程及必要驗證。S1 完成後停在使用者體驗，不自動開發 S2。
+先讀根目錄 AGENTS.md 與[工作狀態](../EXECUTION-STATE.md)，再沿[Engineering 入口](README.md)取得現行計畫。使用者於 2026-10-04 已授權以同一 Goal 持續完成 P0–S4、自行 commit／push；不在 S1 停止。現有 DB-based FirstUI 與目標 Markdown 工作資料夾契約分開，依實際完成證據更新交付。
 
-指定實驗資料來源為 Workspace "TestData/MainVault-Source" 的 Obsidian Vault（使用者本輪明確授權）。只能按具體缺口少量唯讀選取／複製至忽略的測試區，不修改原件、不將私人內容 commit，也不擴張 Legacy1 搜尋或完整 S2 匯入。
+指定實驗資料來源為 Workspace "TestData/MainVault-Source" 的 Obsidian Vault（使用者本輪明確授權）。使用者確認此來源已是測試副本，可按需求取用適量資料；工程預設在獨立忽略 workspace 實驗，保留比較基線。依具體缺口擴樣，不過度測試多餘資料；私人內容不 commit，Legacy1 搜尋仍排除。

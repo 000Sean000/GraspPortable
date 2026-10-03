@@ -12,6 +12,7 @@ public static class GraspParser
         var definitions = new List<Definition>();
         var references = new List<ParsedReference>();
         var diagnostics = new List<ParseDiagnostic>();
+        var regions = new List<ParsedRegion>();
         var frontmatterEnd = FrontmatterEnd(source);
         cancellationToken.ThrowIfCancellationRequested();
         foreach (var context in MarkdownContextScanner.Scan(source, enabledFenceLanguages, frontmatterEnd, cancellationToken))
@@ -24,7 +25,10 @@ public static class GraspParser
                 if (source.AsSpan(at, context.End - at).StartsWith("@code{", StringComparison.Ordinal)
                     && (at == context.Start || !SyntaxCharacters.IsNamePart(source[at - 1])))
                 {
+                    var start = at;
+                    var errorsBefore = diagnostics.Count;
                     ParseRegion(source, ref at, context.End, definitions, diagnostics, cancellationToken);
+                    regions.Add(new(SourceSpan.Between(start, at), diagnostics.Count == errorsBefore));
                     continue;
                 }
                 if (source[at] == '[')
@@ -50,7 +54,7 @@ public static class GraspParser
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var definition in definitions)
             if (!names.Add(definition.Name)) diagnostics.Add(new("duplicate", "同 namespace 的 identifier 不能重複定義。", definition.NameSpan));
-        return new(definitions, references, diagnostics);
+        return new(definitions, references, diagnostics, regions);
     }
 
     private static void ParseRegion(string source, ref int at, int end,

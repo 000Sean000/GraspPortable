@@ -1,15 +1,15 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.8
-updated: 2026-10-03
+version: 1.0.0-rc.9
+updated: 2026-10-04
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.7.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.8.md
 ---
 
 ## 執行目標
 
-將 GraspPortable 組織成責任、資料歸屬、公開接面與依賴可直接查明的模組。優先完成重要主幹及其必要驗證；非主幹可保持 `WAITING_FOR_IMPLEMENTATION`，且不妨礙已承諾的主幹流程。
+將 GraspPortable 組織成責任、資料歸屬、公開接面與依賴可直接查明的模組。優先完成當次 Goal 已接受的主幹及必要驗證；本次 Records／表格亦屬 S4 完成條件，不能因歷史上屬後期而省略。未納入當次 Goal 的模組可保持 `WAITING_FOR_IMPLEMENTATION`。
 
 讓不依賴指定本機或裝置的工作能在 Cloud 接續。為每個模組維護 Importance、Status、Environment、Agent 四個獨立維度，分別安排開發順序、實作狀態、執行環境與 agent 能力。
 
@@ -41,7 +41,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.7.md
 
 採公開接面直接協作時，記錄實際依賴；interface 依賴仍屬模組間依賴。若已接受的契約要求 Component 完全解耦，進一步移除跨 Component 的直接型別與 interface 依賴，採事件及最小 Shared Kernel 協作。依可替換性、停用需求與維護成本決定所需程度。
 
-維持既定資料含義、共享修改原子性與持久化契約。協作方式若會改變這些語義，先處理相應的重大決策。
+維持既定資料含義、資料庫內交易及跨檔可恢復提交契約；區分兩者，不把多檔寫入描述為單一 ACID 交易。協作方式若會改變這些語義，先處理相應的重大決策。
 
 ### 自主選擇模組內部方法
 
@@ -51,7 +51,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.7.md
 
 以功能責任和 use case 作第一層導航，模組內才按實際需要分 Public、Model、Ports 或 adapters。不強制加上 Contexts／Features／UserInterface 包裝層；同一功能的 Razor、樣式、ViewModel、editor adapter 儘量相鄰，共用 transport／platform／組裝才集中。
 
-S1 四個產品 projects 為 App、Host、Core、Contracts，具體依賴由產品架構維護。Core 內公開接面位於 owner 的 Public 區，與程序間 wire Contracts 分開。同 assembly 的 namespace 不是編譯隔離，使用少量有意義的依賴檢查維護禁止引用。
+S1–S4 四個產品 projects 為 App、Host、Core、Contracts，具體依賴由產品架構維護。Core 內公開接面位於 owner 的 Public 區，與程序間 wire Contracts 分開。同 assembly 的 namespace 不是編譯隔離，使用少量有意義的依賴檢查維護禁止引用。
 
 開始寫程式前須固定程序／資料權威／交易／依賴方向／公開接面及第一條流程；不需先決定每個 class、子資料夾或未來 module。只建立正在使用的目錄與抽象，不做 interface-per-class。目錄可在同一責任內移動；跨 owner、project 或資料權威的移動須重查依賴及驗收。實際出現獨立重用、建置或測試摩擦時，再抽出 project。
 

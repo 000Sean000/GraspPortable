@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Binding Syntax and Parsing Policy Review
-version: 1.0.0-rc.4
-updated: 2026-10-03
+version: 1.0.0-rc.5
+updated: 2026-10-04
 status: accepted-s1-syntax-profile
 scope: binding-syntax-markdown-policy-and-parser-replaceability
-supersedes: Binding-Syntax-Review-v1.0.0-rc.3.md
+supersedes: Binding-Syntax-Review-v1.0.0-rc.4.md
 ---
 
 ## 結論與決策狀態
@@ -13,7 +13,7 @@ supersedes: Binding-Syntax-Review-v1.0.0-rc.3.md
 
 已確認需用可設定的 code block 語言清單控制 Grasp parsing：未標語言及 grasp 啟用，json／grasp-demo 預設停用。Parser 要容易維護與替換 syntax。原先分號、允許點號兩側空白、強迫用多行隔開首尾 pipe 的建議均已撤回。
 
-使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；S1 已整體接受 rc.3 的精確邊界補充；rc.4 同步接受狀態及 reference／context 明確化。外層沿用使用者原提案 @code{ ... }；保留容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.6.md)。
+使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；S1 已整體接受 rc.3 的精確邊界補充；rc.4 同步接受狀態及 reference／context 明確化；rc.5 更新現行路由與 Records 原文解析邊界，未更換 syntax profile。外層沿用使用者原提案 @code{ ... }；保留容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.7.md)。
 
 ## 1. 已接受的組合外觀
 
@@ -234,12 +234,15 @@ Source ranges 以 .NET／JS 一致的 UTF-16 offset、raw source revision 定義
 
 ## 8. 錯誤、即時更新與有界驗證
 
-退出編輯立即 flush 最後有效文字並觸發更新，不等 idle debounce；IME composition 正常結束後送出最终 snapshot。錯誤或未閉合只存可恢復 draft，不发布部分 definitions，不把 last committed 值標為最新成功。完整語法的 missing／cycle 按既有契約保存帶診斷 committed state。Note source 與所有受影響 bindings／results／reference caches 仍按計畫原子提交。
+退出編輯立即 flush 最後有效文字並觸發更新，不等 idle debounce；IME composition 正常結束後送出最终 snapshot。錯誤或未閉合保留最新原文及可恢復 draft，不發布部分 definitions，不把 last committed 值標為最新成功。完整語法的 missing／cycle 保存帶診斷 state。S2 起原文保存、語意接受及跨檔回寫按現行架構分開追蹤：DB 內短交易與檔案 journal／guards 各自驗證，不宣稱 Note source 與所有引用檔案同時 ACID 提交。
 
-使用者已授權 S1 實作；實際完成與驗證結果以 EXECUTION-STATE 為準。使用一個小型 table-driven fixture 集：兩筆無分號定義／缺 operand、ASCII／dot whitespace、pipe、brace／backslash、empty／多行 padding、四種使用者指定 fence、disabled 外層、未閉合、政策切換與 round-trip。數量隨具體反例增加，不做無限 syntax 組合測試。S1 從 UI 操作同組核心例子並重啟，確認展示區沒有意外建立資料。
+使用者已授權 P0–S4 實作；語法沿用已接受 profile，實際完成與驗證結果以 EXECUTION-STATE 為準。使用一個小型 table-driven fixture 集：兩筆無分號定義／缺 operand、ASCII／dot whitespace、pipe、brace／backslash、empty／多行 padding、四種使用者指定 fence、disabled 外層、未閉合、政策切換與 round-trip。數量隨具體反例增加，不做無限 syntax 組合測試。S1 從 UI 操作同組核心例子並重啟，確認展示區沒有意外建立資料。
 
 ## 9. 接受狀態與維護
 
-2026-10-03 使用者已整體接受 rc.3 profile，並明確授權實作 S0–S1；ASCII／大小寫、點號無空白、@ 左側、無分號、外層 @code、marker 疊層、空值、局部 escape／raw block、code fence allowlist 均不再重問。本文 rc.4 保存該 profile 及實作前必要的 reference／宿主掃描明確化，不新增另一套可寫語法。
+2026-10-03 使用者已整體接受 rc.3 profile，並明確授權實作 S0–S1；ASCII／大小寫、點號無空白、@ 左側、無分號、外層 @code、marker 疊層、空值、局部 escape／raw block、code fence allowlist 均不再重問。本文 rc.5 沿用該 profile 與 reference／宿主掃描明確化，同步 Markdown authority 及 Records 原文邊界，不新增另一套手寫語法。
 
-實作、必要驗證與使用者接受分開記錄。若新反例會改變同一原文的產品含義，先提出精確 input／expected value 與最小調整；普通 codec 結構、錯誤復原與測試安排由工程自行處理。S1 完成後停在使用者體驗，不自動擴張後期語言能力。
+實作、必要驗證與使用者接受分開記錄。若新反例會改變同一原文的產品含義，先提出精確 input／expected value 與最小調整；普通 codec 結構、錯誤復原與測試安排由工程自行處理。當前 Goal 接續至 S4；新增 Records 屬性投影不授權任意程式執行或另造一般求值語言。
+## Records 的原文解析邊界
+
+S4 自動屬性是來源為欄位正文的 definition，名稱為 `RecordKey.FieldKey`，不是另一套手寫 binding 語法。欄位原始 Markdown 依本文件的 context／policy 解析，reference 相依參與欄位結果；求值輸出、literal 或 cache 不重新掃描。屬性 serializer 回寫原欄位正文，不能套用 literal marker serializer；格式與型別規則由現行 Seed／Architecture 維護。

@@ -259,6 +259,20 @@ Check("incremental missing target and dependency replacement update descendants"
     foreach (var pair in DependencyEvaluator.Evaluate(replaced).Values) Equal(pair.Value, second.Values[pair.Key]);
     True(ReferenceEquals(first.Values["Stable"], second.Values["Stable"]));
 });
+Check("authoritative regions preserve raw UTF16 ranges and host exclusions", () =>
+{
+    var source = "😀 before\r\n@code{ @A = {text} }\r\n```json\r\n@code{ @Hidden = {x} }\r\n```\r\n`@code{}`\r\n[@code{ @Fake = {x} }](:ref:A)\r\n@code{}";
+    var parsed = Parse(source);
+    True(parsed.IsValid);
+    Equal(2, parsed.Regions!.Count);
+    Equal("@code{ @A = {text} }", source.Substring(parsed.Regions[0].Span.Start, parsed.Regions[0].Span.Length));
+    Equal("@code{}", source.Substring(parsed.Regions[1].Span.Start, parsed.Regions[1].Span.Length));
+    True(parsed.Regions.All(r => r.IsComplete));
+    var partial = Parse("@code{ @Pending = {");
+    Equal(1, partial.Regions!.Count);
+    True(!partial.Regions[0].IsComplete);
+    Equal(0, partial.Definitions.Count);
+});
 Check("deep chain and wide fanout bounded stress", () =>
 {
     foreach (var fanout in new[] { false, true })
