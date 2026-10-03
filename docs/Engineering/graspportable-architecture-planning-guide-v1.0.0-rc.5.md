@@ -1,10 +1,10 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.4
-updated: 2026-10-02
+version: 1.0.0-rc.5
+updated: 2026-10-03
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.3.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.4.md
 ---
 
 ## 執行目標
@@ -80,7 +80,7 @@ supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.3.md
 
 ### 1. 恢復當前工作
 
-讀取 `docs/Project_Seed/README.md` 路由的現行需求與開發方法、已接受的 Plan、適用的 repo instructions，以及 `docs/EXECUTION-STATE.md`。依任務需要讀取 `ARCHITECTURE.md`、`docs/DECISIONS.md` 與相關 source／tests，核對基底、有效決策及在製變更。
+讀取 `docs/Project_Seed/README.md` 路由的現行產品需求，以及 `docs/Engineering/README.md` 路由的開發方法、已接受的 Plan、適用的 repo instructions，以及 `docs/EXECUTION-STATE.md`。依任務需要讀取 `ARCHITECTURE.md`、`docs/DECISIONS.md` 與相關 source／tests，核對基底、有效決策及在製變更。
 
 形成足以支援當次 Goal 的模組邊界、責任摘要與四維分類，再進入相應工作。
 

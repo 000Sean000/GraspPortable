@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Prototype Reference Index
-version: 1.0.0
+version: 1.1.0
 updated: 2026-10-03
 scope: historical-knowledge-and-evidence
 ---
@@ -9,7 +9,9 @@ scope: historical-knowledge-and-evidence
 
 此處供新版規劃查考既有語義、反例與實測結果。现行需求见 [Project Seed](../Project_Seed/README.md)，当前授權见 [重寫狀態](../EXECUTION-STATE.md)。
 
-所有副本來自 [Prototype 固定來源](https://github.com/000Sean000/GraspPortable/tree/5ca1373dca91e16d9e161de498bf8fcaebac1031/)，保留原文內容並補上歷史定位；相對 Markdown 連結指回同一固定來源，方便查閱未搬入的舊背景。這些連結不導入新版工作授權。
+[最早可查來源](Originals/README.md) 另存兩份 rc.1 原文，並列明首次入庫 commit 與來源限制。
+
+以下 Prototype 副本來自 [Prototype 固定來源](https://github.com/000Sean000/GraspPortable/tree/5ca1373dca91e16d9e161de498bf8fcaebac1031/)，保留原文內容並補上歷史定位；相對 Markdown 連結指回同一固定來源，方便查閱未搬入的舊背景。這些連結不導入新版工作授權。
 
 | 文件 | 查考價值 |
 | --- | --- |

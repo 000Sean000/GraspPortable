@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.4
-updated: 2026-10-02
+version: 1.0.0-rc.5
+updated: 2026-10-03
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.3.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.4.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -13,7 +13,7 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.3.md
 
 現成工具無法同時滿足自然筆記、可追溯的值引用、集中資料管理及低負擔的跨工具使用。GraspPortable 以筆記為中心，讓人自然書寫，讓程式以明確結構維護資料；大量 identifiers 可以分別存在 DB 中，而不必各自占一個實體檔案。
 
-產品要降低使用者的管理與校正負擔。先取得完整可操作的成果，再依真實使用摩擦局部改善；模組可替換、問題可定位，比預先設計所有功能重要。
+產品要降低使用者的管理與校正負擔。
 
 ### 核心使用模型
 
@@ -22,15 +22,13 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.3.md
 3. Binding 使用 raw literal 與字串串接；literal 外的 identifier 代表取值，`+` 連接片段。Binding 的排版應容許不同習慣，例如 assignment operator 與 opening delimiter 可在同一行或跨行；排版空白不應被誤當成 logical value。
 4. Grasp 運作時以 DB 為 authority。使用者在 UI 修改共享 identifier／value，取得一致的共享結果、依賴與持久化引用值；實體 Markdown 依匯出或 checkpoint 產生。
 5. MainVault → DB 是確定性搬運；匯出策略才決定哪些獨立 rows 共用一份 Markdown。策略可由使用者編輯，或由外部協作者提出結構化方案後審查保存。
-6. 按需匯出與 fallback checkpoint 共用資料語義及 exporter。輸出須可讀，完整 fallback 須能重建身分、bindings、依賴及附件。
+6. 按需匯出與 fallback checkpoint 共用資料語義。輸出須可讀，完整 fallback 須能重建身分、bindings、依賴及附件。
 
-### 產品路徑與授權
+### 產品使用路徑
 
 使用者先繼續以 Obsidian／Obsidian Sync 日用，Grasp 以副本驗證；正式切換後，各裝置使用本機 DB。Mobile 的目標是裝置可獨立離線工作，再利用成熟雲端儲存／同步服務延續資料。
 
-本文件保存產品方向，不代表語法、平台或功能已驗證完成，也不自動授權實作。每次 Goal 以使用者接受的範圍及驗收結果為準。
-
-[正文與互動](#2-note-first-authoring) · [Reference](#3-identifier-與-reference) · [Binding](#4-binding-與-value-sync) · [資料與匯出](#6-data-authority-與-markdown-交換) · [完成判準](#13-完成判準)
+[正文與互動](#2-note-first-authoring) · [Reference](#3-identifier-與-reference) · [Binding](#4-binding-與-value-sync) · [資料與匯出](#6-data-authority-與-markdown-交換) · [完成判準](#12-完成判準)
 
 ## 1. 產品定位
 
@@ -56,7 +54,7 @@ Source、Live Preview、Reading View 分別服務完整原文編輯、同區編�
 
 長期導航提供可展開／收合且保留父層與兄弟項脈絡的階層、搜尋及前後導覽。側邊欄有清楚的捲動與空間分工；放大字體、125%／150% zoom 或縮窄視窗後，主要操作仍可讀、可用。
 
-小型編輯優先在目標附近進行。高影響變更以能理解影響範圍的審查介面處理。個別 Goal 可先完成阻擋當次流程的部分，再分期完成整體 UX。
+小型編輯優先在目標附近進行。高影響變更以能理解影響範圍的審查介面處理。
 
 ## 3. Identifier 與 Reference
 
@@ -238,15 +236,9 @@ App Runtime 涵蓋筆記編輯／閱讀、binding／reference、value sync、查
 
 GraspPortable 的效能要求以使用者可感知的互動品質為主：一般寫作、選取、導航、搜尋、切換視圖與其他無關操作，不應被長時間背景工作不必要地阻塞。大型計算、匯出、checkpoint 或重建可以較久，但應與互動路徑適當隔離並提供可理解的狀態。
 
-具體延遲門檻由當前產品 UX contract 或 Goal 定義。只需要足以判斷是否達成該 contract 的驗證；benchmark、profiling、synthetic workload、重複 trial 與細部 attribution 都是 task-specific HOW，不是 Core Requirement 的固定前置工作。
-
-當產品 workload、平台方向、維護成本或既有事實已足以支持重新比較 architecture／technology 時，可直接評估候選方案；不要求先完整證明現行 implementation 的每個 hotspot。
-
 ## 9. Replaceability Requirement
 
 Grasp 擁有自己的 identity、binding、reference、value、change 與 projection contracts。Editor、binding parser／evaluator、計算、persistence、exporter、匯出策略介面與 platform host，須有可測試、可局部替換的責任邊界。
-
-第三方型別留在 adapter。替換是否便宜，依實際影響面與資料遷移成本判斷，不以 interface 數量判斷。
 
 ## 10. Portability 與跨裝置延續
 
@@ -264,15 +256,9 @@ Contract 須能表達資料身分、基底版本、提供的審視範圍、成�
 
 日常編輯、搬運與匯出均由確定性程序完成。對外部協作者的選擇與操作留在 App 外，筆記匯出同樣可以交給一般工具使用。
 
-## 12. 需求與單次 Goal 的關係
+## 12. 完成判準
 
-本文件的產品範圍不等於單次 Goal 的工作量。每次先確認可操作成果、影響的 contracts、重要取捨及完成判準，再授權對應的實作段落。
-
-資料與語法方向的採用，不等於所有邊界已證明正確；需要改變同一合法資料含義的選擇，先以版本化範例討論。進度、實作現況及開放決策分別留在工作計畫／狀態文件。
-
-## 13. 完成判準
-
-個別 Goal 依已接受範圍驗證下列相關成果：
+產品完成判準：
 
 1. 可啟動、開啟 workspace、正常中文寫作、閱讀與導航；從實際畫面完成操作。
 2. 正文 reference 保存 identifier 與可讀值；binding 保存 raw literals、串接順序與 dependencies，且不要求固定 placement。
@@ -281,7 +267,4 @@ Contract 須能表達資料身分、基底版本、提供的審視範圍、成�
 5. 使用者能審查／調整匯出策略；獨立 rows 可共用檔案而不失去 identity。
 6. 匯出資料可在 App 外直接取得及閱讀；完整 fallback 可重建內容、關係和必要狀態。
 7. Literal、delimiter pairing／autocomplete、escaping、LF／CRLF、首尾空白／換行及宿主 context 有精確 round-trip 案例。
-8. 效能與平台結果只陳述實際確認範圍；未確認部分明示。
-9. 功能由清楚的模組完成，替換點及 debug 入口可理解。
-
-產品已做出、測試已通過、使用者已接受，是不同狀態。
+8. 功能由清楚的模組完成，替換點及 debug 入口可理解。

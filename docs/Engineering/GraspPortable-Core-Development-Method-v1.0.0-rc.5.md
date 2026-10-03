@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.4
-updated: 2026-10-02
+version: 1.0.0-rc.5
+updated: 2026-10-03
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.3.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.4.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -13,7 +13,7 @@ supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.3.md
 
 依 Core Requirements 的 WHY、產品行為與已接受的 scope，將使用者的心力集中在重要取捨，將已授權的工程工作交由 Codex 持續完成。
 
-Project Seed 的目前文件組合由本目錄 README 集中指定。Seed 是目標與方法，不是 implementation report，也不自動授權開工。
+產品 WHAT／WHY 由 [Project Seed](../Project_Seed/README.md) 指定；開發方法與架構規劃由 [Engineering 入口](README.md) 指定。本文件承載 HOW；當前授權與交付範圍見 [工作狀態](../EXECUTION-STATE.md)。
 
 ### 工作模式
 
@@ -180,7 +180,7 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 交付前方只提供立即可操作的資訊：啟動方式、驗收 workspace、已完成流程、實測結果、已知限制及最後 checkpoint。
 
-Repo 內保留 source、真正需要的 tests、短 architecture／debug map 與 decision log；benchmark 只在實際服務當前產品判斷時保留。可改名的核心文件由 Seed 入口集中路由；歷史報告仍描述其原始版本，不冒充新行為證據。
+Repo 內保留 source、真正需要的 tests、短 architecture／debug map 與 decision log；benchmark 只在實際服務當前產品判斷時保留。需求文件由 Seed 入口路由，方法與架構文件由 Engineering 入口路由；歷史報告仍描述其原始版本，不冒充新行為證據。
 
 匯出／檔案工作需明示實際資料夾、取得檔案方式及 fallback 的時間／資料版本。每個未驗證平台或 GUI 步驟都有清楚狀態，避免使用者在複雜 scratch 路徑自行找成品。
 
@@ -188,6 +188,56 @@ Repo 內保留 source、真正需要的 tests、短 architecture／debug map 與
 
 使用者實際操作 → 指出具體摩擦 → 定位責任模組 → 接受下一段改進 → 實作驗證，是持續迭代的主流程。
 
-測試通過與使用者接受分開記錄。Seed 更新只保存新目標／方法；不改寫歷史測試結果，也不宣稱 App 已經實作新的資料契約。
+測試通過與使用者接受分開記錄。Seed 更新只保存產品需求與 WHY；方法更新保存在 Engineering；不改寫歷史測試結果，也不宣稱 App 已經實作新的資料契約。
 
 [返回 Interface](#interfaceplan-先確認方向goal-再完成實作)
+
+## 從 Core Requirements rc.4 移入的工作規則
+
+本次只調整文件歸屬。下列原文保留供查核；其中重複的產品語句仍以現行 Seed 為準，當前授權以工作狀態及使用者決策為準。
+
+### WHY 後的開發次序
+
+產品要降低使用者的管理與校正負擔。先取得完整可操作的成果，再依真實使用摩擦局部改善；模組可替換、問題可定位，比預先設計所有功能重要。
+
+### 共用 exporter
+
+按需匯出與 fallback checkpoint 共用資料語義及 exporter。
+
+### 需求與授權
+
+本文件保存產品方向，不代表語法、平台或功能已驗證完成，也不自動授權實作。每次 Goal 以使用者接受的範圍及驗收結果為準。
+
+### UX 分期
+
+個別 Goal 可先完成阻擋當次流程的部分，再分期完成整體 UX。
+
+### 效能驗證方法
+
+具體延遲門檻由當前產品 UX contract 或 Goal 定義。只需要足以判斷是否達成該 contract 的驗證；benchmark、profiling、synthetic workload、重複 trial 與細部 attribution 都是 task-specific HOW，不是 Core Requirement 的固定前置工作。
+
+當產品 workload、平台方向、維護成本或既有事實已足以支持重新比較 architecture／technology 時，可直接評估候選方案；不要求先完整證明現行 implementation 的每個 hotspot。
+
+### Adapter 方法
+
+第三方型別留在 adapter。替換是否便宜，依實際影響面與資料遷移成本判斷，不以 interface 數量判斷。
+
+### Goal 工作方法
+
+## 12. 需求與單次 Goal 的關係
+
+本文件的產品範圍不等於單次 Goal 的工作量。每次先確認可操作成果、影響的 contracts、重要取捨及完成判準，再授權對應的實作段落。
+
+資料與語法方向的採用，不等於所有邊界已證明正確；需要改變同一合法資料含義的選擇，先以版本化範例討論。進度、實作現況及開放決策分別留在工作計畫／狀態文件。
+
+### 驗收範圍管理
+
+個別 Goal 依已接受範圍驗證下列相關成果：
+
+### 平台與效能報告規則
+
+8. 效能與平台結果只陳述實際確認範圍；未確認部分明示。
+
+### 交付狀態判讀
+
+產品已做出、測試已通過、使用者已接受，是不同狀態。
