@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Development Environment
-version: 1.0.0
+version: 1.0.4
 updated: 2026-10-03
 scope: current-workspace-and-local-toolchain
 ---
@@ -17,7 +17,7 @@ Workspace 保持 `C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\Gra
 | Branch／upstream | `rewrite/dotnet`／`origin/rewrite/dotnet` |
 | HEAD／遠端當下 branch SHA | `0e08a4899647ee8d5f10b9cc21af9848eedcaba5`；`git ls-remote` 核對相同 |
 | 開始時狀態 | `git status --porcelain=v1 --untracked-files=all` 無輸出，工作目錄乾淨 |
-| 本輪結束狀態 | 新增／更新 Engineering 規劃、環境文件及兩個入口、EXECUTION-STATE；未 stage／commit／push。精確清單以 `git -C GraspPortable status --short` 為準 |
+| 初始化後的狀態 | 初次交付時為 5 份未提交文件；後續已見本機 commit `43b0828` 保存。平台／決策澄清接手時乾淨、ahead 1；目前精確變更以 `git -C GraspPortable status --short` 為準 |
 | Git hooks | 未設定有效 `core.hooksPath`；repository `.git/hooks` 未見非 sample 檔案 |
 
 Workspace 根目錄及可適用的父層未找到既有 AGENTS.md；新 repository 內也未找到較深層 AGENTS.md。已建立 **Workspace 根目錄的 `AGENTS.md`**，明確記錄目錄角色、日常搜尋僅指定 `GraspPortable/`、查 Workspace 設定只讀根目錄相關檔案，以及 Legacy1 歷史指示不適用新版。根目錄 AGENTS.md **位於此 repository 外，不受其 Git 追蹤**。
@@ -44,7 +44,7 @@ Legacy1 的完整封存狀態依本輪使用者告知；僅確認根目錄有該
 
 Windows SDK 的常見 Include 路徑及 registry locator 未回傳安裝版本，本輪**未確認完整 Windows SDK／Windows App SDK build 相容性**。已有 MAUI workload 不能替代 build 驗證。批准 S0 後，以實際 .NET 10 MAUI project restore／build 診斷決定是否需要補裝；本輪不為取得 build 證據先生成產品程式。
 
-目前未有 solution、project、`global.json` 或 npm package。工具鏈已足以進入規劃並開始批准後的 S0；尚未確認所有 build prerequisites。沒有安裝、更新、移除 SDK／套件，也未還原舊 cache。具體套件版本在 S0 restore 相容後鎖定，部署候選見[實作規劃](Implementation-Plan-v1.0.0-rc.1.md)。
+目前未有 solution、project、`global.json` 或 npm package。工具鏈已足以進入規劃並開始批准後的 S0；尚未確認所有 build prerequisites。沒有安裝、更新、移除 SDK／套件，也未還原舊 cache。具體套件版本在 S0 restore 相容後鎖定，部署候選見[實作規劃](Implementation-Plan-v1.0.0-rc.5.md)。
 
 ## 日常使用
 

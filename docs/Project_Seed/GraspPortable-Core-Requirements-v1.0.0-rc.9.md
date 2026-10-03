@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.6
+version: 1.0.0-rc.9
 updated: 2026-10-03
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.5.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.8.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -17,7 +17,7 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.5.md
 
 ### 核心使用模型
 
-1. Note 是正常 Markdown；binding statement 可依使用者習慣寫在筆記中方便的位置，不要求固定 Binding 區、section、comment container 或專用 fenced block。Assignment 是 binding；真正 code 由另一個程式語言／compiler 層處理。
+1. Note 是正常 Markdown；binding 可依使用者習慣放在筆記中方便的位置，不要求固定 Binding section。最新外層語法草案為 `@code{ ... }`；已確認只有定義左側使用 `@Name =`，取值不加 `@`，不用分號。Literal 已選預設 `{value}`，依內容括弧 run 增加 marker 層數；value 原文優先保留，只有貼著 marker 的首尾括弧作局部 escape，精確定界補充仍待整體審閱，舊版「不允許要求 outer container」不再作本輪設計限制。Assignment 是 binding；真正程式仍由另一個 compiler／runtime 層處理。
 2. 正文使用兩種 managed reference：`[value](:ref:Identifier)` 與 `[[@Identifier|value]]`。每個引用保存 identifier 與可讀的 rendered／cached value。
 3. Binding 使用 raw literal 與字串串接；literal 外的 identifier 代表取值，`+` 連接片段。Binding 的排版應容許不同習慣，例如 assignment operator 與 opening delimiter 可在同一行或跨行；排版空白不應被誤當成 logical value。
 4. Grasp 運作時以 DB 為 authority。使用者在 UI 修改共享 identifier／value，取得一致的共享結果、依賴與持久化引用值；實體 Markdown 依匯出或 checkpoint 產生。
@@ -27,6 +27,8 @@ supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.5.md
 ### 產品使用路徑
 
 使用者先繼續以 Obsidian／Obsidian Sync 日用，Grasp 以副本驗證；正式切換後，各裝置使用本機 DB。Mobile 的目標是裝置可獨立離線工作，再利用成熟雲端儲存／同步服務延續資料。
+
+目標裝置至少包含 Windows PC，未來再嘗試擴充至 iPhone／iPad。Windows 是必要平台；mobile 是後續探索方向，不是首版同步交付承諾。
 
 [正文與互動](#2-note-first-authoring) · [Reference](#3-identifier-與-reference) · [Binding](#4-binding-與-value-sync) · [資料與匯出](#6-data-authority-與-markdown-交換) · [完成判準](#12-完成判準)
 
@@ -42,11 +44,11 @@ GraspPortable 結合 Markdown authoring、identifier／reference、value sync、
 
 一般正文直接寫成 Markdown。需要為 identifier 建立或修改 value／composition 時，binding statement 可以直接寫在當下最方便的位置；不要求先移到固定 Binding 區，也不要求使用者維護特定 section layout。
 
-Binding parser 依明確 syntax 辨識 statement，而不是依資料夾、heading、固定區域或 UI panel 判斷。真正 fenced code block 保留給真實程式語言、範例或一般 Markdown code；不因其中文字長得像 binding 就自動當成可維護 assignment。
+Binding parser 依明確 syntax 辨識 statement，而不是依資料夾、heading、固定區域或 UI panel 判斷。Fenced code block 是否解析由 workspace 可設定的語言清單決定：起始清單啟用未標語言及 `grasp`，停用 `json`、`grasp-demo` 及其他未列語言。停用區不建立定義、引用或相依，也不作共享值回寫，讓使用者可以安全展示 syntax；啟用仍須符合 Grasp grammar，不代表任意程式執行。
 
 Source、Live Preview、Reading View 分別服務完整原文編輯、同區編輯預覽、閱讀與直接操作。Obsidian 是主要互動參照；宿主呈現需以實際操作驗證。
 
-正文 inline reference 利用 Markdown link／wikilink 的 label 或 alias 顯示 value、弱化 identifier。Binding statement 本身可直接顯示供人閱讀編輯；不需要為視覺隱藏而強迫包進 comment 或特定 container。
+正文 inline reference 利用 Markdown link／wikilink 的 label 或 alias 顯示 value、弱化 identifier。Binding statement 本身可直接顯示供人閱讀編輯；`@code` 草案的目的是明確定界與自由排版，不是為了隱藏文字。
 
 ### 2.2 寫作、導航與可讀性
 
@@ -63,6 +65,8 @@ Source、Live Preview、Reading View 分別服務完整原文編輯、同區編�
 Identifier、binding、reference occurrence、value observation、resolved value 分開保存。程式能解析到某個 occurrence 的文字，不等於該來源取得定案或覆寫其他資料的權限。
 
 Canonical identity 與顯示名稱、資料夾位置、輸出檔案位置分開。Note、records、binding 與未來程式接面共享可追溯的 identity，而不是共享某套件的 AST 或資料庫 handle。
+
+Identifier 採經典 ASCII 子集：每個 segment 為 `[A-Za-z_][A-Za-z0-9_]*`，以 `.` 分 namespace，點號兩側不可有空白，大小寫敏感。`Person.Job` 合法，`Person . Job` 非法。它是容易辨識的 ID mark，不保證外部 AI 不解讀名稱語義，也不宣稱等同完整 C# 規則。整個 workspace 中，相同 namespace 的同名 identifier 只有一個 definition，不能跨 Note 再定義；不同 namespace 可有同 local name，例如 `Recipe.Fruit` 與 `Dessert.Fruit`。
 
 ### 3.2 正文 Reference 的兩種形式
 
@@ -102,6 +106,8 @@ UI 提供對共享 identifier／value 的語意操作，包括重新命名與從
 
 DB 內的共享更新與 filesystem 輸出分開：正常編輯完成，不表示必須立即發布整棵 Markdown 樹。
 
+修改應盡量像 Obsidian 一樣即時反映；至少退出編輯時，立即送出最終有效編輯並更新相依內容，不等待下一個 idle debounce。計算或保存尚未完成時明示 pending，不能把舊值標為最新成功；語法不完整則保留可恢復草稿並明示未套用。這是更新時機要求，不是承諾大型計算零耗時。
+
 [返回 Interface](#interface目標需求與重要界線)
 
 ## 4. Binding 與 Value Sync
@@ -110,69 +116,42 @@ DB 內的共享更新與 filesystem 輸出分開：正常編輯完成，不表�
 
 Assignment 是 binding：把 identifier 與 literal value 或 composition 連結。Note 中的 binding 由 App Runtime 解析與求值，使 desktop、iPhone／iPad 的日常筆記可使用同一組資料關係。
 
-Binding 沒有強制的專屬區塊。只要 statement 位於可解析的 Note context 並符合 grammar，就可成為 binding；使用者可依自己的閱讀與整理習慣放置。
+Binding 不要求集中於專屬 section。外層 `@code{ ... }` 區域是目前待確認草案，可分布於 Note 各處；它與「整篇只能有一個固定 Binding 區」不同。區域邊界定案前不開始 parser 實作。
 
-真正 code 屬真實程式語言及對應 compiler／runtime 的責任；binding 不因為可以組合字串，就等同一段任意可執行程式。Fenced code block 內的真正 code 或展示文字不由 binding parser 當作 assignment 執行。
+真正 code 屬真實程式語言及對應 compiler／runtime 的責任；binding 不因為可以組合字串，就等同一段任意可執行程式。Fenced code block 依第 2.1 節清單決定是否解析；停用的展示文字完全不參與 Grasp 資料關係。
 
 ### 4.2 已選的 Binding 表達方向
 
-以下只展示 binding statement 本身，不暗示需要外層 Binding 區或 container：
+已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，精確 lexical 邊界補充待整體審閱；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.3.md)維護。
 
-```text
-@Fruit = <|apple|>
-@Person.Job = <|doctor|>
-@Slogan = <|An |> + Fruit + <| a day, keeps |> + Person.Job + <| away.|>
-```
-
-同一個 assignment 也可以依個人排版習慣把 expression 放到下一行：
-
-```text
-@Description =
-<|
+~~~grasp-demo
+@code{
+    @Fruit = {apple}
+    @Person.Job = {doctor}
+    @Slogan = {An } + Fruit
+        + { a day, keeps } + Person.Job + { away.}
+    @Description =
+    {
 第一段。
 
 第二段。
-|>
-```
+    }
+}
+~~~
 
-正文直接引用具名結果：
+正文可引用 Slogan 等單一具名結果。Assignment operator 與 expression 間的排版空白／換行屬結構；literal 裡實際內容空白才屬值。區域不引入 Note-local scope。一般正文、literal 內容不受 ASCII identifier 限制。
 
-```text
-There is a slogan [An apple a day, keeps doctor away.](:ref:Slogan).
-```
+Literal 優先調整 marker 來避碰，不改 value。預設 {value}；內容有單個括弧時用兩層，有連續兩個時用三層以上，以此類推。{|x|} 直接表示 |x|。JSON 可把 marker 與內容分行，並選較長 marker，內容的大括弧與反斜線無須為 Grasp 逐一 escape。單行邊界黏合可用 {\{...\}} 表達 {...}。不引入固定雙括弧或舊 pipe 的並行可寫 grammar。
 
-Raw literal 使用 opening／closing marker。Literal 內的引號、`+`、`=`、Markdown 文字等按內容保存；literal 外的 identifier 是取值，`+` 是字串串接。
+### 4.3 Literal 編輯體驗與多行序列化
 
-Assignment operator 與第一個 expression token 之間的排版空白／換行屬結構分隔，不自動成為 value。Expression 內 literal 自己保存的空白與換行才屬 logical string。
+Delimiter 必須容易輸入。Editor 提供成對補完、游標定位及必要的局部 escape 協助；本版 marker 疊層時两端同步；配對行為集中於可替換的 syntax profile。自動補完可撤銷，不 aggressive 改寫既有內容；parser 不依賴使用者曾用過補完。
 
-內容含有 closing marker 時，仍可使用不碰撞的 marker 層級無損表達，例如 `<||...||>`。使用者輸入的反斜線若屬真正內容，必須保持原意。
+已確認：marker 與真正 value 分行時，opening marker 後到該行結束的排版空白、closing marker 行前方的排版空白不算 value，兩個邊界的結構換行也不加入值。上例值為第一段、空行、第二段。真正內容行的首尾空白仍保存，不 trim／dedent；inline literal 的空白也不能刪除。確實需要首尾換行時，另留真正的內容空行。
 
-複合文字的 composition 集中在 binding，正文僅引用單一 identifier 與其保存值。
+Raw source、logical string 與 composition 分開保存，局部 escaping 不得造成資料損失。Block literal 保存原樣內容，不解碼反斜線；inline 的局部邊界 escape 與普通內容明確區分，不全面替換反斜線或中間括弧。Parser／serializer 必須能替換 syntax，既有 source 不得無聲套用新 grammar。
 
-### 4.3 Raw Literal 編輯體驗與多行序列化
-
-Raw literal delimiter 不應因難輸入而增加日常負擔。Editor 應提供 paired-delimiter autocomplete：
-
-- 輸入 opening marker 時，自動補上 matching closing marker，游標留在中間。
-- 當 opening marker 為避碰而延長時，closing marker 跟隨相同層級。
-- 自動補完只是編輯輔助；合法 source 必須能由 parser 獨立解析，不依賴 editor 曾經自動補完。
-- 使用者刪改 marker 時，不可用 aggressive autocorrection 破壞既有文字；具體 paired-edit 行為依實際 editor UX 驗證。
-
-Binding literal 可保存真實換行：
-
-```text
-@Description = <|
-第一段。
-
-第二段。
-|>
-```
-
-此 block 表達方向中，開頭 marker 後與 closing marker 前的邊界換行不作為內容；中間換行與內容空白保留。若 value 本身需要首尾換行，也必須能無損表達。
-
-Raw source、logical string 與 literal／reference composition 保持各自含義，宿主 escaping 不改變內容。一般 Note 本文直接保留 Markdown；只有 binding 的字串片段需要 literal 定界。
-
-精確詞法邊界、delimiter 層級、空值、換行／縮排、statement 結束及相鄰 binding 必須有一致的資料含義。多行 binding 與正文 inline reference 是不同表示；多段落 value 在正文 reference 的呈現與交換行為仍待定義。
+第一個可操作 UI 必須涵蓋多段落引用：完整呈現、相依更新、保存與重新載入均保留段落。停用 parsing 的展示區不產生 managed occurrence；修改語言清單須能理解定義／引用變動的影響。外部 Markdown 交換另驗證。
 
 ### 4.4 Dependency 計算
 
@@ -228,7 +207,7 @@ App 的階層瀏覽可完全來自 DB。需要帶走筆記、資料夾或 record
 
 ## 7. App Runtime 與 Programming Runtime
 
-App Runtime 涵蓋筆記編輯／閱讀、binding／reference、value sync、查詢、保存、檔案交換與復原。Binding statement 可自然分布在 Note 內，不需要專屬區域。
+App Runtime 涵蓋筆記編輯／閱讀、binding／reference、value sync、查詢、保存、檔案交換與復原。Binding 語法區可自然分布在 Note 內，不需要集中於專屬 section；`@code` 名稱本身不授予任意程式執行能力。
 
 程式開發／編譯由真正程式語言與 compiler 處理。PC 的 Programming Runtime 可透過穩定資料接面操作知識；其選型與交付依個別計畫處理。
 
@@ -242,15 +221,17 @@ App Runtime 涵蓋筆記編輯／閱讀、binding／reference、value sync、查
 
 大型計算、匯出、checkpoint 或重建可以耗時較久；進行時，日常互動仍須流暢，並呈現可理解的進度與狀態。
 
-目標資料規模、預期成長範圍、目標裝置及互動延遲門檻是這些需求的具體尺度，目前尚待定義。
+實作規劃已記錄使用者接受的暫定效能門檻及候選資料組；真實資料集、最低 PC 硬體與最終尺度仍待實測校準。驗證成本保持合理，不無限擴大測試。
 
 ## 9. Replaceability Requirement
 
-Grasp 擁有自己的 identity、binding、reference、value、change 與 projection contracts。Editor、binding parser／evaluator、計算、persistence、exporter、匯出策略介面與 platform host，須有可測試、可局部替換的責任邊界。
+Grasp 擁有自己的 identity、binding、reference、value、change 與 projection contracts。Editor、binding parser／evaluator、計算、persistence、exporter、匯出策略介面與 platform host，須有可測試、可局部替換的責任邊界。Syntax 日後可能調整；delimiter／escape、Markdown 解析政策、binding 邏輯須分開，保存格式版本與可逆來源，不讓更換 syntax 迫使重寫依賴計算。
 
 ## 10. Portability 與跨裝置延續
 
 筆記庫、設定及可合理攜帶的使用者狀態可隨 workspace 帶走；App binary、compiler 與 runtime 可安裝於電腦。帳號 session 能否跨機續用須個別驗證。
+
+自由度與資料主權至少對標 Obsidian：資料位置由使用者控制，核心本機工作不依賴強制雲端帳號；資料可取得、可讀及可恢復。這與既有 DB runtime authority 並存，Markdown export／fallback 仍須完成，不能只因提供 Portable executable 就宣稱資料可攜已達標。正式安裝若非執行環境或功能必要，不將其作為啟動前提；優先評估 Portable 目錄發布，首版先方便目前 Windows PC 試用。
 
 iPhone／iPad 的目標是完整本機 App Runtime 與離線資料。跨裝置同步優先採成熟儲存／同步服務，Grasp 處理自己需要的版本、衝突與一致套用語義。Provider、同步格式及平台實作由後續計畫確認。
 

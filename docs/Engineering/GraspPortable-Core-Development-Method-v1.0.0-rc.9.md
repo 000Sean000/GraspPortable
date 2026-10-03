@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.6
+version: 1.0.0-rc.9
 updated: 2026-10-03
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.5.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.8.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -23,7 +23,7 @@ Goal 內允許完成已接受成果所必要的新功能、修正、重構、測
 
 ### 架構與語法主幹
 
-Note 的正文 Reference、可自然分布於 Note 各處的 Binding statement、真正程式的 compiler／runtime 是不同責任。正文保留兩種帶可讀值的 reference；Binding 使用 raw literal、identifier 取值與串接。Binding 不要求專屬 section／container；程式碼展示不等於 binding declaration，更不等於執行授權。
+Note 的正文 Reference、可自然分布於 Note 各處的 Binding 語法區、真正程式的 compiler／runtime 是不同責任。正文保留兩種帶可讀值的 reference；Binding 使用 raw literal、identifier 取值與串接。不要求集中於專屬 section；外層區域依最新 Seed 的語法方向，不能用舊稿「不設 container」否定新提案。程式碼展示是否參與 Grasp parsing 依 workspace 的語言清單；停用區不可建立或回寫資料。啟用 parsing 也不等於任意程式執行授權。
 
 一般技術 HOW 由執行者依實務品質、成本與產品適合度決定；只有會改變當前決策或驗收結果時才補充研究、測試或量測。會改變資料含義、使用者工作流或造成不可逆影響的選擇，先以具體案例交由使用者裁定。
 
@@ -63,7 +63,7 @@ Editor、Binding Language adapter、Dependency／Value Engine、Persistence、Ex
 
 正文兩種形式為 `[value](:ref:Identifier)` 與 `[[@Identifier|value]]`。它們保存 identifier 與 rendered／cached value，借宿主顯示弱化 identifier。
 
-Binding 是 assignment 及 composition：raw literal 保存固定文字，literal 外 identifier 取值，`+` 串接。複合內容先有具名 binding，正文再引用單一結果。Binding statement 本身可見、可編輯，不要求固定區域、section 或 outer container；只要位於可解析的 Note context 並符合 grammar，即可依使用者習慣放置。
+Binding 是 assignment 及 composition：raw literal 保存固定文字，literal 外 identifier 取值，`+` 串接。複合內容先有具名 binding，正文再引用單一結果。Binding 本身可見、可編輯，不要求固定 section；語法區的 opening／closing 與 statement grammar 依現行 Seed 和已接受語法決策，與 Note 中的自由放置分開處理。
 
 底層模型分開保存原始表示、logical string、literal fragments、dependency references 與快取來源版本。Marker 避碰與宿主 escaping 由 serializer 處理；普通內容不為 parser 方便而被任意 trim、strip 或重新解讀。
 
@@ -71,10 +71,12 @@ Binding 是 assignment 及 composition：raw literal 保存固定文字，litera
 
 已接受的是 raw literal＋串接方向，不是完整語法已通過 conformance。Plan 必須補齊真正影響同一原文含義的邊界，並以最小案例確認：
 
-- Binding statement 的起始辨識、statement 結束與相鄰 statement；不設 mandatory outer container。
+- Binding 語法區的起始／終止、literal 優先權、statement 分隔、相鄰區域與未閉合錯誤；最新 `@code{ ... }` 草案需先檢查歧義，未定案前不直接建立 parser。
 - Assignment operator 與第一個 expression token 之間的排版空白／換行；opening marker 是否與 `=` 同行不得成為資料語意。
-- Opening／closing marker 的精確匹配、長度避碰、內容恰含 delimiter、相鄰空 literal 的辨識。
+- Opening／closing marker 的精確匹配、空值、內容恰含 delimiter；本版依使用者方向採單層起始及 marker 疊層，value 僅在 inline 邊界作局部 escape，block 原文保留。具體 profile 仍可替換。
 - Inline／block literal、結構換行、value 真正的首尾換行、空白、縮排、LF／CRLF 與空值狀態。
+- 分行 marker 的水平排版空白與內容行空白分開；對目前選定 profile 保留少數 delimiter／backslash／邊界字元的 exact-value 反例，不強迫 pipe 值改成多行。
+- ASCII 連續 qualified name、只在定義左側使用 @、不使用分號；可設定 code fence allowlist、disabled 區不遞迴啟用，以及政策變更造成的資料影響。
 - 多行 value 放到正文 reference 時，如何保持可讀與可還原；不能把 inline link 當成任意多段落的透明容器。
 - Parser、serializer 與 editor 的 source ranges、diagnostics、錯誤復原及宿主 escaping。
 
@@ -85,15 +87,15 @@ Binding 是 assignment 及 composition：raw literal 保存固定文字，litera
 Raw literal marker 不容易手打，因此 Editor 應提供 paired-delimiter autocomplete：
 
 - 輸入 opening marker 時，自動補出 matching closing marker，游標留在中間。
-- Marker level 增加時，closing marker 維持相同 level。
+- 配對及避碰依已選 syntax profile；本版 marker level 增加時同步兩端，不改寫 value 內部括弧或反斜線。
 - Autocomplete 是 UX 輔助，不是 grammar 前提；手動輸入或外部匯入的合法 source 同樣可解析。
-- 刪除、undo／redo、paste、IME 與 marker level 調整不可 aggressive 改寫使用者內容。
+- 刪除、undo／redo、paste、IME 與 delimiter 調整不可 aggressive 改寫使用者內容。
 
-常用語法若難以鍵入，優先由 editor affordance 降低負擔，而不是要求使用者記憶大量 escape。
+常用語法若難以鍵入，可調整 syntax 與 editor affordance，依使用者體驗選擇；不以補完為理由強留不順手的符號，也不要求記憶大量 escape。
 
 ### 4.4 版本與相容
 
-先辨認實際輸入使用的語法版本。新增 parser 不可把舊字串按新含義無聲解讀；轉換保留 literal、identity、composition、cached value 與來源對照，未知形式保留診斷。
+先辨認實際輸入使用的語法版本與 workspace parse policy。Markdown context、syntax lexer／parser／serializer、syntax-independent binding AST、名稱解析／計算分層；不讓 delimiter 進入 graph 或 persistence 語義。Source ranges 保留可逆映射，editor 與 Host 共享規格及代表案例，由 Host 最终裁定。新增 parser 不可把舊字串按新含義無聲解讀；轉換保留 literal、identity、composition、cached value 與來源對照，未知形式保留診斷。
 
 舊稿的 forms、comment context、RHS 規則或 update policy，只有在本次已接受的決策仍適用時才沿用。歷史讀取／轉換 adapter 與新版可撰寫的語法分開。
 
