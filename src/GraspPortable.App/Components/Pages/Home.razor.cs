@@ -268,21 +268,27 @@ public partial class Home
             await Backend.RefreshWorkspaceAsync(); _knowledgeRevision=Backend.Workspace!.Revision;
             var command=new CommitNoteRequest(Guid.NewGuid().ToString("N"),_sessionId,_draftRevision,_noteRevision,_knowledgeRevision);
             var measure=await BeginPerformanceAsync("commitRequestToRenderedNote");
-            var pending=new PendingNoteCommit(id,command,source,version,_contextGeneration);
-            var result=await SendNoteCommitAsync(pending);
-            if(result.Status=="confirmation-required")
+            var rendered=false;
+            try
             {
-                _confirmationNoteId=id; _confirmationSource=source; _confirmationVersion=version; _confirmationGeneration=_contextGeneration;
-                _confirmationRequest=command; _confirmationResult=result; _dialog="rename"; _saveStatus="草稿已保存 · 等待名稱變更確認"; return false;
+                var pending=new PendingNoteCommit(id,command,source,version,_contextGeneration);
+                var result=await SendNoteCommitAsync(pending);
+                if(result.Status=="confirmation-required")
+                {
+                    _confirmationNoteId=id; _confirmationSource=source; _confirmationVersion=version; _confirmationGeneration=_contextGeneration;
+                    _confirmationRequest=command; _confirmationResult=result; _dialog="rename"; _saveStatus="草稿已保存 · 等待名稱變更確認"; return false;
+                }
+                var handled=await HandleCommitAsync(result,id,source,version);
+                if(!handled.Accepted || !await CaptureEditorAsync())return false;
+                rendered=handled.Rendered && result.Status=="committed" && _contentVersion==version && !IsDirty;
+                return _hasDraft ? _draftDeparture.CanLeave(CurrentDraftSnapshot(),false) : !IsDirty;
             }
-            var accepted=await HandleCommitAsync(result,id,source,version);
-            await EndPerformanceAsync(measure,accepted&&result.Status=="committed");
-            if(!accepted || !await CaptureEditorAsync())return false;
-            return _hasDraft ? _draftDeparture.CanLeave(CurrentDraftSnapshot(),false) : !IsDirty;
+            finally {await EndPerformanceAsync(measure,rendered);}
         }
         finally { _saving=false; writes.Release(); StateHasChanged(); }
     }
-    private async Task<bool> HandleCommitAsync(OperationResult result,string id,string source,long version)
+    private sealed record NoteCommitHandling(bool Accepted,bool Rendered=false);
+    private async Task<NoteCommitHandling> HandleCommitAsync(OperationResult result,string id,string source,long version)
     {
         _diagnostics=result.Diagnostics??[];
         _knowledgeRevision=Math.Max(_knowledgeRevision,result.Revision);
@@ -290,29 +296,31 @@ public partial class Home
         {
             if(_notice==_commitNotice)_notice=null;
             _commitNotice=null;
+            var generation=_contextGeneration;
             var fresh=await Backend.GetAsync<NoteDto>("api/notes/"+id);
-            if(_note?.Id==id) await ApplyFreshNoteAsync(fresh,source,version);
-            await RefreshCollectionsAsync(); return true;
+            var applied=_note?.Id==id && await ApplyFreshNoteAsync(fresh,source,version,generation);
+            await RefreshCollectionsAsync();
+            return new(true,applied && _note?.Id==id && _contextGeneration==generation && _contentVersion==version && _source==fresh.Source);
         }
-        if(result.Status=="conflict") { await ShowConflictAsync(result.Message); return false; }
+        if(result.Status=="conflict") { await ShowConflictAsync(result.Message); return new(false); }
         if(result.Status is "draft" or "invalid")
         {
             _saveStatus="草稿已保存 · 語法尚未完成";
             if(!string.IsNullOrWhiteSpace(result.Message)) _notice=_commitNotice=result.Message;
-            return true;
+            return new(true);
         }
         _saveStatus="草稿保留 · "+result.Status;
         _error=result.Message??("操作尚未確認完成："+result.Status+" · "+result.OperationId);
-        return false;
+        return new(false);
     }
-    private async Task ApplyFreshNoteAsync(NoteDto fresh,string expectedSource,long expectedVersion,long expectedGeneration=-1)
+    private async Task<bool> ApplyFreshNoteAsync(NoteDto fresh,string expectedSource,long expectedVersion,long expectedGeneration=-1)
     {
         await patches.WaitAsync();
         try
         {
-        if(_note?.Id!=fresh.Id) return;
-        if(expectedGeneration>=0 && expectedGeneration!=_contextGeneration)return;
-        if(fresh.Revision<_noteRevision || fresh.KnowledgeRevision<_note.KnowledgeRevision)return;
+        if(_note?.Id!=fresh.Id) return false;
+        if(expectedGeneration>=0 && expectedGeneration!=_contextGeneration)return false;
+        if(fresh.Revision<_noteRevision || fresh.KnowledgeRevision<_note.KnowledgeRevision)return false;
         var previousRevision=_noteRevision;
         _note=fresh; _noteRevision=fresh.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,fresh.KnowledgeRevision); _diagnostics=fresh.Diagnostics;
         _hasDraft=fresh.Draft is not null;
@@ -325,11 +333,12 @@ public partial class Home
                 _source=fresh.Source; _title=fresh.Title; _savedSource=_source; _savedTitle=_title;
                 _baseSourceHash=fresh.SourceHash;
                 _saveStatus=SavedStatus(fresh);
-                await RenderReadingAsync(); return;
+                await RenderReadingAsync(); return true;
             }
         }
         if(fresh.Source!=expectedSource) _noteRevision=previousRevision;
         _saveStatus="新的編輯尚未保存"; ScheduleSave();
+        return false;
         }
         finally { patches.Release(); }
     }

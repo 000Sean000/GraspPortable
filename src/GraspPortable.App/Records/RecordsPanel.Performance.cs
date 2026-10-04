@@ -62,8 +62,10 @@ public partial class RecordsPanel
     private async Task EndRecordPerformanceAsync(int id, bool accepted)
     {
         if (id == 0 || _recordsPerformance is null) return;
-        _recordsPerformanceSpans.Remove(id);
-        try { await _recordsPerformance.InvokeVoidAsync("end", id, accepted); }
+        _recordsPerformanceSpans.Remove(id, out var span);
+        accepted = accepted && span?.PaintToken is not null;
+        object? guard = accepted ? new { rootId = _recordsPaintRoot, attribute = "data-records-paint-token", token = span!.PaintToken } : null;
+        try { await _recordsPerformance.InvokeVoidAsync("end", id, accepted, guard); }
         catch (Exception) { }
     }
     private async Task FinishRenderedRecordPerformanceAsync(long renderedSequence)

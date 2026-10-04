@@ -59,6 +59,13 @@ namespace GraspPortable.App.Records
         public bool HasDialog => _dialog is not null;
         public bool UnknownOutcome => _unknownOutcome;
         public bool CommitQueued => _recordsPerformanceSpans.Values.Any(span => span.MinimumRevision is not null);
+        public async Task<object?[]> EndGuardForTest(bool queued)
+        {
+            var id = await BeginRecordPerformanceAsync("guard-fixture");
+            if (queued) QueueRecordPerformance(id, _loadEpoch);
+            await EndRecordPerformanceAsync(id, true);
+            return ((FakeJs)JS).LastEnd!;
+        }
         public Task OpenTagsForTest(bool discard = true) { if (discard) CloseDialog(true); return ShowTagsAsync(); }
         public Task SearchTagsForTest(string text) { _tagSearch = text; return SubmitTagsAsync(); }
         public Task NextTagsForTest() => PageTagsAsync(1);
@@ -84,9 +91,11 @@ namespace GraspPortable.App.Records
     internal sealed class FakeJs : IJSRuntime, IJSObjectReference
     {
         private int next;
+        public object?[]? LastEnd;
         public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => InvokeAsync<T>(identifier, default, args);
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
+            if (identifier == "end") LastEnd = args;
             object? result = identifier == "import" ? this : identifier == "begin" ? ++next : default(T);
             return ValueTask.FromResult((T)result!);
         }

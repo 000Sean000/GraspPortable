@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.28.0
+version: 1.29.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,19 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：改名、轉換選取與未接受引用保護
+## 最新工作段：第二 view、表格連結與量測結果保護
+
+从遠端已核對的 `90ad6f72b42f19ea8de75a34b8d7af403d84b03b` 續作。在同一獨立驗收 workspace 建立「角色篩選驗收」view，隱藏 Symbol、Name contains Triensa，revision 51；修改 Triensa 的 Name 後篩選結果變零筆（52），切回原 view 確认只改同 record，再恢復 Wiki 原文（53）。新版重開後第二 view 仍顯示 1／15 筆、七欄，原角色職責 view 保留八欄及凍結設定。
+
+表格 cell 的 Wiki 與 Grasp reference 仍隱藏語法及 highlight；點 Wiki 開改名後來源，點 reference 選中同來源第 15 行 LiveLinks.Short。Mentors 的短名稱 Wiki 在本次有限取樣 workspace 缺失，點擊明示找不到目標並停留原表，沒有猜測其他同類角色檔。此案是 missing Wiki，不代替 missing record／definition 原生驗收。
+
+量測修正由 editor_fix／ui_review 分別處理 Home／JS 與 Records，主代理整合。只有成功套用的結果才送成功 span，兩次 rAF 均核對前景、輸入世代與實際 DOM token；Records 保留既有 child-ready barrier。raw samples 上限改為 180,000，count／max／200 ms 停頓數在上限後仍累計；p95 清楚標明資料範圍。定點 probe／Records fixtures、editor tests、Release build、架構檢查與 publish 通過。量測例外不改變正常保存或離開結果。
+
+15:49–15:53 原生重開及導航取得 `ui-20261004-074913.json`：236.8 秒，query n=3／p95 197.6 ms、view n=1／22.1 ms、collection n=1／58.0 ms；不把同一操作的 query 與 switch 重複計為兩次驗收操作。這次沒有 note commit／輸入樣本，不足 30 次代表操作及五分鐘完整流程。詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。正常關閉後 App／Host 程序數零，前台已釋放，私人樣本／量測未入 Git。
+
+Goal active；S1／S2 PARTIAL、S3／S4 IN_PROGRESS，未宣稱使用者接受。下一步補 missing record／definition、真實長文欄位外部往返、IME／dirty 競態、allowlist GUI、縮放／凍結區鍵盤焦點及足量代表性效能。不要重做第二 view 的隱欄／篩選／重開及一般 cell Wiki／reference 跳轉；新探針 Home 保存端仍需取得原生有效樣本。
+
+## 已完成工作段：改名、轉換選取與未接受引用保護
 
 從已核對遠端 `6081a724e0ba6fa299a97ac3cfe618e316238a0a` 續作。原生 `S4-Acceptance-1004` 完成欄位 key Markdown→Description（revision 47）、Beta 顯示名及 key→Checks.BetaRenamed（48）、單選選項甲改名（49）。兩式多段引用保留粗體／空行／Wiki，點引用定位同來源欄位；record 關聯更新顯示名並仍開正確卡片。唯讀比對前次還原基底：20 個 generated definition IDs 全保留且名稱映射正確，原 durable draft 完全不變。證據在忽略的 `workspaces/AcceptanceSupport/rename-1523-verification.json`。
 

@@ -12,6 +12,20 @@ TaskCompletionSource<T> Gate<T>() => new(TaskCreationOptions.RunContinuationsAsy
 (RecordsPanel Panel, BackendSession Backend) Setup()
 { var backend = new BackendSession(); var panel = new RecordsPanel(); panel.Prepare(backend); return (panel, backend); }
 
+await Run("Records end forwards the queued DOM token and rejects missing token", async () =>
+{
+    var (panel, _) = Setup();
+    var guarded = await panel.EndGuardForTest(true);
+    using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(guarded[2]));
+    Check(guarded[1] is true && json.RootElement.GetProperty("attribute").GetString() == "data-records-paint-token"
+        && !string.IsNullOrEmpty(json.RootElement.GetProperty("token").GetString())
+        && !string.IsNullOrEmpty(json.RootElement.GetProperty("rootId").GetString()), "queued state must reach both final rAF callbacks");
+    var unqueued = await panel.EndGuardForTest(false);
+    Check(unqueued[1] is false && unqueued[2] is null, "missing token cannot be accepted by the shared probe");
+    await panel.DisposeAsync();
+});
+if (args.Contains("performance-guard", StringComparer.Ordinal)) return 0;
+
 await Run("same revision during command and read-back retains commit epoch", async () =>
 {
     var (panel, backend) = Setup();

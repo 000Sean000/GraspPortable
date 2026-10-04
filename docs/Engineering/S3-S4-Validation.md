@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.11.0
+version: 1.12.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,27 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 第二 view、連結與量測保護（15:29–15:53）
+
+原生建立 Mentors 第二 view「角色篩選驗收」，隱藏 Symbol、Name contains Triensa，revision 51。將唯一結果的 Name 改為普通文字後變為零筆（52）；切回原 view 確認同 Imported1 record 被修改，再恢復原 Wiki（53）。重新啟動新 publish 後，第二 view 仍為 1／15 筆、七欄；原角色職責 view 八欄及凍結設定保留。
+
+新版表格 cell 的 Wiki 及 Grasp reference 保持隱藏 syntax、highlight。Wiki 開啟 Obsidian 改名後來源檔，reference 選中 LiveLinks.Short 第 15 行（accessibility selected text 同名）。Mentors 中短名稱 Wiki 缺失時明示找不到工作區目標，停留原表而不猜測其他檔。尚未完成 missing record／definition 的對應原生案例。
+
+修正 opt-in 探針只接受確實套用結果，保留 Records child-ready barrier，兩次 rAF 均核對前景、輸入世代及相同 DOM token。Home 區分操作已接受與畫面已套用；草稿、拒絕、過期、失敗不記成功 span，量測失敗不阻斷保存。raw 上限 180,000，完整 count／max／≥200 ms 次數不被截斷，p95 標示 all 或 retained-prefix。新增受控 RAF 回歸及 Records guard fixture 通過；editor suite／App Release／四 Project 架構檢查／publish 通過。
+
+新 publish 原生報告 `workspaces/S4-Acceptance-1004/.grasp/measurements/ui-20261004-074913.json`（私人報告不進 Git）：
+
+| 指標 | 本次結果 |
+| --- | --- |
+| 觀測時間 | 236.8 秒；skipped 0 |
+| Records query 至 paint opportunity | n=3，p95／max 197.6 ms |
+| View 切換 | n=1，22.1 ms |
+| Collection 切換 | n=1，58.0 ms |
+| 前景 rAF interval | n=52,356，p95 4.3 ms、max 50 ms、≥200 ms 為 0 |
+| 滾動 rAF interval | n=98，p95 4.3 ms |
+
+這是新探針有界核對，**不是完整效能驗收**：未達 30 次代表操作／五分鐘，無本輪 note commit 或輸入樣本；rAF 是繪製機會，不是螢幕顯示時間。query 與 switch 可來自同一次操作，不重複計數。前一份舊探針報告不補入新探針樣本。原生確認與探針修正分開記錄，S4 狀態不變。
 
 ## 改名、轉換選取及 Grasp Enter（15:03–15:23）
 
