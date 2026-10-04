@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.4.1
+version: 1.5.0
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -36,7 +36,7 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 3. 在自選測試資料夾按右鍵新增資料夾或筆記；編輯並等待保存後，再由右鍵改名或搬移，核對預覽與目標路徑。相同操作不應改變 note／definition 身分。
 4. 未在 Grasp 編輯的測試筆記，可用另一個 editor 修改其 Markdown 正文並保存，再回到 Grasp 查看更新。尚未完成的語法應保留原文及來源診斷，不能當成最新成功計算結果。存在 dirty draft／衝突時先保留兩側內容並依提示處理。
 
-較早 S2 checkpoint 已實測 shell 外部修改；後續另有圖片／wiki 導航與 incoming link 改名的有限原生證據。Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義及同篇共享 reference 回寫已有限原生通過。**已有引用後再於外部新增／移除引用仍有待修缺陷；外部改檔名、完整衝突與附件流程仍未驗完。** 最新 link codec、tree 自動選取及下方 S3／S4 入口已包含於本機發行。
+較早 S2 checkpoint 已實測 shell 外部修改；後續另有圖片／wiki 導航與 incoming link 改名的有限原生證據。Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義及同篇共享 reference 回寫已有限原生通過。外部新增／移除引用的誤判已修並用 Grasp＋受控檔案修改重驗；外部改檔名與完整衝突流程仍未驗完。最新 link codec、tree 自動選取及下方 S3／S4 入口已包含於本機發行。
 
 ## 資料表與長文卡片
 
@@ -71,7 +71,7 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 
 ## 備份與還原
 
-左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。Generation 選单修正已有有限原生重驗；完整分組／附件／草稿還原仍依驗證紀錄補齊，請核對實際選取版本與還原目的地。
+左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。已原生驗證合併／拆分後的 368 檔完整版本還原、未接受語意的原文、Records／導航與圖片；本案 durable drafts 為零，較新 draft 的原生恢復另驗。可開啟 `workspaces/S4-Restored-1004-1329` 查看該份還原結果，仍請核對選取版本與目的地。
 
 ## 選用原生效能量測
 

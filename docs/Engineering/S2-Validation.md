@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.4.0
+version: 1.5.0
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -30,6 +30,14 @@ Core 現在僅放行 classifier 已證明的純 cache 修改；真正 mixed sour
 13:08:25 Host／13:08:34 App 發行。由 Obsidian 將先前失敗的測試 reference 恢復為已接受值，Grasp 重開至 revision 30、診斷零；再由 Obsidian 只改同一 reference 的顯示值，新版成功回寫 literal，兩層相依更新至 revision 31、全部 Valid。回到 Obsidian 亦親眼確認定義與兩式引用為新值。未使用 API 代替此次 GUI 操作，也未要求自動猜測先前衝突意圖。
 
 另外的唯讀審查確認：已有引用的筆記在外部新增／移除引用，會因 classifier 的 topology 限制被一律保留為衝突；這與一般外部編輯流程不符，列為下一修正。新引用不應冒充共享改值，既有 carrier 無法唯一配對或同時改值時仍需保護。本段未修改這一分支。
+
+### 外部新增／移除引用修正（revision 37–38）
+
+Classifier 現在將可唯一配對、既有 cache 沒有改值的新增／移除 occurrence 視為一般原文編輯；新 carrier 的快取不會冒充共享值修改。以正向／反向單調配對檢查唯一性，線性處理；重排、替換、重複 occurrence 歧義及同時改既有 cache 仍保留原文等待核對。ExternalEdits 24 fixtures／98 assertions 與 Coordinator 定點 2 groups 通過，包含一般筆記、Records 欄位單一來源、metadata／ID、dirty guard 與 own echo。
+
+Host 13:41:39／App 13:41:51 發行後，在 Grasp 開啟狀態以 shell 修改忽略的驗收副本，於已有四個 references 的閱讀筆記新增 `Interop.Value` reference。revision 37 自動接受、診斷零；Live Preview 隱藏 syntax 並 highlight，顯示既有來源值而非新輸入 cache。點擊直接定位來源第 23 行的 `Interop.Value`，literal 與相依保持原值。以 exact-prefix guard 只移除新增的驗收區段，revision 38 自動接受、原筆記仍診斷零。
+
+這是原生 Grasp 加上受控外部檔案修改，不是本段再次操作 Obsidian GUI。已保存修正前測試原文於忽略的 AcceptanceSupport；不回写使用者原始 vault。外部改檔名及 dirty／IME 衝突 UI 仍待驗。
 
 ### 較早的 S2 檔案樹流程
 
@@ -78,8 +86,8 @@ Content resolver 44 assertions、editor regression／TypeScript、App／Host 發
 ## 尚未完成與下一步
 
 - 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取於 10:30 重驗通過，完整還原範圍另驗。
-- Obsidian 關閉期間新增／重開、同時開啟時定義更新已有上方證據；共享引用值回寫缺陷修正與重驗、外部改名、衝突解決及 IME／dirty 時序仍待完成。
+- Obsidian 關閉期間新增／重開、同時開啟時定義更新及同篇共享值回寫已有上方原生證據；外部新增／移除引用已修並以 Grasp＋受控檔案修改重驗。外部改名、衝突解決及 IME／dirty 時序仍待完成。
 - S1 剩餘政策 GUI、DPI、端到端流暢度；本次沒有新的性能數字。跨檔 journal／完整 snapshot 的成本尚未證明符合成長門檻。
-- S3 分組、checkpoint 排程／介面與 restore UI；S4 長文屬性／Records／凍結表格。
+- S3 合併／拆分及 368 檔完整版本還原已補主要正常流程，詳見 S3／S4 Validation；其餘 Records／恢復邊界續驗。
 
 下一個版本沿 [Implementation Plan rc.9](Implementation-Plan-v1.0.0-rc.9.md) 繼續，不因這份 checkpoint 停止 Goal，也不標記 S1／S2／S3 或 Goal 全部完成。

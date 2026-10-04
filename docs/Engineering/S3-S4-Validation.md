@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.7.0
+version: 1.8.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,26 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 合併、拆分及完整版本還原（revision 33–36）
+
+2026-10-04 13:18–13:39（Asia/Taipei），以 `3cdea60` 本機發行操作 `S4-Acceptance-1004`。右鍵將連結來源與閱讀兩篇合併，預覽列出兩成員及兩個 incoming-link 檔案，套用 revision 33；側欄顯示一個實體檔。Wiki 可開來源成員，member 選單可切閱讀成員，多段 Grasp reference 仍定位 Message 定義第 10 行。兩個 note IDs 前綴 `dd4b773e`／`497387e6` 不變。
+
+再從右鍵拆分，預覽兩個新 Markdown 路徑、相同 incoming-link 檔案及分組保留 JSON；套用 revision 34。側欄恢復兩個檔案，ID 保留，Wiki heading 導航隨新檔名更新。未分配材料與原始 bytes 保存於 grouping／operation journal，不以檔名當資料身分。
+
+新增「恢復草稿驗收」，保存中文空行及未閉合 literal，revision 35–36；顯示原文已保存、語意尚未接受及一項 literal 診斷。13:28:48 手動完整備份顯示 368 檔，還原至新的 `workspaces/S4-Restored-1004-1329` 並從 UI 開啟。這是未接受語意的已保存原文案例，當時 durable drafts 表為零，不能稱為較新 durable draft 的原生測試。
+
+還原後原生確認未完成原文／空行／診斷、四個 collections（15／81／2／1 筆）、Mentors 的既存「角色職責」view、資料表 Wiki／Reference 可讀呈現。點表格短 reference 直接選中拆分後來源的 `LiveLinks.Short` 第 15 行；Triensa 真實長文中的圖片正常顯示。
+
+還原 receipt 與畫面選取的 generation `generation-20261004T0528486092976Z-e7be5244fd11491781668b40d0af60da` 相同，manifest hash 一致。正常關閉後比對 368 個檔案：366 個相同，包含全部 13 份 Markdown、4 張圖片、分組與匯入映射及 operation 材料；SQLite 與 backup-manager state 因開啟／關閉更新。以唯讀 SQLite 核對，meta 5、notes 13、definitions 550、drafts 0、receipts 36、source_files 13，各表內容與選定備份完全一致。報告在忽略的 `workspaces/AcceptanceSupport/restore-1329-verification.json`／`restore-1329-database.json`，私人內容不進 Git。
+
+以上補足主要 S3 正常流程；較新 durable draft、失敗恢復的原生案例及其餘 S1／S2／S4 缺口仍依工作狀態續驗，不宣稱整個 Goal 完成。
+
+## 可讀數字與搜尋（revision 36，未改資料）
+
+Host 13:41:39／App 13:41:51 發行。數字 UI 使用字串與整數 scale 格式化，常用值 `425e-1` 顯示為 `42.5`，超長值保留完整精度的科學記號，不經浮點轉換、不改原文。搜尋及文字 equals／contains 同時接受 canonical 與可讀值；typed 排序不变。含 Grasp References／Regions 的 cell 繼續 managed rendering，不攤平導航。
+
+RecordsUi 11 fixtures 通過，包括既有保存通知競態、15 個數字案例、raw／managed 保護與可讀搜尋／filter。主代理審查差異，另一 agent 唯讀核對精度及邊界；架構檢查、TypeScript build 與 App／Host publish 通過。13:45 左右原生確認表格顯示 42.5、搜尋只留下 Alpha、完整欄位輸入與預覽皆為 42.5，未改 source 或 revision。沒有新增性能數字，不把有界功能操作當成 30 次代表量測。
 
 ## 九型別原生驗證與關聯導航缺口（revision 16–25）
 

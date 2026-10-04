@@ -187,7 +187,7 @@ public partial class RecordsPanel : IAsyncDisposable
     {
         if (_data is null) return [];
         IEnumerable<RecordRowDto> rows = _data.Rows;
-        if (!string.IsNullOrWhiteSpace(_search)) rows = rows.Where(r => (r.Key + " " + r.DisplayName + " " + string.Join(" ", r.Cells.Select(CellText))).Contains(_search, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_search)) rows = rows.Where(r => (r.Key + " " + r.DisplayName + " " + string.Join(" ", r.Cells.Select(SearchableCellText))).Contains(_search, StringComparison.OrdinalIgnoreCase));
         foreach (var filter in _view?.Filters ?? []) rows = rows.Where(row => Matches(row.Cells.FirstOrDefault(c => c.FieldId == filter.FieldId), filter));
         IOrderedEnumerable<RecordRowDto>? sorted = null;
         foreach (var sort in _view?.Sort ?? [])
@@ -207,14 +207,23 @@ public partial class RecordsPanel : IAsyncDisposable
     private void ClampPage() => _page = Math.Clamp(_page, 0, PageCount - 1);
     private static bool Matches(RecordCellDto? cell, RecordFilterDto filter) => filter.Operator switch {
         "is-null" => cell?.IsNull != false, "not-null" => cell?.IsNull == false,
-        "equals" => cell is not null && !cell.IsNull && CellText(cell).Equals(filter.Value, StringComparison.OrdinalIgnoreCase),
-        "contains" => cell is not null && !cell.IsNull && CellText(cell).Contains(filter.Value, StringComparison.OrdinalIgnoreCase), _ => false };
+        "equals" => cell is not null && !cell.IsNull && (CellText(cell).Equals(filter.Value, StringComparison.OrdinalIgnoreCase)
+            || NumericDisplay(cell)?.Equals(filter.Value, StringComparison.OrdinalIgnoreCase) == true),
+        "contains" => cell is not null && !cell.IsNull && SearchableCellText(cell).Contains(filter.Value, StringComparison.OrdinalIgnoreCase), _ => false };
     private static string CellText(RecordCellDto cell) => cell.IsNull ? "" : cell.ComputedMarkdown ?? cell.RawSource;
+    private static string? NumericDisplay(RecordCellDto cell) => !cell.IsNull
+        && cell.TypedValue is { Kind: "Number", Coefficient: { } coefficient, Scale: { } scale } ? FormatNumber(coefficient, scale) : null;
+    private static string SearchableCellText(RecordCellDto cell)
+    {
+        var canonical = CellText(cell);
+        return NumericDisplay(cell) is { } display && display != canonical ? canonical + " " + display : canonical;
+    }
     private string Preview(RecordCellDto? cell)
     {
         if (cell is null || cell.IsNull) return "∅ 空值";
         var field = _data?.Fields.FirstOrDefault(f => f.Id == cell.FieldId);
         var value = cell.TypedValue switch {
+            { Kind: "Number", Coefficient: { } coefficient, Scale: { } scale } => FormatNumber(coefficient, scale),
             { Kind: "Select", Ids: { } ids } => string.Join(", ", ids.Select(id => field?.Options?.FirstOrDefault(o => o.Id == id)?.DisplayName ?? id)),
             { Kind: "Relation", Ids: { } ids } => string.Join(", ", ids.Select(id => _data?.RelationChoices.FirstOrDefault(r => r.Id == id)?.DisplayName ?? id)),
             { Kind: "Tag", Tags: { } tags } => string.Join(" · ", tags),
@@ -275,7 +284,7 @@ public partial class RecordsPanel : IAsyncDisposable
         StartDialog("cell"); _row = row; _field = field; _cell = row.Cells.FirstOrDefault(c => c.FieldId == field.Id);
         _kind = field.Kind; _raw = _cell?.RawSource ?? ""; _null = _cell?.IsNull ?? true;
         _boolean = _cell?.TypedValue?.Boolean ?? false; _date = _cell?.TypedValue?.Date ?? "";
-        _number = _cell?.TypedValue is { Coefficient: { } coefficient, Scale: { } scale } ? coefficient + "e" + (-scale).ToString(CultureInfo.InvariantCulture) : _raw;
+        _number = _cell?.TypedValue is { Kind: "Number", Coefficient: { } coefficient, Scale: { } scale } ? FormatNumber(coefficient, scale) : _raw;
         _tags = string.Join('\n', _cell?.TypedValue?.Tags ?? []);
         _selectedIds.Clear(); foreach (var id in _cell?.TypedValue?.Ids ?? []) _selectedIds.Add(id);
         _sourceMode = field.Kind == "Markdown" || _cell?.TypedValue is null && !_null || _raw.Contains(":ref:", StringComparison.Ordinal) || _raw.Contains("[[@", StringComparison.Ordinal) || _raw.Contains("@code{", StringComparison.Ordinal);
@@ -441,7 +450,9 @@ public partial class RecordsPanel : IAsyncDisposable
         "view" => _data?.Views.FirstOrDefault(v => v.Id == _viewId),
         _ => _data }, new JsonSerializerOptions { WriteIndented = true });
     private static bool HasCellProblem(RecordCellDto? cell) => cell is not null && (!string.Equals(cell.Status, "Valid", StringComparison.OrdinalIgnoreCase) || cell.Diagnostics.Length > 0);
-    private static bool RenderManagedCell(RecordFieldSchemaDto field, RecordCellDto? cell) => cell is { IsNull: false };
+    private static bool RenderManagedCell(RecordFieldSchemaDto field, RecordCellDto? cell) => cell is { IsNull: false }
+        && !(field.Kind == "Number" && cell.TypedValue is { Kind: "Number", Coefficient: not null, Scale: not null }
+            && cell.References is not { Length: > 0 } && cell.Regions is not { Length: > 0 });
     private Task OpenSourceAsync() => _data is null ? Task.CompletedTask : OnOpenSource.InvokeAsync(_data.NoteId);
     private async Task NavigateContentAsync(RecordsContentNavigation navigation)
     {

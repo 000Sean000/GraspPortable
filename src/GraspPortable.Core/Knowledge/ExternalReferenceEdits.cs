@@ -48,7 +48,9 @@ public static class ExternalReferenceEdits
         var after = observed.References.OrderBy(r => r.Span.Start).ToArray();
         if (before.Length != after.Length)
         {
-            diagnostics.Add(new("external-reference-topology", "引用新增或移除，不能推斷為共享值修改。",
+            if (OnlyAddedOrRemovedUnchangedReferences(before, after, cancellationToken))
+                return Result(ExternalReferenceEditStatus.NoIntent);
+            diagnostics.Add(new("external-reference-topology", "引用新增或移除時，既有 occurrence 無法唯一配對或顯示值也已改動；保留原文等待核對。",
                 new(0, acceptedSource.Length), new(0, observedSource.Length)));
             return Result(ExternalReferenceEditStatus.Ambiguous);
         }
@@ -105,5 +107,35 @@ public static class ExternalReferenceEdits
         }
         ExternalReferenceEditAnalysis Result(ExternalReferenceEditStatus status, IReadOnlyList<ExternalReferenceValueProposal>? values = null)
             => new(status, acceptedSource, observedSource, policy, values ?? [], diagnostics.ToArray());
+    }
+
+    private static bool OnlyAddedOrRemovedUnchangedReferences(ParsedReference[] before, ParsedReference[] after, CancellationToken token)
+    {
+        var shorter = before.Length < after.Length ? before : after;
+        var longer = before.Length < after.Length ? after : before;
+        // Earliest and latest monotone embeddings must coincide. This permits
+        // ordinary insertion/removal without guessing which duplicate survived,
+        // and stays linear rather than introducing a general-purpose diff.
+        var earliest = new int[shorter.Length];
+        var at = 0;
+        bool SameIdentity(ParsedReference a, ParsedReference b) => a.Kind == b.Kind && a.Name == b.Name;
+        for (var i = 0; i < shorter.Length; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            while (at < longer.Length && !SameIdentity(shorter[i], longer[at])) { token.ThrowIfCancellationRequested(); at++; }
+            if (at == longer.Length) return false;
+            earliest[i] = at++;
+        }
+        at = longer.Length - 1;
+        for (var i = shorter.Length - 1; i >= 0; i--)
+        {
+            token.ThrowIfCancellationRequested();
+            while (at >= 0 && !SameIdentity(shorter[i], longer[at])) { token.ThrowIfCancellationRequested(); at--; }
+            if (at != earliest[i] || shorter[i].CachedValue != longer[at].CachedValue) return false;
+            at--;
+        }
+        // Unmatched carriers are new/removed source, never shared value intents.
+        // Empty sequences also mean there is no retained value to reinterpret.
+        return true;
     }
 }

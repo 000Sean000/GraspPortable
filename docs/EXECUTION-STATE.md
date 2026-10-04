@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.24.0
+version: 1.25.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,19 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：Obsidian 共同編輯及保存刷新修正
+## 最新工作段：分組還原、外部引用增減及可讀數字
+
+以已核對遠端 `3cdea60a4ca456106a59dbe172164ba39ae2561d` 續作。原生右鍵合併兩篇連結驗收筆記至 revision 33，再拆分至 revision 34；原 IDs 保留，兩個 incoming-link 檔案隨之更新，member／Wiki heading／Grasp 定義導航有效。新增未完成 literal 原文至 revision 36，13:28:48 完整備份 368 檔，從 UI 還原並開啟 `workspaces/S4-Restored-1004-1329`。未完成原文、診斷、四 collections、資料表參照定位及 Triensa 圖片均原生確認。
+
+關閉後核對 366／368 檔與 generation 相同，包含全部 13 份 Markdown、4 圖片、分組／匯入／operation 材料；SQLite 與備份管理狀態因啟動而更新，但唯讀六表完整內容相同（notes 13、definitions 550、receipts 36、source_files 13、meta 5、drafts 0）。本案驗證的是已保存但未接受語意的原文，不是較新 durable draft。詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。
+
+editor_fix 修正外部新增／移除 reference 的 ordinary-source 誤判，唯一配對且既有 cache 不變才放行；ExternalEdits 24 fixtures／98 assertions、Coordinator 定點 2 groups 通過。ui_review 修正數字可讀呈現與搜尋，保留精度、原文、typed sort 及 References／Regions managed rendering；RecordsUi 11 fixtures 通過。主代理整合與原生驗收，另一 agent 唯讀檢查數字精度／邊界。
+
+Host 13:41:39／App 13:41:51 publish 通過。原生表格／完整欄位顯示 42.5，按 42.5 可搜尋 Alpha。Grasp 開啟期間，以受控檔案修改新增 Interop.Value reference，revision 37 無診斷、可讀 highlight 並跳到第 23 行定義；移除該區段後 revision 38 仍有效，既有 literal 未被新 cache 改值。這次外部修改由 shell 執行，不冒稱另一次 Obsidian GUI。App／Host 已正常關閉，在使用者環境核對程序数零，前台釋放。
+
+Goal active，S1／S2 PARTIAL、S3／S4 IN_PROGRESS。下一步補外部改檔名／dirty 衝突與剩餘原生缺口、足量代表效能；不要重做本段正常分組／還原或數字基本流程。未宣稱使用者接受。
+
+## 已完成工作段：Obsidian 共同編輯及保存刷新修正
 
 以已核對遠端 `123084c7b4d93b76f58dbc13e4ac727097650e4b` 續作。真實 Obsidian 1.13.7 開啟獨立 `S4-Acceptance-1004`，關閉期間新增定義／兩層 composition／兩式 reference，Grasp 重開讀入 revision 27；同時開啟時修改 literal，revision 28 及 Obsidian cache 更新成功。原生發現同篇 reference 改值被誤判 shared-source-conflict，已最小修正 Core guard，保留真正 draft／stale／mixed／版本矛盾。Coordinator 新 2 組與既有 shared 1 組通過。
 
@@ -99,7 +111,7 @@ Records 性能 hooks 已加入並 publish，尚無新版 hooks 的有效代表�
 | S0 既有啟動主幹 | Implemented | 先前 build／publish／App＋Host 啟動及工程驗證 | 不等於 S1 UX 接受 |
 | S1 | PARTIAL：Reading 保留定義排版、delimiter 配對／同步與基本原生 IME 已驗 | Core 162、Host HTTP 34、editor 回歸、架構檢查、Host／App Release 發行通過；IME／dirty 競態、policy GUI、DPI、量化端到端仍待驗 | 尚未宣告接受 |
 | S2 | PARTIAL：Markdown adapter／coordinator、protocol 3、實際檔案樹／右鍵、來源處理、圖片／link 及舊 DB 複製遷移已實作 | 工程及 Windows GUI 部分通過；實際 Obsidian 交替、衝突 UI、完整附件／link 流程與 GUI 效能尚待驗；來源層量測見 S3／S4 Validation | 範圍已接受，成品未接受 |
-| S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；分組工程測試與真 link／backup 整合通過；備份選單已原生重驗；合併／拆分其餘原生操作待驗 | 同上 |
+| S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；原生合併／拆分、ID／link、368 檔完整還原及重開通过；未完成原文／Records／圖片保留，六表邏輯內容相同；較新 durable draft 原生恢復及故障邊界另驗 | 同上 |
 | S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；Wiki／Grasp 各呈現面與部分鍵盤／dirty guard 已驗；九型別基本保存／引用更新、同表／跨表 ID 卡片導航及關聯 dirty guard 已驗；其餘 carrier、import 初始選取、missing／IME 邊界與足量 GUI 量測待驗，詳见 S3／S4 Validation | 同上 |
 
 本表依 2026-10-04 本段 checkpoint 更新，主代理每完成實作段再接續。任何功能完成／測試 pass 需實際證據；文件升版不代表程式已切換資料權威。
@@ -170,4 +182,4 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-先核對本段 commit／push，維持 Goal active，從 revision 32 驗收 workspace 續作。先修外部新增／移除 reference 的 ordinary source 誤判，保留不明配對／mixed 共享修改保護；再完成 Obsidian 外部檔名／dirty 衝突、S3 合併／拆分及完整還原。不要重做已通過的 Wiki／Grasp、九型別基本流程與同篇共享回寫。Records commit span 定點已驗有效，足量代表性端到端證據仍待完成；relation modal 固定高度已發行未專項重驗，Number canonical 可讀呈現待改善。再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 的具體缺口。每段只重測受影響項目，測試成本失衡即回頭檢視全局。App／Host 已關閉，前台釋放；下次操作前另行提醒。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。
+先核對本段 commit／push，維持 Goal active，從原驗收 workspace revision 38 續作；`S4-Restored-1004-1329` 保留 revision 36 的還原證據。優先 Obsidian 外部檔名／dirty 衝突、較新 durable draft 還原，再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 與 relation modal 固定高度。外部 reference 增減、Number 可讀呈現／搜尋及 S3 正常合併／拆分／完整還原已通過本段有界驗證，不重做。Records commit span 定點已驗有效，30 次代表性端到端操作與約五分鐘連續互動仍待完成；不得用少量 query 或工具等待時間代替。App／Host 已正常退出、前台釋放；下次操作另行提醒。13:36 核對既有監測程序身分後續租 12 小時，GoalSupport 仍只服务本 Goal，沒有額外兌換。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。

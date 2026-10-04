@@ -50,6 +50,20 @@ namespace GraspPortable.App.Records
         public bool HasDialog => _dialog is not null;
         public bool UnknownOutcome => _unknownOutcome;
         public bool CommitQueued => _recordsPerformanceSpans.Values.Any(span => span.MinimumRevision is not null);
+        public int MatchingRows(string text, string? filterOperator = null)
+        {
+            _search = filterOperator is null ? text : "";
+            _view = DefaultView(_data!) with { Filters = filterOperator is null ? [] : [new("field", filterOperator, text)] };
+            return FilteredRows().Length;
+        }
+        public (string Input, string Preview, string Raw, bool Managed, bool SourceMode) NumberPresentation(RecordCellDto cell)
+        {
+            var field = new RecordFieldSchemaDto("field", "Number", "Number", "Number");
+            var row = new RecordRowDto("row", "Row", "Row", [cell]);
+            _data = _data! with { Fields = [field], Rows = [row] };
+            ShowCell(row, field);
+            return (_number, Preview(cell), _raw, RenderManagedCell(field, cell), _sourceMode);
+        }
     }
     internal sealed class FakeJs : IJSRuntime, IJSObjectReference
     {

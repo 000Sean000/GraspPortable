@@ -89,7 +89,51 @@ await Run("explicit query supersession still rejects the old commit span", async
     Check(panel.Applied == 12 && backend.Reads == 2 && !panel.CommitQueued, "an independent query cannot inherit the superseded save span");
     await panel.DisposeAsync();
 });
-Console.WriteLine($"Records UI revision control: {passed} fixtures passed.");
+await Run("exact numeric display bounds expansion without rounding", () =>
+{
+    (string Coefficient, int Scale, string Display)[] cases = [
+        ("425", 1, "42.5"), ("0", 0, "0"), ("-000", 9000, "0"), ("1200", 3, "1.2"),
+        ("-425", 1, "-42.5"), ("1", 4, "0.0001"), ("+00120", -2, "12000"),
+        ("9007199254740993", 0, "9007199254740993"), ("1234567890123456789", 9, "1234567890.123456789"),
+        ("1", -63, "1" + new string('0', 63)), ("1", -64, "1e64"), ("123", 10000, "1.23e-9998"),
+        ("1", int.MinValue, "1e2147483648"), ("1", int.MaxValue, "1e-2147483647")
+    ];
+    foreach (var item in cases) Check(RecordsPanel.FormatNumber(item.Coefficient, item.Scale) == item.Display, $"number {item.Coefficient}/{item.Scale}");
+    var significant = new string('7', 80);
+    Check(RecordsPanel.FormatNumber(significant, 0) == "7." + significant[1..] + "e79", "scientific keeps all significant digits");
+    return Task.CompletedTask;
+});
+await Run("table card and editor share display but preserve raw and managed references", async () =>
+{
+    var (panel, _) = Setup();
+    var cell = new RecordCellDto("field", "425e-1", "425e-1", false, "Valid", true,
+        new("Number", false, Coefficient: "425", Scale: 1), []);
+    var value = panel.NumberPresentation(cell);
+    Check(value.Input == "42.5" && value.Preview == "42.5" && value.Raw == "425e-1" && !value.Managed && !value.SourceMode,
+        "direct numeric display cannot mutate raw or use scientific input");
+    var reference = cell with { RawSource = "[425e-1](:ref:Price)", References = [new("note", "Price", "Inline", "425e-1", 0, 22, 1, 6)] };
+    var linked = panel.NumberPresentation(reference);
+    Check(linked.Managed && linked.SourceMode && linked.Raw == reference.RawSource, "numeric reference remains managed and source-editable");
+    Check(panel.NumberPresentation(cell with { Regions = [new(0, 7, true)] }).Managed, "definition region must not be flattened");
+    await panel.DisposeAsync();
+});
+await Run("numeric display and canonical forms remain searchable and filterable", async () =>
+{
+    var (panel, _) = Setup();
+    panel.NumberPresentation(new("field", "425e-1", "425e-1", false, "Valid", true,
+        new("Number", false, Coefficient: "425", Scale: 1), []));
+    foreach (var text in new[] { "42.5", "425e-1" })
+    {
+        Check(panel.MatchingRows(text) == 1, "general search must accept " + text);
+        Check(panel.MatchingRows(text, "equals") == 1, "text equality must accept " + text);
+        Check(panel.MatchingRows(text, "contains") == 1, "text containment must accept " + text);
+    }
+    Check(panel.MatchingRows("42", "equals") == 0 && panel.MatchingRows("42", "contains") == 1,
+        "equality remains textual equality, not substring matching");
+    Check(panel.Raw == "425e-1", "search/filter cannot rewrite canonical source");
+    await panel.DisposeAsync();
+});
+Console.WriteLine($"Records UI: {passed} fixtures passed.");
 return 0;
 }
 catch (Exception error) { Console.Error.WriteLine(error); return 1; }

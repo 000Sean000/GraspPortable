@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using GraspPortable.Contracts;
 using GraspPortable.Core.Knowledge;
+using GraspPortable.Core.Records;
 using GraspPortable.Core.ValueEngine;
 using GraspPortable.Host.Notifications;
 using GraspPortable.Host.Workspace;
@@ -111,6 +112,49 @@ await Check("same-note shared cache edits retain mixed source and dirty draft co
         Equal(observed, knowledge.Current.Notes[owner].CurrentSource); True(bytes.SequenceEqual(File.ReadAllBytes(file)), "conflicting external bytes must remain exact");
         if (dirty) True(knowledge.GetDraft(owner)!.Source.EndsWith("local draft", StringComparison.Ordinal));
     }
+});
+
+await Check("ordinary reference topology changes are accepted without shared intent", async () =>
+{
+    var path = Workspace("ordinary-reference-topology"); var repository = new MarkdownWorkspaceRepository(path); using var knowledge = new KnowledgeService(repository);
+    using var coordinator = new WorkspaceCoordinator(repository, knowledge, new RevisionHub(), path);
+    var owner = await Create(coordinator, knowledge, "Owner", "@code{ @Fruit = {apple} @Other = {pear} }");
+    var reader = await Create(coordinator, knowledge, "Reader", "[apple](:ref:Fruit)");
+    var file = FileFor(path, repository, reader);
+    foreach (var source in new[] { "new prose [apple](:ref:Fruit) [[@Other|new carrier cache is not an edit]]", "[apple](:ref:Fruit)", "all references removed" })
+    {
+        SetBody(file, source); await coordinator.ReconcileAsync();
+        True(!knowledge.Current.Notes[reader].IsSourceStale); Equal("apple", Value(knowledge, "Fruit")); Equal("pear", Value(knowledge, "Other"));
+        var parsed = GraspParser.Parse(MarkdownEnvelopeCodec.Read(File.ReadAllText(file)).Body, knowledge.Current.Languages);
+        Equal(source.Contains("Other", StringComparison.Ordinal) ? 2 : source.Contains("Fruit", StringComparison.Ordinal) ? 1 : 0, parsed.References.Count);
+        if(parsed.References.Count == 2) Equal("pear", parsed.References.Single(r => r.Name == "Other").CachedValue);
+        var settled = knowledge.Current.Revision; await coordinator.ReconcileAsync(); Equal(settled, knowledge.Current.Revision);
+    }
+    SetBody(file, "[apple](:ref:Fruit)"); await coordinator.ReconcileAsync();
+    var before = knowledge.Current.Notes[reader];
+    await knowledge.SaveDraftAsync(new(reader, "dirty", 1, before.Revision, before.Title, before.Source + "\nlocal draft", before.CurrentSourceHash));
+    var external = before.Source + "\n[[@Other|pear]]"; SetBody(file, external); var bytes = File.ReadAllBytes(file);
+    await coordinator.ReconcileAsync(); True(knowledge.Current.Notes[reader].IsSourceStale);
+    True(bytes.SequenceEqual(File.ReadAllBytes(file))); True(knowledge.GetDraft(reader)!.Source.EndsWith("local draft", StringComparison.Ordinal));
+});
+
+await Check("ordinary reference topology in record field preserves metadata and sole raw source", async () =>
+{
+    var path = Workspace("record-reference-topology"); var repository = new MarkdownWorkspaceRepository(path); using var knowledge = new KnowledgeService(repository);
+    using var coordinator = new WorkspaceCoordinator(repository, knowledge, new RevisionHub(), path);
+    await Create(coordinator, knowledge, "Owner", "@code{ @Fruit = {apple} @Other = {pear} }");
+    var records = new WorkspaceRecords(repository, knowledge);
+    var created = await coordinator.MutateAsync(() => records.CreateAsync(new(Op(), knowledge.Current.Revision, "Collection", "Row", "Row", [new("", "Text", "Text", "Markdown")])));
+    Equal("committed", created.Status); var data = records.Read(created.NoteId!); var row = data.Rows.Single(); var field = data.Fields.Single();
+    Equal("committed", (await coordinator.MutateAsync(() => records.ChangeFieldAsync(row.Id, field.Id, new(Op(), knowledge.Current.Revision, "[apple](:ref:Fruit)")))).Status);
+    var note = knowledge.Current.Notes[created.NoteId!]; var file = FileFor(path, repository, note.Id);
+    var edit = VerticalRecordCodec.PrepareFieldEdit(note.Source, VerticalRecordCodec.Parse(note.Source, note.Records!), row.Id, field.Id,
+        new("[apple](:ref:Fruit)\n\n[[@Other|external new occurrence]]"));
+    True(edit.Success); SetBody(file, ReferenceCodec.ApplyPatches(note.Source, [edit.Patch!])); await coordinator.ReconcileAsync();
+    True(!knowledge.Current.Notes[note.Id].IsSourceStale); var current = records.Read(note.Id);
+    Equal(row.Id, current.Rows.Single().Id); Equal(field.Id, current.Fields.Single().Id);
+    var cell = current.Rows.Single().Cells.Single(); True(cell.RawSource.Contains("[[@Other|pear]]", StringComparison.Ordinal));
+    Equal("apple", Value(knowledge, "Fruit")); Equal("pear", Value(knowledge, "Other")); Equal(2, cell.References!.Length);
 });
 
 await Check("invalid metadata becomes unavailable without overwriting and exact-byte repair recovers", async () =>
