@@ -1,13 +1,13 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.6.0
+version: 1.7.0
 updated: 2026-10-05
 status: native-gui-partially-verified
 ---
 
 ## 判定
 
-Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；微軟注音組字遇外部修改已有下節有限原生證據；DPI、其他快速切換時序及量化端到端仍未完整驗收。使用者接受另記。
+Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；微軟注音組字遇外部修改已有下節有限原生證據；125%／150% 有界佈局及 150% 凍結焦點另見 [S3／S4 Validation](S3-S4-Validation.md)；其他快速切換時序、視窗縮窄及量化端到端仍未完整驗收。使用者接受另記。
 
 ## 2026-10-05 微軟注音組字遇外部修改
 
@@ -112,7 +112,7 @@ ValueEngine 依變更的 ordered parts／名稱及反向相依找出受影響閉
 
 ## 尚待驗證
 
-- 真實 Windows UI：快速編輯／切換其他時序、125%／150% 縮放、視窗縮窄及長時間操作。基本注音、組字遇外部修改／衝突重開、allowlist 操作與 Reading 多段空行已有上方有限證據，不擴稱所有輸入法及組字時序通過。
+- 真實 Windows UI：快速編輯／切換其他時序、視窗縮窄及長時間操作；125%／150% 的有限縮放證據見 S3／S4 Validation。基本注音、組字遇外部修改／衝突重開、allowlist 操作與 Reading 多段空行已有上方有限證據，不擴稱所有輸入法及組字時序通過。
 - 端到端 input-visible／commit-visible、捲動及 warm／cold note 切換門檻。
 - 使用者按 [First UI 操作說明](FirstUI-Quickstart.md) 體驗並接受結果。
 - 清潔電腦 Portable、正式日用資料、完整 Markdown 複雜宿主與跨裝置均屬後期，沒有宣稱本輪通過。

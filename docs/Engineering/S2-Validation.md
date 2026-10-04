@@ -1,7 +1,7 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.7.0
-updated: 2026-10-04
+version: 1.8.0
+updated: 2026-10-05
 status: engineering-and-native-gui-partially-verified
 ---
 
@@ -104,8 +104,8 @@ Content resolver 44 assertions、editor regression／TypeScript、App／Host 發
 ## 尚未完成與下一步
 
 - 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取於 10:30 重驗通過，完整還原範圍另驗。
-- Obsidian 關閉期間新增／重開、同時開啟時定義更新及同篇共享值回寫已有上方原生證據；外部新增／移除引用已修並以 Grasp＋受控檔案修改重驗。外部改名、衝突解決及 IME／dirty 時序仍待完成。
-- S1 剩餘政策 GUI、DPI、端到端流暢度；本次沒有新的性能數字。跨檔 journal／完整 snapshot 的成本尚未證明符合成長門檻。
+- Obsidian 關閉期間新增／重開、同時開啟時定義更新及同篇共享值回寫已有上方原生證據；外部新增／移除引用已修並以 Grasp＋受控檔案修改重驗。外部改名、保留衝突及微軟注音組字遇外部修改已有後續有限原生證據，見 [S1 Validation](S1-Validation.md) 與 [S3／S4 Validation](S3-S4-Validation.md)；其他快速切換時序及完整端到端門檻仍待完成。
+- 基本政策 GUI 已驗，縮放／焦點及端到端流暢度依最新驗證紀錄續作；這份 S2 文件不重填後續性能數字。既有真 Markdown 提交量測見 S3／S4 Validation，仍不代表完整成長餘裕。
 - S3 合併／拆分及 368 檔完整版本還原已補主要正常流程，詳見 S3／S4 Validation；其餘 Records／恢復邊界續驗。
 
-下一個版本沿 [Implementation Plan rc.9](Implementation-Plan-v1.0.0-rc.9.md) 繼續，不因這份 checkpoint 停止 Goal，也不標記 S1／S2／S3 或 Goal 全部完成。
+下一個版本沿 [Implementation Plan rc.11](Implementation-Plan-v1.0.0-rc.11.md) 續作；是否暫停或恢復以 EXECUTION-STATE 最新使用者授權為準，不標記 S1／S2／S3 或 Goal 全部完成。

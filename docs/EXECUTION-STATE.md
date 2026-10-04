@@ -1,11 +1,21 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.36.0
+version: 1.37.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
-## 最新授權：routing 遷移後恢復產品開發
+## 最新 checkpoint：關機前完整收尾（2026-10-05）
+
+使用者明確要求完成目前工作段後暫停既有 P0–S4 Goal，供關機／移動電腦。本節取代下方較早 active／續跑指示；不縮減 scope、不標 complete。完成 Git checkpoint 及程序核對後使用 runtime pause，實際結果以工具回傳為準。未經後續 Resume 不啟動下一產品工作段。
+
+基底為已核對遠端的 `b77f56dcf985b1950242f4fd847a1e155a50ddb2`。本段完成 Records 凍結區鍵盤焦點修正：依 sticky 行列的實際遮擋範圍捲動，保留 generation、導航與來源身分。3 項直接 JS tests、四 Project 架構及 App／Host publish 通過。125%／150% 原生表格與欄位對話框有界檢查完成；修正後在目前 150% 實際 Shift+Tab 露出 Wiki 焦點，Enter 正確顯示缺失目標，沒有改寫來源。125% 修正後焦點僅有合成測試，不擴稱原生重驗。
+
+效能定位沒有證實 compact read/write 重複 layout；未採用收益不明的 direct-DOM 改造。Aura 暖機仍沿前次 211.4／229.4 ms 未達標。六處現行文件失效連結已修正；版本化規格僅連結勘誤，不變更契約。細節見 S3／S4 Validation。
+
+正常關閉後 App／Host（含 dotnet Host）程序零；Computer Use kernel 已重設，worker 均完成或 interrupted，沒有 active worker。Windows 比例恢復並確認 150%、解析度 2560×1600。主 workspace revision 79 與三份 durable drafts 保留，全部 draft JSON SHA-256 和原基底相同；原還原 workspace、私人驗收材料與既有外部原文未清除。私人核對檔 `workspaces/AcceptanceSupport/shutdown-1005-focus-verification.json` 不進 Git。前台已釋放。
+
+## 先前授權：routing 遷移後恢復產品開發
 
 2026-10-05 使用者明確澄清：完成 routing 文件／設定遷移後，已讓原產品 Goal 繼續。此恢復授權取代下方暫停 checkpoint；保留完整 P0–S4 目標、既有 Git 授權與驗收門檻。Root 先前將 continuation 誤判為未授權而再次暫停，現在接續保留的四檔 Records 優化，沒有 reset、清除資料或重建 Goal。本次收到續跑後，get_goal 已確認 active；沿恢復授權持續推進，不再依較舊停工記錄暫停。使用者另確認本機採微軟注音、Shift 切換中／英文；IME 競態以此進行原生驗證。
 
@@ -276,6 +286,8 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-Goal 已確認 active。409821e 後的 query 分段及 cell render／cleanup 批次已整合並原生複驗，Aura 暖機仍 211.4／229.4 ms。下一步先定位 JS Markdown／compact link 可見性排版 read/write 成本，再決定最小修正；保留 generation／workspace／導航與成功量測條件，不減頁數或隱藏 managed links。主 `S4-Acceptance-1004` revision 79，三份 durable drafts 及外部原文、原還原 workspace 均保留，不清 DB。
+關機前收尾完成後暫停；下次由使用者 Resume，先核對既有 Goal、HEAD／origin／working tree，沿本 checkpoint 續作，不重建 Goal或測試資料。`S4-Acceptance-1004` revision 79、三份 durable drafts 及原還原 workspace 保留。
 
-微軟注音的組字期間外部修改、保留衝突及重開恢復已取得有限原生證據，不重做同案。後續補代表性縮放／凍結區鍵盤焦點及至少 30 次代表操作／約五分鐘端到端互動；既有缺失目標、allowlist、兩式卡片導航、第二 view、改名與草稿還原按新增風險補測。前台測試前另行提醒。GoalSupport 原監測已退出，沒有持續監測承諾。最後逐項審核完整完成條件、文件一致及 commit／push，未達標不標 Goal complete。
+下一工作段優先解決 Aura 暖機切換仍超過 200 ms：已有 HTTP／apply 分段與 50×5 合成 render profile；compact visibility 並未出現重複 layout，direct-DOM 差異不足以支持改造。先依既有成本證據選擇最小渲染方案（含 Blazor child／interop 成本），不要重做無效的 layout-thrash 假設、減頁數或放寬成功量測條件。本輪不開始此段。
+
+之後依新增風險补視窗縮窄、其餘焦點／輸入時序，以及至少 30 次代表操作／約五分鐘真正連續互動與完整端到端門檻。125%／150% 有界佈局、150% 凍結欄 Wiki 焦點、微軟注音組字跨外部修改及草稿重開已取得有限證據，不重做同案。S1／S2 PARTIAL、S3／S4 IN_PROGRESS，使用者接受另記。最終仍須逐項審核完整 S4 完成條件、文件一致及 commit／push；GoalSupport 原監測已退出，沒有持續監測承諾。

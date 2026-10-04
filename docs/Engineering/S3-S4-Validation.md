@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.19.0
+version: 1.20.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,20 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 2026-10-05 縮放、凍結焦點與關機 checkpoint
+
+從 b77f56d 續作。Root 以 Windows 顯示設定核對原 150%、2560×1600，暫改 125%：Mentors 15 筆／8 顯示欄位雙向捲動後，record 標題欄、Name 及第一列保持固定；Anria／Official Role 欄位對話框完整可見，Tab 到 Wiki 預覽、Escape 返回、Return 重開仍是相同 field ID。回復 150% 後對話框同樣可見。未修改來源或欄位。
+
+原生發現 Shift+Tab 到前一個 Wiki 時焦點被凍結 Name 欄遮住。worker 用實際 CSS 的有界 125%／150% 合成案例確認：連結與自身 cell 相交，但中心 hit-test 命中凍結欄按鈕。最小修正於有效 render generation 的 focusin 依 sticky 欄、thead、前方 frozen rows 計算可見視口，並換算 CSS zoom 後調整捲動；沒有改 Tab 順序、導航、IDs、來源或 paint gate。
+
+直接 JS 驗證 `records-focus.test.mjs`、`records-batch.test.mjs`、`performance-probe.test.mjs` 共 3 tests PASS。合成橫向 offset 480→約 447，普通列縱向 364→約 312，凍結第一列保持 364；中心 hit-test 命中連結，Enter 各導航一次。四 Project 架構、Release publish 通過。
+
+修正後 Root 在 Windows 150% 原生重驗相同流程：雙向捲動→Anria／Official Role→Escape→Shift+Tab，表格自動露出「醫者」焦點；Enter 顯示找不到該 Wiki 目標，仍在原表。這是有限樣本已知缺失目標的正確處理；沒有把缺失目標當成跳轉成功。125% 修正後只取得合成證據；普通列縱向焦點也只有合成證據。
+
+另完成先前開始的有界 renderer 定位：50×5 合成 cell，compute 約 48.1 ms、insert 3.5、event binding 2.7、compact 8.3；兩次 rAF 約 77.5 ms。移除 geometry 變體仍是一次 layout／style，沒有證實重複 layout。細分 sanitize 約 22.4 ms、marked 7.9 ms、context 5.6 ms；direct-DOM 記憶體變體兩次 rAF 82.3→79.7 ms，幅度不足以支持正式改造，因此未修改共用 renderer API。私人 `workspaces/RecordsRenderProfile` 報告保留；此為合成定位，不替代原生效能或建立因果結論。前次 Aura 暖機 211.4／229.4 ms 仍未达標。
+
+使用者要求關機前收尾，不開始新優化或長測。正常 Alt+F4 後 App／Host（含 dotnet Host）均無程序，三份 durable draft JSON 與 IME 基底 SHA-256 完全相同；revision 79 保留。Windows 恢復並核對 150%，Computer Use kernel 已重設、前台釋放。既有 worker 完成／interrupted，無 active worker。產品仍部分驗證，下一步及暫停授權見 EXECUTION-STATE。
 
 ## Records 分段定位（2026-10-05）
 
@@ -311,7 +325,7 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
-主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。下一步完成 Records 渲染改善，再補代表性縮放／凍結區鍵盤焦點與足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
+主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。代表性縮放／凍結焦點已有上方有限新證據；Resume 後仍需解決 Records 暖機效能、補視窗縮窄及足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
 
 指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文已定點取樣，轉換、圖片與返回原卡的有限原生結果見上方 revision 61–62 紀錄。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 

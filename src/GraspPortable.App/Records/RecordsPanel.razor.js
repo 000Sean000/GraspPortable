@@ -46,12 +46,55 @@ export function renderMarkdown(element, markdown, origin, receiver, generation, 
         throw error;
     }
 }
+function revealRecordsFocus(target) {
+    const cell = target.closest("td,th"), row = cell?.parentElement;
+    const grid = cell?.closest(".records-grid"), scroller = grid?.closest(".records-scroll");
+    if (!scroller || !row) return;
+    const viewport = scroller.getBoundingClientRect();
+    // DOM rects include CSS zoom; scroll offsets remain in layout CSS pixels.
+    const scaleX = viewport.width / scroller.offsetWidth, scaleY = viewport.height / scroller.offsetHeight;
+    if (!(scaleX > 0 && scaleY > 0)) return;
+    let left = viewport.left + scroller.clientLeft * scaleX;
+    let top = viewport.top + scroller.clientTop * scaleY;
+    const right = left + scroller.clientWidth * scaleX, bottom = top + scroller.clientHeight * scaleY;
+    for (const previous of row.children) {
+        if (previous === cell) break;
+        const style = getComputedStyle(previous);
+        if (style.position === "sticky" && style.left !== "auto") left = Math.max(left, previous.getBoundingClientRect().right);
+    }
+    for (const header of grid.tHead?.querySelectorAll("th") ?? [])
+        if (getComputedStyle(header).position === "sticky") top = Math.max(top, header.getBoundingClientRect().bottom);
+    for (const frozen of grid.querySelectorAll("tbody .frozen-row")) {
+        if (frozen.rowIndex >= row.rowIndex) continue;
+        for (const previous of frozen.children) {
+            const style = getComputedStyle(previous);
+            if (style.position === "sticky" && style.top !== "auto") top = Math.max(top, previous.getBoundingClientRect().bottom);
+        }
+    }
+    const compact = target.closest(".records-markdown.compact")?.getBoundingClientRect();
+    const rect = [...target.getClientRects()].find(r => !compact || r.right > compact.left && r.left < compact.right && r.bottom > compact.top && r.top < compact.bottom);
+    if (!rect) return;
+    // Only the summary's visible fragment participates; sticky overlays define
+    // the remaining viewport, rather than the element's own-cell intersection.
+    const focus = compact ? { left: Math.max(rect.left, compact.left), right: Math.min(rect.right, compact.right),
+        top: Math.max(rect.top, compact.top), bottom: Math.min(rect.bottom, compact.bottom) } : rect;
+    const insetX = 3 * scaleX, insetY = 3 * scaleY;
+    const dx = focus.left < left + insetX ? focus.left - left - insetX : focus.right > right - insetX ? focus.right - right + insetX : 0;
+    const dy = focus.top < top + insetY ? focus.top - top - insetY : focus.bottom > bottom - insetY ? focus.bottom - bottom + insetY : 0;
+    if (dx) scroller.scrollLeft += dx / scaleX;
+    if (dy) scroller.scrollTop += dy / scaleY;
+}
 function renderMarkdownContent(element, markdown, origin, receiver, generation, references, regions) {
     disposeMarkdown(element);
     const state = { active: true, controller: new AbortController(), pending: new Map(), cache: new Map(), cacheSize: 0 };
     rendered.set(element, state);
     element.innerHTML = renderManagedMarkdown(markdown, references, regions);
     const current = () => state.active && rendered.get(element) === state && element.isConnected;
+    element.addEventListener("focusin", event => {
+        if (current() && element.dataset.recordsRenderExpected === String(generation)
+            && event.target instanceof HTMLElement && event.target.matches("a,[data-grasp-definition]"))
+            revealRecordsFocus(event.target);
+    }, { signal: state.controller.signal });
     element.querySelectorAll("a").forEach(anchor => {
         const target = anchor.dataset.localTarget ?? anchor.getAttribute("href") ?? "";
         const recordId = anchor.dataset.recordId;

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.3.0
+version: 1.4.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -40,3 +40,12 @@ Context：原 worker 對 probe／Records ownership 的 affinity 高，增量交�
 結果：診斷與有界 IME 證據完成，整體產品仍部分；UI 29 fixtures、probe test、publish 通過，原生資料指向 render／interop 成本。沿同 worker 續作批次渲染；詳細產品證據及進度由 Engineering／EXECUTION-STATE 承載。
 
 同事件續作：沿原 worker 完成 batch render／cleanup；Root 審查指出 C# params 陣列展開風險，worker 修正並加單一 array IPC fixture。33 UI fixtures、2 JS tests、publish 通過；Root 原生重驗卡片導航、草稿保全及同序比較，暖機仍有超標。這是正常整合與產品驗證，不新增跨模型效果結論。
+
+## 2026-10-05 Renderer 定位與凍結焦點修復
+
+任務／政策：沿原 Records worker 進行已開始的有界渲染定位，之後處理 Root 原生發現的 sticky 焦點遮擋；policy rc.2，基底 b77f56d。
+配置：沿先前要求 Sol Medium；Root／child 實際模型及 effort 權威 metadata 未取得，保持未知。
+Context：同子系統 affinity 高、增量交接低；Root 保有 GUI、文件及 Git，worker 限 JS 與直接 fixture。
+核對：中；profile 未支持預期 layout-thrash，沒有提交試驗性 renderer 改造；Root 審查焦點範圍／CSS zoom／generation，publish 後原生重驗。
+返工／人工：使用者要求關機前完整收尾，完成當前修正與必要驗證，沒有展開新優化。沒有新增產品決策或跨模型實驗。
+結果：焦點修正、3 項 JS tests、publish及有限原生重驗完成；整體效能仍未達標。產品證據見 Engineering/S3-S4-Validation.md，停點由 EXECUTION-STATE 管理。

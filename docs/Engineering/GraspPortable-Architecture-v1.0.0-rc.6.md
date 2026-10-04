@@ -1,7 +1,7 @@
 ---
 title: GraspPortable — Product Architecture
 version: 1.0.0-rc.6
-updated: 2026-10-04
+updated: 2026-10-05
 status: accepted-architecture-baseline
 scope: markdown-workspace-records-runtime-and-recovery
 supersedes: GraspPortable-Architecture-v1.0.0-rc.5.md
@@ -132,7 +132,7 @@ Restore 在新 staging workspace 檢查完整性與格式，成功後才開啟�
 
 查詢分頁／取消；通知與畫面更新合併、按可見範圍處理；分批 I/O 及低優先 checkpoint 不阻塞輸入。大工作超過 200 ms 呈現 pending；限制資源時回報明確狀態，不靜默截斷值。`async`、不同 lane 或分程序本身不是流暢證據。
 
-量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.9](Implementation-Plan-v1.0.0-rc.9.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
+量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.11](Implementation-Plan-v1.0.0-rc.11.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
 
 ## 7. 入口與未納入範圍
 
