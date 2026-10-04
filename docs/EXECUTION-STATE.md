@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.25.0
+version: 1.26.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,17 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：分組還原、外部引用增減及可讀數字
+## 最新工作段：外部改檔名、重新提交與合併標題
+
+以已核對遠端 `5917c3246f41db625823ba8fc01796fc0e2a270c` 續作。真實 Obsidian 在獨立 S4 驗收 vault 改來源檔名，選擇本次更新 4 links／3 files，Grasp revision 39 自動接收。資料表 Wiki 仍開新檔名，多段 Grasp reference 仍定位同一 Message 定義；原 note ID 不變，原日用 vault 未操作。
+
+App 14:03:10 publish 包含三項修正：新欄位傳空 ID 讓 Host 依 operation 派生身分；未接受原文提供明確重新提交入口；合併對話框同時保留／確認標題及正文。RecordsUi 12 fixtures、App build 及四 Project 架構檢查通過。原生新增第十個 Markdown 欄位至 revision 40，重開欄位設定一致。另一筆通知抵達時，開啟中的欄位表單保留輸入及原始版本。
+
+受控外部原文改定義與引用名稱後，明確重新提交及 rename 確認使 revision 42→43，定義 ID 保留。再建立 pending rename 草稿，外部修改標題與正文觸發合併；合併期間第二次外部修改會攔下過期提交，右侧自訂標題及草稿仍在。補入第二版正文、確認改名後 revision 46 診斷零；唯讀檔案／SQLite 核對最終標題、本地與兩次外部正文、同步引用及同一 definition ID。外部衝突案例由 shell 改檔，不冒稱 Obsidian GUI。App／Host 正常退出，程序數零，前台釋放。
+
+Goal active，下一段優先修復已確認的草稿離開缺陷：rename 的「保留草稿」只關 modal，後續切換／備份／關閉會再次提交並阻擋。需核對最新 durable snapshot 才允許延後語意，不能僅看 `_hasDraft`；未知 operation／IME 仍阻擋。另一項尚未實作的 S4 契約是跨資料表 tag 搜尋，目前搜尋只作用於當前 collection。其餘原生 carrier／view／缺失來源、IME／policy／縮放及代表性效能仍待完成；不重做已通過的正常合併還原與基本九型別。
+
+## 已完成工作段：分組還原、外部引用增減及可讀數字
 
 以已核對遠端 `3cdea60a4ca456106a59dbe172164ba39ae2561d` 續作。原生右鍵合併兩篇連結驗收筆記至 revision 33，再拆分至 revision 34；原 IDs 保留，兩個 incoming-link 檔案隨之更新，member／Wiki heading／Grasp 定義導航有效。新增未完成 literal 原文至 revision 36，13:28:48 完整備份 368 檔，從 UI 還原並開啟 `workspaces/S4-Restored-1004-1329`。未完成原文、診斷、四 collections、資料表參照定位及 Triensa 圖片均原生確認。
 

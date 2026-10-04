@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.8.0
+version: 1.9.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,14 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 新欄位與剩餘功能缺口（revision 40）
+
+新欄位原先傳入隨機非空 ID，被 Host 判定未知現有欄位而拒絕。改為 create 傳空 ID，由 Host 按 operation 派生；update 仍保留原 ID。RecordsUi 的實際 Save request fixture 覆蓋兩條路徑，合計 12 fixtures 通過。App 14:03:10 原生新增「新增欄位驗收」／Field1／Markdown 成功，型別 collection 由九欄成十欄，兩筆 null；重開設定正確。另一筆 workspace 通知到達時，表單保留輸入與原 revision，未誤寫。
+
+Obsidian 改來源檔名後，型別表中的 Wiki 及多段 reference 導航仍有效，詳見 [S2 Validation](S2-Validation.md)。Field key／option／record carrier 改名、缺失目標、第二個 view 的篩選／鍵盤焦點及真實長文外部往返尚有原生缺口。
+
+全局審查確認 **跨資料表 tag 搜尋尚未實作**：目前 RecordsPanel 只篩當前 collection rows，沒有 workspace 範圍 tag query／入口；不得以單表搜尋代稱完成。較新 durable draft 的手動備份／關閉流程亦有已確認阻擋，修復後才能驗收。代表性 30 次操作及五分鐘連續互動仍待量測。
 
 ## 合併、拆分及完整版本還原（revision 33–36）
 

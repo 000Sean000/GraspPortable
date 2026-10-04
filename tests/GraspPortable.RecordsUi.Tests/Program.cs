@@ -133,6 +133,17 @@ await Run("numeric display and canonical forms remain searchable and filterable"
     Check(panel.Raw == "425e-1", "search/filter cannot rewrite canonical source");
     await panel.DisposeAsync();
 });
+await Run("field save sends empty identity for creation and stable identity for update", async () =>
+{
+    foreach (var existing in new[] { false, true })
+    {
+        var (panel, backend) = Setup(); panel.OpenFieldForTest(existing); await panel.SaveForTest();
+        Check(backend.LastRequest is UpsertRecordFieldRequest request
+            && request.Field.Id == (existing ? "field" : "") && !string.IsNullOrEmpty(request.OperationId),
+            "actual Save command must let Host derive new identity while retaining existing field ID");
+        await panel.DisposeAsync();
+    }
+});
 Console.WriteLine($"Records UI: {passed} fixtures passed.");
 return 0;
 }

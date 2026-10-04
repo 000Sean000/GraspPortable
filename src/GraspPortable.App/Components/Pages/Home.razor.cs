@@ -25,7 +25,7 @@ public partial class Home
     private DefinitionDto? _selectedDefinition;
     private ImpactDto? _impact;
     private string _title="", _source="", _savedSource="", _savedTitle="", _sessionId=Guid.NewGuid().ToString("N");
-    private string _search="", _newTitle="", _workspacePath="", _literalValue="", _languageText="grasp", _mergeSource="", _insertName="";
+    private string _search="", _newTitle="", _workspacePath="", _literalValue="", _languageText="grasp", _mergeSource="", _mergeTitle="", _insertName="";
     private string _mode="live", _saveStatus="正在準備工作區…";
     private string? _baseSourceHash;
     private string? _dialog, _error, _notice, _commitNotice;
@@ -215,6 +215,14 @@ public partial class Home
         return !snapshot.Composing;
     }
     private async Task SaveButtonAsync() => await GuardAsync(async ()=>{await SaveCurrentAsync();});
+    private async Task ResubmitSourceAsync() => await ModalActionAsync(async () =>
+    {
+        if(_note is null || _note.SourceStatus=="accepted")return;
+        // Explicit user action only. Blur/debounce must not repeatedly submit
+        // unchanged, unaccepted source or reopen its confirmation dialog.
+        _forceDraftSave=true;
+        await SaveCurrentAsync();
+    });
     private async Task<bool> SaveCurrentAsync()
     {
         if(_note is null || editor is null) return true;
@@ -302,14 +310,14 @@ public partial class Home
     {
         if(_note is null)return;
         _conflictNote=await Backend.GetAsync<NoteDto>("api/notes/"+_note.Id);
-        _mergeSource=_source; _dialog="conflict"; _notice=message; _saveStatus="草稿保留 · 需要合併";
+        _mergeTitle=_title; _mergeSource=_source; _dialog="conflict"; _notice=message; _saveStatus="草稿保留 · 需要合併";
     }
     private async Task ApplyMergeAsync() => await ModalActionAsync(async () =>
     {
         if(_conflictNote is null || _note?.Id!=_conflictNote.Id)return;
         _note=_conflictNote; _noteRevision=_conflictNote.Revision; _knowledgeRevision=_conflictNote.KnowledgeRevision;
         _baseSourceHash=_conflictNote.SourceHash;
-        _source=_mergeSource; _contentVersion++; _editorRevision=0; _forceDraftSave=true;
+        _title=_mergeTitle; _source=_mergeSource; _contentVersion++; _editorRevision=0; _forceDraftSave=true;
         await editor!.InvokeVoidAsync("setDocument",_note.Id,_source,0,Array.Empty<ReferenceDto>(),_mode=="live");
         _dialog=null; await SaveCurrentAsync();
     });

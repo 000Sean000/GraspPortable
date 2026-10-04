@@ -394,7 +394,7 @@ public partial class RecordsPanel : IAsyncDisposable
         }
         if (_dialog == "field")
         {
-            var field = new RecordFieldSchemaDto(_field?.Id ?? Guid.NewGuid().ToString("N"), _key, _label, _kind,
+            var field = new RecordFieldSchemaDto(_field?.Id ?? "", _key, _label, _kind,
                 _kind is "SingleSelect" or "MultiSelect" ? _options.Select(o => new RecordOptionDto(o.Id, o.Label)).ToArray() : []);
             var request = new UpsertRecordFieldRequest(id, _editRevision, field); return new($"api/records/{collectionId}/fields", id, request, request with { ConfirmRename = true });
         }

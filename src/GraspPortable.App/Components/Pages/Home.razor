@@ -27,7 +27,7 @@
  </div></header>
  @if(_error is not null){<div class="notice error" role="alert"><span>@_error</span><button @onclick="() => _error=null">×</button></div>}
  @if(_notice is not null){<div class="notice info"><span>@_notice</span><button @onclick="() => _notice=null">×</button></div>}
- @if(_note is { SourceStatus: not "accepted" }){<div class="notice info"><span>@SavedStatus(_note)。共享值顯示上次結果及診斷。</span></div>}
+ @if(_note is { SourceStatus: not "accepted" }){<div class="notice info"><span>@SavedStatus(_note)。共享值顯示上次結果及診斷。</span>@if(!_recordsVisible){<button @onclick="ResubmitSourceAsync" disabled="@(_saving||_busy||_switching)" title="重新核對目前標題與原文；需要時會要求合併或改名確認。">重新提交目前內容</button>}</div>}
  @if(_sourceStatus?.Issues.Length>0){<details class="source-issues"><summary>來源核對有 @_sourceStatus.Issues.Length 項需要處理@(_sourceStatus.WritesBlocked?" · 暫停寫入，請保留草稿並重開":"")</summary>@foreach(var issue in _sourceStatus.Issues){<p><strong>@issue.RelativePath</strong> @issue.Message</p>}</details>}
  @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" InitialCollectionId="@_recordsInitialCollectionId" InitialRecordId="@_recordsInitialRecordId" InitialRecordHandled="RecordRequestHandled" SelectedCollectionChanged="RememberRecordCollection" OnOpenSource="OpenRecordSourceAsync" OnNavigate="NavigateRecordContentAsync" /></div>}
  <div class="document-layout @(_recordsVisible?"hidden":"")"><section class="document"><div class="document-heading">
@@ -104,7 +104,7 @@
  }else if(_dialog=="rename"){
  <h2>名稱變更會影響其他引用</h2><p>@_confirmationResult?.Message</p><p>受影響筆記：@(_confirmationResult?.AffectedNoteIds?.Length??0)</p><div class="modal-actions"><button @onclick="CloseDialog">保留草稿</button><button class="primary" @onclick="ConfirmRenameAsync" disabled="@_busy">確認名稱變更</button></div>
  }else if(_dialog=="conflict"){
- <h2>保留草稿，確認合併內容</h2><p>左側顯示最新版本；确认後才以右側內容提交。</p><div class="merge-grid"><label>最新提交<textarea readonly value="@_conflictNote?.Source"></textarea></label><label>合併內容<textarea @bind="_mergeSource"></textarea></label></div><div class="modal-actions"><button @onclick="CloseDialog">稍後處理</button><button class="primary" @onclick="ApplyMergeAsync" disabled="@_busy">使用右側內容提交</button></div>
+ <h2>保留草稿，確認合併內容</h2><p>左側是最新保存的原文，可能仍未通過語意核對；右側保留你的標題與正文。請一起確認，提交時會再次檢查版本。</p><div class="merge-grid"><div><label>最新標題<input readonly value="@_conflictNote?.Title" /></label><label>最新保存原文<textarea readonly value="@_conflictNote?.Source"></textarea></label></div><div><label>要提交的標題<input @bind="_mergeTitle" /></label><label>要提交的合併正文<textarea @bind="_mergeSource"></textarea></label></div></div><div class="modal-actions"><button @onclick="CloseDialog">稍後處理</button><button class="primary" @onclick="ApplyMergeAsync" disabled="@_busy">確認右側標題與正文並提交</button></div>
  }
  @if(_busy){<p class="muted">處理中…</p>}
 </section></div>}

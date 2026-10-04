@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.5.0
+version: 1.6.0
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -12,6 +12,16 @@ S2 的 Markdown adapter／coordinator 已接入實際 Host，App／Host 使用 p
 App／Host 已重新發布，包含最新版 link codec、tree 自動選取、本機圖片與 wiki 導航。下方補記實測範圍；後續分組及 Records 尚未沿用這份 GUI 證據。
 
 ## 2026-10-04 原生操作證據
+
+### 外部檔名與合併候選（revision 39、41–46）
+
+真實 Obsidian 在獨立 S4 驗收 vault 將連結來源改為「連結驗收－Obsidian改名來源.md」，本次更新 4 links／3 files。Grasp 自動接收 revision 39，資料表 Wiki 開正確新路徑、多段 Grasp reference 仍選中 Message 定義，來源 note ID 不變。測試 vault 視窗正常關閉；日用 Software vault 未操作。
+
+App 14:03:10 發行新增「重新提交目前內容」，僅明確操作才強制核對未接受原文。來源處理驗收筆記從外部同時改 definition／reference 名稱，保留衝突 revision 42；點新入口並確認 rename 後 revision 43 有效且 definition ID 保留。
+
+在同筆記建立 pending rename 草稿，受控 shell 外部寫入不同標題／正文。過期確認進入合併：左側最新保存原文（不冒稱已接受語意），右側保留本地標題與正文且均可編輯。將右側標題改「合併確認標題」、加入外部第一版後，再從外部寫第二版。提交被版本檢查攔下，左側更新，右側候選仍保留。補入第二版、確認 rename 後 revision 46 診斷零，檔案與唯讀 SQLite 均確認本地／外部第一版／第二版正文、最終標題、同步 reference 與原 definition ID。這是 Grasp GUI＋shell 衝突驗證，不是 Obsidian GUI 衝突案例。
+
+App／Host 正常關閉、程序數零。另確認未解 UX：rename 的「保留草稿」關閉 modal 後，切換／手動備份／正常關閉仍重試提交而再阻擋；較新 durable draft 的完整 GUI 備份恢復因此仍未通過。不能以既有未接受原文 restore 替代。
 
 ### Obsidian 共同編輯實測（13:00 左右，S4 驗收 workspace）
 

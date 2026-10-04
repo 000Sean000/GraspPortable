@@ -12,6 +12,7 @@ namespace GraspPortable.App.Backend
         public string WorkspacePath => "unused";
         public long Revision = 11;
         public int Reads;
+        public object? LastRequest;
         public Func<Task<OperationResult>>? Command;
         public Func<CancellationToken, Task<CollectionDto>>? Read;
         public async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken = default)
@@ -21,8 +22,11 @@ namespace GraspPortable.App.Backend
             else { Reads++; result = Read is null ? Data(Revision) : await Read(cancellationToken); }
             return (T)result;
         }
-        public Task<OperationResult> CommandAsync(string url, object request, string operationId) =>
-            Command?.Invoke() ?? Task.FromResult(new OperationResult(operationId, "committed", 11, "note"));
+        public Task<OperationResult> CommandAsync(string url, object request, string operationId)
+        {
+            LastRequest = request;
+            return Command?.Invoke() ?? Task.FromResult(new OperationResult(operationId, "committed", 11, "note"));
+        }
         public static CollectionDto Data(long revision) => new("collection", "note", "Table", revision, revision, "accepted", false,
             [new("field", "Text", "Text", "Markdown")],
             [new("row", "Row", "Row", [new("field", "saved", "saved", false, "Valid", true, null, [])])], [], [], []);
@@ -40,6 +44,7 @@ namespace GraspPortable.App.Records
             ShowCell(_data.Rows[0], _data.Fields[0]); _raw = "unsaved input";
         }
         public Task SaveForTest() => SaveAsync();
+        public void OpenFieldForTest(bool existing) => ShowField(existing ? _data!.Fields[0] : null);
         public async Task Notify(long revision, string? workspace = null)
         { Revision = revision; if (workspace is not null) WorkspaceKey = workspace; await OnParametersSetAsync(); }
         public Task ExplicitRefresh() => RefreshAsync();
