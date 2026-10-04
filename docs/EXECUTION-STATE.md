@@ -1,13 +1,15 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.31.0
+version: 1.32.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
 ## 目前授權與 Goal
 
-本次背景續作核對：一般額度可用，七日窗口 usedPercent 5（剩餘 95%），reset Unix 1791708203，可用重置券 0；未兌換。這是帳戶共用快照。長文修正的有界獨立 code review 無發現；本次沒有重跑已通過測試，也沒有在 Esc 中止後接管前台。
+本次續作核對：一般額度可用，七日窗口 usedPercent 5（剩餘 95%），reset Unix 1791708203，可用重置券 0；未兌換。這是帳戶共用快照。長文修正的有界獨立 code review 無發現，未重跑已通過測試。`d9715a49bbaa383d43fd734199dde859b8c5f7ae` 已 commit／push 並以 ls-remote 核對；其後補驗結果如下。
+
+前台另行提醒後，以既有三篇合成 workspace revision 7 開 Reader 的 Reading：兩段 new bold 都為粗體，保留段落及三層清單，整體 reference 隱藏語法／highlight；點第二段直接開 Projection.md 並定位欄位第 7 行。這補完 computed Markdown 的有界原生畫面及導航確認。正常 Alt+F4 後視窗消失，唯讀核對 App、Host exe 及 dotnet Host 均無程序，前台已釋放。主驗收 workspace revision 59 尚待目標來源重新解析，IME／DPI／足量效能與完整 S4 仍未通過。
 
 最新平台觀測（2026-10-04）：原生捲動因額度耗盡未通過自動審核後，本對話收到 Goal continuation，`get_goal` 為 **active**，usage API 為 usedPercent 0、ordinaryUsageAllowed true、可用重置券 0；已實際恢復工具與 GUI 操作。GoalSupport 日誌 08:40:29 UTC 為 redemption_checked／ordinaryUsageAllowed true，08:43:31 UTC 為 reset_cap_reached／guard_exited，原 PID 31452 已不存在；不宣稱監測仍在執行，也未因券耗盡重啟兌換程式。先前 04:53 的 reset 曾仍需使用者手動 resume；本次續作成功不能保證所有平台中斷都能自動恢復。
 
@@ -244,6 +246,6 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-核對本段 Git checkpoint，從 `S4-Acceptance-1004` revision 59 續作；`S4-Draft-Restored-1004-1447` 保留較新 durable draft 還原證據。先確認 Esc 中止後 App／Host 的實際狀態，再補三篇合成筆記的 computed Markdown 原生畫面；主驗收資料須由目標來源安全重新解析，保留未完成原文與 rename draft，不清 DB。
+核對本段 Git checkpoint，從 `S4-Acceptance-1004` revision 59 續作；`S4-Draft-Restored-1004-1447` 保留較新 durable draft 還原證據。三篇合成筆記的 computed Markdown 原生 Reading／定位已通過並正常關閉；主驗收資料須由目標來源安全重新解析，保留未完成原文與 rename draft，不清 DB。
 
 接著完成 IME／dirty 外部競態、代表性縮放／凍結區鍵盤焦點、Anria 長文樣本及至少 30 次代表操作／約五分鐘端到端量測。不能用少量 query 或工具等待時間代替。missing、基本 allowlist、兩式卡片導航、第二 view、改名、較新草稿還原已有證據，按新增風險補測，不全量重做。前台測試前另行提醒；GoalSupport 原監測已退出且重置券為零，不宣稱仍在監測。最終仍需逐項完成條件審核、文件一致及 commit／push 核對，Goal 保持 active，使用者接受另記。

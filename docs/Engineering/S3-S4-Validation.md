@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.14.0
+version: 1.15.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -10,6 +10,8 @@ status: implemented-parts-with-partial-native-evidence
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
 
 ## 長文轉換與巢狀參照（revision 58–59）
+
+續作補驗：最新 publish 在三篇合成 workspace revision 7 的 Reader／Reading 顯示兩段粗體、空行及 A→B→C 三層清單，沒有多出的 code block；外層屬性 reference 隱藏語法／highlight，點第二段開 Projection.md 並定位欄位正文第 7 行。Alt+F4 正常關閉後 App／Host（含 dotnet Host）程序皆零。此為先前 Esc 中斷後重新提醒並完成的原生檢查；不代表主 workspace 59 已重建解析，也不代替 IME／DPI／效能驗收。
 
 原生將指定 Triensa 副本的長文、兩張圖片、Wiki、JSON fence 與一個 Grasp reference 放入 Alpha 的 Description。保存先列出五個標題的 H1／H2／H3 對照與巢狀清單預覽，確認後 revision 58；資料集／record／field 結構仍為 H2／H3／H4，程式碼 fence 內的 `#` 不改。轉換前原文與 mapping 保存在同一提交的 immutable metadata history，source／locator／receipt 使用既有恢復日誌。尚無一鍵反轉 UI。
 
@@ -235,7 +237,7 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
-下一步補長文屬性 computed Markdown 的原生畫面及主驗收資料重解析，再補 IME／dirty 競態、代表性縮放／凍結區鍵盤焦點、Anria 長文與足量端到端量測。Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
+下一步處理主驗收資料重解析，再補 IME／dirty 競態、代表性縮放／凍結區鍵盤焦點、Anria 長文與足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
 
 指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文仍待定點取樣。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 
