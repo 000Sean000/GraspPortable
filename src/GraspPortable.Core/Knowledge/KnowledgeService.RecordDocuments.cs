@@ -3,6 +3,9 @@ using GraspPortable.Core.ValueEngine;
 
 namespace GraspPortable.Core.Knowledge;
 
+/// <summary>Host-resolved carrier presentation updates sharing the main document transaction.</summary>
+public sealed record RecordDocumentSourceUpdate(string NoteId, string ExpectedSourceHash, string Source);
+
 public sealed partial class KnowledgeService
 {
     /// <summary>
@@ -13,9 +16,12 @@ public sealed partial class KnowledgeService
     /// </summary>
     public async Task<Receipt> ChangeRecordDocumentAsync(string operationId, string noteId, long expectedRevision,
         string title, string source, RecordsDocumentDescriptor descriptor, bool confirmRename = false,
-        CancellationToken token = default, bool create = false, string? requestFingerprint = null)
+        CancellationToken token = default, bool create = false, string? requestFingerprint = null,
+        IReadOnlyList<RecordDocumentSourceUpdate>? sourceUpdates = null)
     {
-        var hash = requestFingerprint ?? Fingerprint(new { kind = "record-document", noteId, expectedRevision, title, source, descriptor, create });
+        var hash = requestFingerprint ?? (sourceUpdates is null
+            ? Fingerprint(new { kind = "record-document", noteId, expectedRevision, title, source, descriptor, create })
+            : Fingerprint(new { kind = "record-document", noteId, expectedRevision, title, source, descriptor, create, sourceUpdates }));
         if (Retry(operationId, hash) is { } retry) return retry;
         var basis = Current;
         if (basis.Revision != expectedRevision) return Reject(operationId, hash, "conflict", "資料表基底已更新，請重新讀取。", noteId);
@@ -30,6 +36,26 @@ public sealed partial class KnowledgeService
         if (renames is null) return Reject(operationId, hash, "invalid", "手寫定義改名不明，請分次修改。", noteId);
         var notes = basis.Notes.ToDictionary(p => p.Key, p => p.Value);
         notes[noteId] = new(noteId, NormalizeTitle(title), source, old?.Revision ?? 0, syntax, [], Records: descriptor);
+        var sourceGuards = new Dictionary<string, string>(StringComparer.Ordinal);
+        var draftGuards = new Dictionary<string, Draft?>(StringComparer.Ordinal) { [noteId] = null };
+        if(old is not null) sourceGuards[noteId] = old.CurrentSourceHash;
+        foreach(var update in sourceUpdates ?? [])
+        {
+            if(update.NoteId == noteId || sourceGuards.ContainsKey(update.NoteId)
+                || !basis.Notes.TryGetValue(update.NoteId,out var related))
+                return Reject(operationId,hash,"invalid","附帶來源必須是唯一且存在的其他筆記。",noteId);
+            if(related.CurrentSourceHash != update.ExpectedSourceHash || related.IsSourceStale || GetDraft(related.Id) is not null)
+                return Reject(operationId,hash,"conflict","關聯／選項來源有較新版本、草稿或未接受原文，整批未寫入。",related.Id);
+            var nextSyntax = RecordNoteSyntax.Parse(update.Source,related.Records,basis.Languages,token);
+            if(!nextSyntax.IsValid) return Reject(operationId,hash,"invalid","附帶來源改写產生無效語法，整批未寫入。",related.Id,nextSyntax.Diagnostics.ToArray());
+            // Side updates are carrier label/path maintenance, never a second rename command.
+            if(!related.Syntax.Definitions.Select(d => (d.Name,d.FieldOrigin)).OrderBy(d=>d.Name,StringComparer.Ordinal)
+                .SequenceEqual(nextSyntax.Definitions.Select(d => (d.Name,d.FieldOrigin)).OrderBy(d=>d.Name,StringComparer.Ordinal)))
+                return Reject(operationId,hash,"invalid","附帶來源不可新增、移除或改名定義，請使用來源編輯流程。",related.Id);
+            notes[related.Id] = related with { Source=update.Source,Syntax=nextSyntax,SavedSource=null };
+            sourceGuards[related.Id] = update.ExpectedSourceHash;
+            draftGuards[related.Id] = null;
+        }
         if (renames.Count > 0)
         {
             var existingNames = basis.Definitions.Values.Where(d => d.NoteId != noteId).Select(d => d.Name).ToHashSet(StringComparer.Ordinal);
@@ -47,6 +73,7 @@ public sealed partial class KnowledgeService
         var next = prepared.State!;
         var changed = next.Notes.ToDictionary(p => p.Key, p => p.Value);
         changed[noteId] = changed[noteId] with { Revision = next.Revision };
-        return await PublishAsync(basis, next with { Notes = changed }, operationId, hash, noteId, null, token, rejectDirtyNote: noteId);
+        return await PublishAsync(basis, next with { Notes = changed }, operationId, hash, noteId, null, token,
+            rejectDirtyNote: noteId, draftGuards: draftGuards, sourceHashGuards: sourceGuards);
     }
 }

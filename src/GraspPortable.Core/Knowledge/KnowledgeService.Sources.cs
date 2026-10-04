@@ -112,6 +112,7 @@ public sealed partial class KnowledgeService
         // Shared intents from the same scan must agree before any source literal
         // is rewritten. Current cache text is never the comparison baseline.
         var sharedConflict = false;
+        string? sharedFailureReason = null;
         var sharedTargets = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach(var (name, intents) in proposals)
         {
@@ -123,6 +124,13 @@ public sealed partial class KnowledgeService
                 || intents.Any(i => notes[i.NoteId].IsSourceStale)
                 || intents.Select(i => i.Proposal.ProposedValue).Distinct(StringComparer.Ordinal).Count() != 1
                 || intents.Any(i => i.Proposal.ChangedOccurrences.Any(o => o.AcceptedCachedValue != definition!.Value));
+            if(!conflict)
+            {
+                // Validate the actual source codec/identity change before accepting
+                // any shared intent. A refusal retains the observed raw reference.
+                try { _ = ReplaceSharedSource(owner!,definition!,intents[0].Proposal.ProposedValue,basis.Languages); }
+                catch(InvalidOperationException sharedError) { conflict=true; sharedFailureReason=sharedError.Message; }
+            }
             sharedConflict |= conflict;
             if(!conflict) sharedTargets[name] = owner!.Id;
         }
@@ -134,14 +142,14 @@ public sealed partial class KnowledgeService
             foreach(var id in proposals.Values.SelectMany(p => p).Select(p => p.NoteId).Distinct(StringComparer.Ordinal))
             {
                 var change = changes.Single(c => c.NoteId == id);
-                Retain(change, basis.Notes[id], "conflict", [new("shared-source-conflict", "共享修改的來源、版本或其他提案不一致，已保留外部原文；本批共享意圖未部分套用。", new(0, 0))]);
+                Retain(change, basis.Notes[id], "conflict", [new("shared-source-conflict", "共享修改的來源、版本或其他提案不一致，已保留外部原文；本批共享意圖未部分套用。" + sharedFailureReason, new(0, 0))]);
             }
         }
         else foreach(var (name, intents) in proposals)
         {
             var target = notes[sharedTargets[name]];
             var definition=basis.Definitions.Values.Single(d=>d.Name==name);
-            var source = ReplaceSharedSource(target,definition,intents[0].Proposal.ProposedValue);
+            var source = ReplaceSharedSource(target,definition,intents[0].Proposal.ProposedValue,basis.Languages);
             notes[target.Id] = target with { Source = source, Syntax = RecordNoteSyntax.Parse(source, target.Records, basis.Languages), SavedSource = null };
         }
 

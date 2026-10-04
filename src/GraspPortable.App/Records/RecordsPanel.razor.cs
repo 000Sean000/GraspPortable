@@ -17,6 +17,7 @@ public partial class RecordsPanel : IAsyncDisposable
     private DotNetObjectReference<RecordsPanel>? _receiver;
     private readonly string _modalId = "records-modal-" + Guid.NewGuid().ToString("N");
     [Parameter] public CollectionDto? Collection { get; set; }
+    [Parameter] public string InitialCollectionId { get; set; } = "";
     [Parameter] public string WorkspaceKey { get; set; } = "";
     [Parameter] public long Revision { get; set; }
     [Parameter] public EventCallback<string> OnOpenSource { get; set; }
@@ -24,6 +25,7 @@ public partial class RecordsPanel : IAsyncDisposable
     private CollectionDto? _data;
     private RecordViewDto? _view;
     private string _selected = "", _workspace = "", _search = "";
+    private string _appliedInitialCollectionId = "";
     private long _observedRevision = -1, _loadEpoch;
     private CancellationTokenSource? _load;
     private bool _busy, _loading, _disposed;
@@ -62,31 +64,44 @@ public partial class RecordsPanel : IAsyncDisposable
         if (changed)
         {
             _workspace = WorkspaceKey; _selected = ""; _data = null; _view = null; _collections = []; _page = 0; _search = "";
+            _appliedInitialCollectionId = "";
             if (_dialog is not null) _dialogWarning = "工作區已切換；這份輸入仍保留，請先複製或取消，不能送到另一個工作區。";
         }
         if (Collection is not null && Collection.Id != _selected) _selected = Collection.Id;
-        if (changed || Revision != _observedRevision || _data is null)
+        var requested = InitialCollectionId != _appliedInitialCollectionId;
+        if (requested)
+        {
+            _appliedInitialCollectionId = InitialCollectionId;
+            if (InitialCollectionId.Length > 0) { _selected = InitialCollectionId; _view = null; _page = 0; _search = ""; }
+        }
+        if (changed || requested || Revision != _observedRevision || _data is null)
         { _observedRevision = Revision; await RefreshAsync(); }
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_disposed) return;
+        var renderedSequence = ++_recordsRenderSequence;
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Records/RecordsPanel.razor.js");
         if (_disposed) return;
         _receiver ??= DotNetObjectReference.Create(this);
         await _module.InvokeVoidAsync("syncModal", _modalId, _receiver);
-        if (!_focusFirst) return;
-        _focusFirst = false;
-        try { await _firstInput.FocusAsync(); } catch (InvalidOperationException) { }
+        if (_focusFirst)
+        {
+            _focusFirst = false;
+            try { await _firstInput.FocusAsync(); } catch (InvalidOperationException) { }
+        }
+        await FinishRenderedRecordPerformanceAsync(renderedSequence);
     }
     private async Task RefreshAsync()
     {
         if (!Backend.Connected || _disposed) return;
         _load?.Cancel(); _load?.Dispose(); _load = new();
         var token = _load.Token; var epoch = ++_loadEpoch;
+        var performance = 0; var performanceQueued = false;
         _loading = true;
         try
         {
+            performance = await BeginRecordPerformanceAsync("recordsQueryToPaintOpportunity");
             var list = await Backend.GetAsync<CollectionSummaryDto[]>("api/records", token);
             var id = list.Any(c => c.Id == _selected) ? _selected : list.FirstOrDefault()?.Id ?? "";
             var data = id.Length == 0 ? null : await Backend.GetAsync<CollectionDto>("api/records/" + id, token);
@@ -103,15 +118,34 @@ public partial class RecordsPanel : IAsyncDisposable
             if (_dialog is not null && _dialog != "card" && data?.Revision != _editRevision)
                 _dialogWarning = "資料已有更新；表格已刷新，但這份輸入與原始版本保持不變。保存時會檢查衝突。";
             ClampPage();
+            _recordsAppliedLoadEpoch = epoch;
+            QueueRecordPerformance(performance, epoch); performanceQueued = true;
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (epoch == _loadEpoch) _error = error.Message; }
-        finally { if (epoch == _loadEpoch) _loading = false; }
+        finally
+        {
+            if (epoch == _loadEpoch) _loading = false;
+            if (!performanceQueued) await EndRecordPerformanceAsync(performance, false);
+        }
     }
     private async Task ChooseCollectionAsync(ChangeEventArgs args)
-    { _selected = args.Value?.ToString() ?? ""; _view = null; _page = 0; await RefreshAsync(); }
-    private void ChooseView(ChangeEventArgs args)
-    { _view = _data?.Views.FirstOrDefault(v => v.Id == args.Value?.ToString()) ?? (_data is null ? null : DefaultView(_data)); _search = _view?.Search ?? ""; _page = 0; }
+    {
+        var performance = await BeginRecordPerformanceAsync("recordsCollectionSwitchToPaintOpportunity");
+        var selected = args.Value?.ToString() ?? "";
+        _selected = selected; _view = null; _page = 0;
+        var expectedEpoch = _loadEpoch + 1;
+        await RefreshAsync();
+        if (_loadEpoch == expectedEpoch && _recordsAppliedLoadEpoch == expectedEpoch && _data?.Id == selected) QueueRecordPerformance(performance, expectedEpoch);
+        else await EndRecordPerformanceAsync(performance, false);
+    }
+    private async Task ChooseView(ChangeEventArgs args)
+    {
+        var performance = await BeginRecordPerformanceAsync("recordsViewSwitchToPaintOpportunity");
+        _view = _data?.Views.FirstOrDefault(v => v.Id == args.Value?.ToString()) ?? (_data is null ? null : DefaultView(_data));
+        _search = _view?.Search ?? ""; _page = 0;
+        QueueRecordPerformance(performance, _loadEpoch);
+    }
     private static RecordViewDto DefaultView(CollectionDto data) => new("", "全部資料", data.Fields.Select(f => f.Id).ToArray(), 0, 0);
     private RecordFieldSchemaDto[] VisibleFields => _data is null ? [] : (_view?.ColumnOrder ?? _data.Fields.Select(f => f.Id).ToArray())
         .Select(id => _data.Fields.FirstOrDefault(f => f.Id == id)).OfType<RecordFieldSchemaDto>().ToArray();
@@ -235,12 +269,15 @@ public partial class RecordsPanel : IAsyncDisposable
     private async Task SaveAsync(bool confirm = false)
     {
         if (_busy || _dialogWorkspace != WorkspaceKey) return;
+        var performance = 0; var performanceQueued = false;
         _busy = true; _error = null;
         try
         {
             if (_pending is null) _pending = BuildWrite();
             if (_pending is null) return;
             var write = _pending;
+            var expectedCollectionId = _data?.Id;
+            performance = await BeginRecordPerformanceAsync("recordsCommitToPaintOpportunity");
             var result = await Backend.CommandAsync(write.Url, confirm ? write.ConfirmedRequest : write.Request, write.OperationId);
             _unknownOutcome = false;
             if (_disposed || _dialogWorkspace != WorkspaceKey) return;
@@ -249,10 +286,26 @@ public partial class RecordsPanel : IAsyncDisposable
                 var viewId = _dialog == "view" ? _viewId : null;
                 var created = _dialog == "create";
                 _dialog = null; _pending = null; _notice = "已保存。";
+                var expectedRefreshEpoch = _loadEpoch + 1;
                 await RefreshAsync();
-                if (created && _collections.FirstOrDefault(c => c.NoteId == result.NoteId) is { } newCollection)
-                { _selected = newCollection.Id; _view = null; await RefreshAsync(); }
+                if (created)
+                {
+                    expectedCollectionId = null;
+                    if (_loadEpoch == expectedRefreshEpoch && _recordsAppliedLoadEpoch == expectedRefreshEpoch
+                        && _collections.FirstOrDefault(c => c.NoteId == result.NoteId) is { } newCollection)
+                    {
+                        expectedCollectionId = newCollection.Id;
+                        _selected = newCollection.Id; _view = null;
+                        expectedRefreshEpoch = _loadEpoch + 1;
+                        await RefreshAsync();
+                    }
+                }
                 if (viewId is not null && _data?.Views.FirstOrDefault(v => v.Id == viewId) is { } saved) { _view = saved; _search = saved.Search; _page = 0; }
+                if (_loadEpoch == expectedRefreshEpoch && _recordsAppliedLoadEpoch == expectedRefreshEpoch
+                    && expectedCollectionId is not null && _data is { } applied && applied.Id == expectedCollectionId && applied.Revision >= result.Revision)
+                {
+                    QueueRecordPerformance(performance, expectedRefreshEpoch, result.Revision); performanceQueued = true;
+                }
             }
             else if (result.Status == "confirmation-required")
             { _needsConfirmation = true; _dialogWarning = result.Message ?? "改名會更新相依引用。確認後以相同操作 ID 套用。"; }
@@ -270,7 +323,11 @@ public partial class RecordsPanel : IAsyncDisposable
             _error = error.Message;
             if (_pending is not null) { _unknownOutcome = true; _dialogWarning = "尚未確認後端是否完成。請重試同一操作；原輸入和操作 ID 保持不變。"; }
         }
-        finally { _busy = false; }
+        finally
+        {
+            _busy = false;
+            if (!performanceQueued) await EndRecordPerformanceAsync(performance, false);
+        }
     }
     private PendingWrite? BuildWrite()
     {
@@ -375,6 +432,7 @@ public partial class RecordsPanel : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _disposed = true; _loadEpoch++; _load?.Cancel(); _load?.Dispose();
+        await DisposeRecordPerformanceAsync();
         if (_module is not null)
         {
             try { await _module.InvokeVoidAsync("releaseModal", _modalId); await _module.DisposeAsync(); }

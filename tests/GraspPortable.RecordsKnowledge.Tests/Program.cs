@@ -166,6 +166,71 @@ await Check("external reference cache edit writes through to a plain generated f
     Equal("rejected", (await service.ChangeLiteralAsync(Id(), generated.Id, service.Current.Revision, "cannot flatten composition")).Status);
 });
 
+await Check("shared generated field handwritten rename requires source confirmation without changing identity", async () =>
+{
+    using var memory = new MemoryRepository(); using var service = new KnowledgeService(memory);
+    var record = new RecordFixture("@code{ @Original = {stable value} }"); await Observe(service, record);
+    var originalId = Definition(service, "Original").Id;
+    var reader = await Create(service, "[old](:ref:Original)");
+    var source = service.Current.Notes[record.NoteId].CurrentSource;
+    var result = await service.ChangeLiteralAsync(Id(), Definition(service, "Hero.Description").Id, service.Current.Revision,
+        "@code{ @Renamed = {stable value} }");
+    Equal("invalid", result.Status); True(result.Message!.Contains("改名"));
+    Equal(originalId, Definition(service, "Original").Id); Equal("Original", service.Current.Notes[reader].Syntax.References.Single().Name);
+    Equal(source, service.Current.Notes[record.NoteId].CurrentSource); True(!service.Current.Definitions.Values.Any(d => d.Name == "Renamed"));
+    var operation = Id(); var revision = service.Current.Revision; var edit = new FieldSourceEdit("@code{ @Renamed = {stable value} }");
+    Equal("confirmation-required", (await service.ChangeRecordFieldAsync(operation, record.Record.Id, record.Field.Id, revision, edit)).Status);
+    Equal("committed", (await service.ChangeRecordFieldAsync(operation, record.Record.Id, record.Field.Id, revision, edit, confirmRename:true)).Status);
+    Equal(originalId, Definition(service, "Renamed").Id); Equal("Renamed", service.Current.Notes[reader].Syntax.References.Single().Name);
+});
+
+await Check("external shared generated field rename preserves raw proposal and old identity until source review", async () =>
+{
+    using var memory = new MemoryRepository(); using var service = new KnowledgeService(memory);
+    var record = new RecordFixture("@code{ @Original = {stable value} }"); await Observe(service, record);
+    var originalId = Definition(service, "Original").Id;
+    var dependent = await Create(service, "[old](:ref:Original)");
+    var readerId = await Create(service, "[old](:ref:Hero.Description)");
+    var reader = service.Current.Notes[readerId]; var ownerSource = service.Current.Notes[record.NoteId].CurrentSource;
+    var proposed = ReferenceCodec.ApplyPatches(reader.CurrentSource,
+        [new(reader.Syntax.References.Single().ValueSpan, ReferenceCodec.Encode("@code{ @Renamed = {stable value} }"))]);
+    var operation = Id(); var changes = new ExternalNoteChange[] { new(readerId, reader.Title, proposed, reader.CurrentSourceHash) };
+    var result = await service.ObserveExternalAsync(operation, changes);
+    Equal("source-observed", result.Status); Equal(result, await service.ObserveExternalAsync(operation, changes));
+    Equal(originalId, Definition(service, "Original").Id); Equal("Original", service.Current.Notes[dependent].Syntax.References.Single().Name);
+    Equal(ownerSource, service.Current.Notes[record.NoteId].CurrentSource); True(!service.Current.Definitions.Values.Any(d => d.Name == "Renamed"));
+    var retained = service.Current.Notes[readerId]; Equal(proposed, retained.CurrentSource); Equal(reader.Source, retained.Source);
+    True(retained.IsSourceStale && retained.Diagnostics.Any(d => d.Code == "shared-source-conflict" && d.Message.Contains("改名")));
+});
+
+await Check("record document and related carrier sources commit together with hash draft and retry guards", async () =>
+{
+    using var memory = new MemoryRepository(); using var service = new KnowledgeService(memory);
+    var main = new RecordFixture("main before"); var related = new RecordFixture("related before", key:"Other");
+    await Observe(service,main); await Observe(service,related);
+    var mainBefore=service.Current.Notes[main.NoteId]; var relatedBefore=service.Current.Notes[related.NoteId];
+    var mainId=Definition(service,"Hero.Description").Id; var relatedId=Definition(service,"Other.Description").Id;
+    var mainSource=main.Carrier("main after"); var relatedSource=related.Carrier("related after");
+    Equal("conflict",(await service.ChangeRecordDocumentAsync(Id(),main.NoteId,service.Current.Revision,"Main",mainSource,main.Descriptor,
+        sourceUpdates:[new(related.NoteId,"wrong-hash",relatedSource)])).Status);
+    Equal(mainBefore.CurrentSource,service.Current.Notes[main.NoteId].CurrentSource);
+    Equal(relatedBefore.CurrentSource,service.Current.Notes[related.NoteId].CurrentSource);
+    var operation=Id(); var revision=service.Current.Revision;
+    RecordDocumentSourceUpdate[] updates=[new(related.NoteId,relatedBefore.CurrentSourceHash,relatedSource)];
+    var changed=await service.ChangeRecordDocumentAsync(operation,main.NoteId,revision,"Main",mainSource,main.Descriptor,sourceUpdates:updates);
+    Equal("committed",changed.Status); True(changed.AffectedNoteIds!.Contains(main.NoteId)&&changed.AffectedNoteIds.Contains(related.NoteId));
+    Equal(mainSource,service.Current.Notes[main.NoteId].CurrentSource); Equal(relatedSource,service.Current.Notes[related.NoteId].CurrentSource);
+    Equal(mainId,Definition(service,"Hero.Description").Id); Equal(relatedId,Definition(service,"Other.Description").Id);
+    Equal(changed,await service.ChangeRecordDocumentAsync(operation,main.NoteId,revision,"Main",mainSource,main.Descriptor,sourceUpdates:updates));
+    var relatedCurrent=service.Current.Notes[related.NoteId];
+    var draft=new Draft(related.NoteId,"related-session",1,relatedCurrent.Revision,relatedCurrent.Title,relatedSource+" draft",relatedCurrent.CurrentSourceHash);
+    Equal("draft",(await service.SaveDraftAsync(draft)).Status);
+    Equal("conflict",(await service.ChangeRecordDocumentAsync(Id(),main.NoteId,service.Current.Revision,"Main",main.Carrier("must not change"),main.Descriptor,
+        sourceUpdates:[new(related.NoteId,relatedCurrent.CurrentSourceHash,related.Carrier("must not change"))])).Status);
+    Equal(mainSource,service.Current.Notes[main.NoteId].CurrentSource); Equal(relatedSource,service.Current.Notes[related.NoteId].CurrentSource);
+    Equal(draft,service.GetDraft(related.NoteId));
+});
+
 await Check("typed diagnostics preserve invalid source while valid computed scalar follows dependencies", async () =>
 {
     using var memory = new MemoryRepository(); using var service = new KnowledgeService(memory);

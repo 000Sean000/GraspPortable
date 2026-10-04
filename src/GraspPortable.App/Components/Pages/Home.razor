@@ -16,20 +16,20 @@
  <div class="sidebar-bottom"><button @onclick="ShowRecordsAsync" disabled="@(!Backend.Connected)">資料表</button><button @onclick="ShowBackupsAsync" disabled="@(!Backend.Connected)">備份與還原</button><button @onclick="ShowSettings" disabled="@(!Backend.Connected)">⚙ 解析設定</button><small>本機資料 · 獨立測試工作區</small></div>
 </aside>
 <main>
- <header class="toolbar"><div class="breadcrumb" title="@_note?.RelativePath">工作區 / @(_note?.RelativePath??_note?.Title??"開始使用")</div><div class="toolbar-actions">
+ <header class="toolbar"><div class="breadcrumb" title="@(_recordsVisible?null:_note?.RelativePath)">工作區 / @(_recordsVisible?"資料表":_note?.RelativePath??_note?.Title??"開始使用")</div><div class="toolbar-actions">
  @if(_recordsVisible){<button @onclick="()=>_recordsVisible=false">回到筆記</button>}
- <div class="mode-switch">
+ @if(!_recordsVisible){<div class="mode-switch">
  <button class="@(_mode=="source"?"active":"")" @onclick='() => ChangeModeAsync("source")'>原文</button>
  <button class="@(_mode=="live"?"active":"")" @onclick='() => ChangeModeAsync("live")'>即時預覽</button>
  <button class="@(_mode=="reading"?"active":"")" @onclick='() => ChangeModeAsync("reading")'>閱讀</button>
  </div>
- <button class="primary small" @onclick="SaveButtonAsync" disabled="@(_note is null||_saving)">儲存 <kbd>Ctrl S</kbd></button><button class="icon-button" @onclick="() => _showInspector=!_showInspector" title="內容面板">☷</button>
+ <button class="primary small" @onclick="SaveButtonAsync" disabled="@(_note is null||_saving)">儲存 <kbd>Ctrl S</kbd></button><button class="icon-button" @onclick="() => _showInspector=!_showInspector" title="內容面板">☷</button>}
  </div></header>
  @if(_error is not null){<div class="notice error" role="alert"><span>@_error</span><button @onclick="() => _error=null">×</button></div>}
  @if(_notice is not null){<div class="notice info"><span>@_notice</span><button @onclick="() => _notice=null">×</button></div>}
  @if(_note is { SourceStatus: not "accepted" }){<div class="notice info"><span>@SavedStatus(_note)。共享值顯示上次結果及診斷。</span></div>}
  @if(_sourceStatus?.Issues.Length>0){<details class="source-issues"><summary>來源核對有 @_sourceStatus.Issues.Length 項需要處理@(_sourceStatus.WritesBlocked?" · 暫停寫入，請保留草稿並重開":"")</summary>@foreach(var issue in _sourceStatus.Issues){<p><strong>@issue.RelativePath</strong> @issue.Message</p>}</details>}
- @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" OnOpenSource="OpenRecordSourceAsync" /></div>}
+ @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" InitialCollectionId="@_recordsInitialCollectionId" OnOpenSource="OpenRecordSourceAsync" /></div>}
  <div class="document-layout @(_recordsVisible?"hidden":"")"><section class="document"><div class="document-heading">
  @if(_note is not null){
  @if(_note.FileMembers?.Length>0){<label class="file-members">檔案中的筆記<select value="@_note.Id" @onchange="async e=>{if(e.Value is string id) await SelectNoteAsync(id);}">@foreach(var member in _note.FileMembers){<option value="@member.Id">@member.Title</option>}</select></label>}
@@ -42,7 +42,7 @@
  </section>
  @if(_selectedDefinition is not null){<section><h2>@_selectedDefinition.Name</h2><div class="value-preview">@(_selectedDefinition.Value??_selectedDefinition.LastGoodValue??"尚無值")</div><div class="stack-actions"><button @onclick="LocateDefinitionAsync">前往定義</button><button @onclick="ShowSharedEditAsync" disabled="@(!_selectedDefinition.CanEditShared)">修改共享值…</button></div>@if(!_selectedDefinition.CanEditShared){<p class="muted">組合值請前往原文修改其組成。</p>}<h3>引用位置 · @_references.Length</h3>@foreach(var reference in _references){<button class="reference-link" @onclick="() => LocateReferenceAsync(reference)"><span>@NoteTitle(reference.NoteId)</span><small>@reference.Kind · @Preview(reference.CachedValue)</small></button>}</section>}
  <section><h2>診斷 · @_diagnostics.Length</h2>@if(_diagnostics.Length==0){<p class="muted">目前沒有診斷。</p>}@foreach(var diagnostic in _diagnostics){<button class="diagnostic" @onclick="() => LocateDiagnosticAsync(diagnostic)"><strong>@diagnostic.Code</strong><span>@diagnostic.Message</span></button>}</section></aside>}
- </div><footer><span class="@(IsDirty?"pending-status":"")">@_saveStatus</span><span>@Backend.Status</span><span>@_source.Length 字元 · revision @_knowledgeRevision</span></footer>
+ </div><footer><span class="@(!_recordsVisible&&IsDirty?"pending-status":"")">@(_recordsVisible?"資料表":_saveStatus)</span><span>@Backend.Status</span><span>@if(!_recordsVisible){<text>@_source.Length 字元 · </text>}revision @_knowledgeRevision</span></footer>
 </main></div>
 @if(_dialog is not null){<div class="modal-backdrop"><section class="modal @(_dialog=="conflict"?"wide":"")" role="dialog" aria-modal="true" aria-label="操作">
  @if(_dialog=="create"){

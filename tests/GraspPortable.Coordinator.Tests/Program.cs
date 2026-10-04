@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using GraspPortable.Contracts;
 using GraspPortable.Core.Knowledge;
 using GraspPortable.Host.Notifications;
 using GraspPortable.Host.Workspace;
@@ -177,6 +178,38 @@ await Check("real watcher updates and its own derived write reaches a stable rev
         Equal(0, coordinator.Status.Issues.Length);
     }
     finally { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)); await coordinator.StopAsync(timeout.Token); }
+});
+
+await Check("records carrier follows external target move by stable identity", async () =>
+{
+    var path = Workspace("record-carrier-move"); var repository = new MarkdownWorkspaceRepository(path); using var knowledge = new KnowledgeService(repository);
+    using var coordinator = new WorkspaceCoordinator(repository, knowledge, new RevisionHub(), path);
+    var records = new WorkspaceRecords(repository, knowledge);
+    var a = await coordinator.MutateAsync(() => records.CreateAsync(new(Op(), knowledge.Current.Revision, "A", "Source", "來源", [new("", "Link", "關聯", "SingleRelation")])));
+    var b = await coordinator.MutateAsync(() => records.CreateAsync(new(Op(), knowledge.Current.Revision, "B", "Target", "目標")));
+    Equal("committed", a.Status); Equal("committed", b.Status);
+    var aData = records.Read(a.NoteId!); var bData = records.Read(b.NoteId!);
+    Equal("committed", (await coordinator.MutateAsync(() => records.ChangeFieldAsync(aData.Rows[0].Id, aData.Fields[0].Id,
+        new(Op(), knowledge.Current.Revision, "", TypedValue: new("Relation", false, Ids: [bData.Rows[0].Id]))))).Status);
+    var reader = await Create(coordinator, knowledge, "Reader", "[](:ref:Source.Link)\nordinary [leave](B.md)");
+    var beforeId = knowledge.Current.Definitions.Values.Single(d => d.Name == "Source.Link").Id;
+    var oldTarget = FileFor(path, repository, b.NoteId!); Directory.CreateDirectory(Path.Combine(path, "Moved"));
+    var movedTarget = Path.Combine(path, "Moved", "B.md"); File.Move(oldTarget, movedTarget);
+    await coordinator.ReconcileAsync();
+    var cell = records.Read(a.NoteId!).Rows[0].Cells[0];
+    True(cell.RawSource.Contains("](Moved/B.md)") && cell.Status == "Valid" && cell.TypedValue!.Ids!.Single() == bData.Rows[0].Id);
+    Equal(beforeId, knowledge.Current.Definitions.Values.Single(d => d.Name == "Source.Link").Id);
+    True(knowledge.Current.Notes[reader].Syntax.References.Single().CachedValue.Contains("Moved/B.md"));
+    True(knowledge.Current.Notes[reader].Source.Contains("ordinary [leave](B.md)"));
+    var resolver = new WorkspaceContentResolver(path, () => repository.LoadSourceFiles().SelectMany(f => f.NoteIds.Select(id => new WorkspaceContentSource(id, f.RelativePath))).ToArray());
+    Equal(b.NoteId, resolver.ResolveLink(new(a.NoteId!, "Moved/B.md")).NoteId);
+    var settled = knowledge.Current.Revision; await coordinator.ReconcileAsync(); Equal(settled, knowledge.Current.Revision);
+    var original = knowledge.Current.Notes[a.NoteId!]; var beforeBytes = File.ReadAllBytes(FileFor(path, repository, a.NoteId!));
+    await knowledge.SaveDraftAsync(new(original.Id, "dirty", 1, original.Revision, original.Title, original.Source + "\nlocal", original.CurrentSourceHash));
+    File.Move(movedTarget, Path.Combine(path, "B-again.md")); await coordinator.ReconcileAsync();
+    True(beforeBytes.SequenceEqual(File.ReadAllBytes(FileFor(path, repository, a.NoteId!))));
+    True(coordinator.Status.Issues.Any(i => i.Code == "record-carrier-draft" && i.NoteId == a.NoteId));
+    True(knowledge.GetDraft(original.Id)!.Source.EndsWith("local", StringComparison.Ordinal));
 });
 
 Console.WriteLine($"Coordinator integration: {passed} passed, {failed} failed. Evidence: {root}");

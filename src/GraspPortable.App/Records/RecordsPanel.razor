@@ -32,7 +32,7 @@
         <div class="records-table-actions"><span>@FilteredRows().Length / @_data.Rows.Length 筆 · @VisibleFields.Length 個顯示欄位</span><div><button @onclick="() => ShowField()" disabled="@SourceBlocked">＋ 欄位</button><button class="primary" @onclick="() => ShowRow()" disabled="@SourceBlocked">＋ 紀錄</button></div></div>
         <div class="records-scroll" tabindex="0" aria-label="可水平及垂直捲動的資料表">
             <table class="records-grid"><colgroup><col style="width:220px" />@foreach (var field in VisibleFields) { <col style="width:220px" /> }</colgroup>
-                <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in VisibleFields) { <th @key="field.Id" style="@ColumnStyle(columnIndex++)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
+                <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in VisibleFields) { <th @key="field.Id" class="@(columnIndex < FrozenColumns ? "frozen-field-head" : "")" style="@ColumnStyle(columnIndex++)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
                 <tbody>@{ var displayRows = DisplayRows(); }@for (var rowIndex = 0; rowIndex < displayRows.Length; rowIndex++)
                 {
                     var row = displayRows[rowIndex]; var position = rowIndex;

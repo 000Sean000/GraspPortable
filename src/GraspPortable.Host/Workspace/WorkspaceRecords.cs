@@ -17,6 +17,7 @@ namespace GraspPortable.Host.Workspace;
 public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, KnowledgeService knowledge)
 {
     private sealed record Owner(Note Note, RecordsMetadata Metadata);
+    private sealed record CarrierPlan(IReadOnlyDictionary<string, string> Sources, IReadOnlyList<MarkdownScanIssue> Issues);
     private static readonly ISerializer ViewSerializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
 
     public CollectionSummaryDto[] ListCollections() => Owners().Select(o => new CollectionSummaryDto(o.Metadata.CollectionId, o.Note.Id,
@@ -142,9 +143,76 @@ public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, Kno
         RecordsMetadata metadata, bool confirmRename, CancellationToken token, bool create = false)
     {
         Validate(metadata);
+        var basis = knowledge.Current;
+        var repairs = PrepareCarrierRepairs(basis, noteId, source, metadata.Descriptor);
+        if (repairs.Issues.Count > 0) throw new IOException(string.Join("；", repairs.Issues.Select(i => i.Message)));
+        source = repairs.Sources.GetValueOrDefault(noteId, source);
+        var sideSources = repairs.Sources.Where(p => p.Key != noteId).Select(p =>
+            new RecordDocumentSourceUpdate(p.Key, basis.Notes[p.Key].CurrentSourceHash, p.Value)).ToArray();
         using var lease = repository.BeginRecordsMetadata(operation, noteId, metadata);
         return await knowledge.ChangeRecordDocumentAsync(operation, noteId, expectedRevision, title, source, metadata.Descriptor,
-            confirmRename, token, create, hash);
+            confirmRename, token, create, hash, sourceUpdates: sideSources);
+    }
+
+    /// <summary>
+    /// Call after successful source reconciliation/registry refresh, while the coordinator gate is held.
+    /// No gate re-entry. Only changed explicit carriers commit; the resulting watcher echo is a no-op.
+    /// </summary>
+    public async Task<IReadOnlyList<MarkdownScanIssue>> RefreshCarriersAsync(CancellationToken token = default)
+    {
+        var basis = knowledge.Current; var plan = PrepareCarrierRepairs(basis);
+        var issues = plan.Issues.ToList();
+        if (plan.Sources.Count == 0) return issues;
+        var changes = plan.Sources.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => new RecordDocumentSourceUpdate(p.Key, basis.Notes[p.Key].CurrentSourceHash, p.Value)).ToArray();
+        var primary = changes[0]; var note = basis.Notes[primary.NoteId];
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
+            kind = "record-carrier-refresh", revision = basis.Revision, changes }))));
+        var result = await knowledge.ChangeRecordDocumentAsync(Guid.NewGuid().ToString("N"), note.Id, basis.Revision,
+            note.Title, primary.Source, note.CurrentRecords!, token: token, requestFingerprint: fingerprint, sourceUpdates: changes.Skip(1).ToArray());
+        if (result.Status != "committed") issues.Add(new("", "record-carrier-pending", result.Message ?? "Carrier 尚未同步。", note.Id));
+        return issues;
+    }
+
+    private CarrierPlan PrepareCarrierRepairs(Snapshot basis, string? mainNoteId = null, string? mainSource = null, RecordsDocumentDescriptor? mainDescriptor = null)
+    {
+        var paths = repository.LoadSourceFiles().Where(f => f.Exists).SelectMany(f => f.NoteIds.Select(id => (Id: id, f.RelativePath)))
+            .ToDictionary(p => p.Id, p => p.RelativePath, StringComparer.Ordinal);
+        var candidates = basis.Notes.Values.Where(n => n.CurrentRecords is not null && paths.ContainsKey(n.Id))
+            .ToDictionary(n => n.Id, n => (Source: n.CurrentSource, Descriptor: n.CurrentRecords!), StringComparer.Ordinal);
+        if (mainNoteId is not null && mainSource is not null && mainDescriptor is not null) candidates[mainNoteId] = (mainSource, mainDescriptor);
+        var targets = candidates.Where(p => paths.ContainsKey(p.Key)).SelectMany(p => p.Value.Descriptor.Records.Select(r =>
+            new RecordCarrierTarget(r.Id, r.DisplayName, paths[p.Key]))).GroupBy(t => t.Id, StringComparer.Ordinal)
+            .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single(), StringComparer.Ordinal);
+        // A user metadata command repairs only presentations it changes. Periodic reconciliation
+        // may inspect all explicit carriers; an unrelated bad source cannot block a schema command.
+        HashSet<string>? renamedRecords = null; var renamedOptions = false;
+        if (mainNoteId is not null)
+        {
+            var prior = basis.Notes.GetValueOrDefault(mainNoteId)?.CurrentRecords;
+            renamedRecords = (mainDescriptor?.Records ?? []).Where(r => prior?.Records.Any(old => old.Id == r.Id && old.DisplayName != r.DisplayName) == true)
+                .Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+            renamedOptions = (mainDescriptor?.Fields ?? []).Any(f => (f.Options ?? []).Any(option =>
+                prior?.Fields.SingleOrDefault(old => old.Id == f.Id)?.Options?.Any(old => old.Id == option.Id && old.DisplayName == option.DisplayName) != true));
+        }
+        var sources = new Dictionary<string, string>(StringComparer.Ordinal); var issues = new List<MarkdownScanIssue>();
+        foreach (var (id, candidate) in candidates)
+        {
+            var values = basis.Definitions.Values.Where(d => d.NoteId == id && d.FieldOrigin is not null)
+                .ToDictionary(d => (d.FieldOrigin!.RecordId, d.FieldOrigin.FieldId), d => d.Value);
+            RecordCarrierRewrite repaired;
+            try { repaired = RecordCarrierRefresh.Rewrite(candidate.Source, candidate.Descriptor, paths.GetValueOrDefault(id, ""), targets, values,
+                refreshOptions: mainNoteId is null || id == mainNoteId && renamedOptions, recordTargets: renamedRecords); }
+            catch (ArgumentException error) { issues.Add(new(paths.GetValueOrDefault(id, ""), "record-carrier-invalid", error.Message, id)); continue; }
+            issues.AddRange(repaired.Problems.Select(p => new MarkdownScanIssue(paths.GetValueOrDefault(id, ""), p.Code, p.Message, id)));
+            if (repaired.Source == candidate.Source) continue;
+            if (basis.Notes.TryGetValue(id, out var old) && (old.IsSourceStale || knowledge.GetDraft(id) is not null))
+            {
+                issues.Add(new(paths.GetValueOrDefault(id, ""), "record-carrier-draft", "來源有草稿或未接受內容，保留原文；選項文字／關聯連結等待來源核對後同步。", id));
+                continue;
+            }
+            sources[id] = repaired.Source;
+        }
+        return new(sources, issues);
     }
     private async Task<OperationResult> Execute(string kind, string collectionId, string recordId, string fieldId, object request, string operation,
         Func<string, Task<Receipt>> action)
@@ -235,8 +303,7 @@ public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, Kno
                     var target = owners.SingleOrDefault(o => o.Note.CurrentRecords!.Records.Any(r => r.Id == id)) ?? throw new ArgumentException("關聯 Record ID 不存在。");
                     var record = target.Note.CurrentRecords!.Records.Single(r => r.Id == id);
                     var targetPath = registry.Single(f => f.NoteIds.Contains(target.Note.Id)).RelativePath;
-                    var relative = Path.GetRelativePath(Path.GetDirectoryName(ownPath) is { Length: > 0 } directory ? directory : ".", targetPath).Replace('\\', '/');
-                    var link = string.Join('/', relative.Split('/').Select(part => part is "." or ".." ? part : Uri.EscapeDataString(part)));
+                    var link = RecordCarrierRefresh.RelativeLink(ownPath, targetPath);
                     return RecordValueCodec.IdentityCarrier(record.DisplayName, link, record.Id, true, schema.Kind == RecordFieldKind.MultiRelation);
                 })); break;
             default: throw new ArgumentException("Typed payload 不符合欄位 schema。");

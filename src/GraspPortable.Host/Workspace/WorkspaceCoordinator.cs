@@ -50,6 +50,7 @@ public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository,
                 foreach(var pair in unavailable.ToArray())
                     if(knowledge.Current.Notes[pair.Key].SavedSource is { Status: "unavailable" } old && old.Diagnostics.Any(d => d.Message == pair.Value))
                         unavailable.Remove(pair.Key);
+                var observationAccepted = true;
                 if(scan.Changes.Count > 0 || scan.MissingNoteIds.Count > 0 || unavailable.Count > 0)
                 {
                     var op = Guid.NewGuid().ToString("N");
@@ -57,9 +58,12 @@ public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository,
                     var expected = scan.MissingNoteIds.Where(knowledge.Current.Notes.ContainsKey)
                         .ToDictionary(id => id, id => knowledge.Current.Notes[id].CurrentSourceHash);
                     var result = await knowledge.ObserveExternalAsync(op, scan.Changes, token, expected, unavailable);
-                    if(result.Status != "source-observed") issues.Add(new("", result.Status, result.Message ?? "來源尚未接受，稍後重新觀測。"));
+                    observationAccepted = result.Status == "source-observed";
+                    if(!observationAccepted) issues.Add(new("", result.Status, result.Message ?? "來源尚未接受，稍後重新觀測。"));
                 }
                 else if(scan.States.Count > 0) repository.RefreshSourceRegistry(knowledge.Current,scan.States);
+                if(observationAccepted && !repository.IsWriteBlocked)
+                    issues.AddRange(await new WorkspaceRecords(repository, knowledge).RefreshCarriersAsync(token));
             }
         }
         catch(Exception error) when(error is IOException or UnauthorizedAccessException or InvalidOperationException)

@@ -31,7 +31,8 @@ public partial class Home
         var command=new RecordImportApplyRequest(Guid.NewGuid().ToString("N"),_importPreview.PreviewId);
         var result=await Backend.CommandAsync("api/record-import/apply",command,command.OperationId);
         if(result.Status!="committed")throw new InvalidOperationException(result.Message??"轉換尚未完成，原筆記保留。");
-        _dialog=null;_filesRefresh++;await RefreshAfterSharedAsync();_recordsVisible=true;
+        _dialog=null;_filesRefresh++;await RefreshAfterSharedAsync();
+        _recordsInitialCollectionId=result.NoteId??"";_recordsVisible=true;
         _notice="已建立新的縱向 Markdown 資料表；原筆記保留，可供核對與恢復。";
     });
 }

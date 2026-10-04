@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.19.0
+version: 1.20.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -9,7 +9,7 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 最新平台觀測（2026-10-04，使用者手動恢復後）：`get_goal` 已確認 Goal 為 **active**，未完成。中斷期間曾為 usageLimited；GoalSupport 於 04:53:17（Asia/Taipei）兌換一次 reset，04:56:18 確認 ordinary usage recovered，當時 usage API 為 usedPercent 0、ordinaryUsageAllowed true、重置券剩 1。額度恢復時 Goal 仍為 usageLimited；使用者手動 resume 才恢復 active。監測程式沒有 resume 功能，不能宣稱 reset 已完成無人介入續跑。
 
-最新 Host／App publish 已成功，Records UI／import／分組已整合，最新原生 GUI 驗收未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。主代理已恢復前台驗證，是否釋放前台由該次測試結束訊息確認。
+最新 Host／App publish 已成功；本段已取得 15×8 table import、view 保存、雙向凍結與排序中編輯的有限原生證據，S3／S4 完整驗收仍未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。主代理已恢復前台驗證，是否釋放前台由該次測試結束訊息確認。
 
 2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.8](Engineering/Implementation-Plan-v1.0.0-rc.8.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
 
@@ -17,27 +17,27 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新追加：S2 檔案樹與右鍵
+## 最新工作段：S4 真實樣本與共享來源修正
 
-本段整合收尾：完整 Solution build 0 warnings／errors，Host／App publish 成功。卡片 Markdown render 已修，原生重開確認粗體／清單與段落、Escape 關閉及焦點回到紀錄按鈕；App 關閉，前台釋放。這一段準備 commit／push 為分組、Records 與受控測試入口的 checkpoint，完整 Goal 尚未完成；下一段直接使用 `S4-Acceptance-1004` 驗 import／型別／關聯／凍結／共同編輯，補剩餘 S1／S2 GUI 與量測。前文「卡片正在修正」屬此次補驗之前的發現。
+最新已推送 checkpoint 為 `f3eb9ea89134b79c7ab143aec085d5d4f9e1dd2d`（分組、Records、原生資料表與受控測試入口）；本機 HEAD／origin tracking ref 核對相同。其後凍結／carrier 修正仍為未提交差異，主代理已審查 diff 並成功 publish；最新 publish 已含 import 初始 collection 選取與 Records performance hooks，TS build／架構檢查通過；新 import 導航尚待原生重驗。不能宣稱本段已推送。App／Host 已正常退出、程序清單為空，前台已釋放。
 
-手動恢復後實際進展：備份 generation 選取已原生重驗，還原收據與畫面新建版本相同；資料表建立／中文多段 Markdown cell 保存已操作，卡片 Markdown render 缺陷正修。測試入口改為受控失敗，保留完整 stacktrace／非零 exit，Content 50 pass，受控 fail 未新增 WER。前台已釋放。已依四 Markdown／四圖片 manifest 建立忽略的 `workspaces/S4-Acceptance-1004`，保留 `S4-Sample-Source` hash 基線；資料表 import／九型別／關聯／凍結與其他剩餘原生驗收仍未完成。
+原生 App 使用 `workspaces/S4-Acceptance-1004`：從 Mentors 第 1 張 15×8 表格預覽並建立獨立縱向 collection（revision 2），原始筆記仍在檔案樹。建立「角色職責」view，Name 升序並額外凍結一列／一欄（revision 3），關閉重開後設定保留。發現凍結 Name 標題被捲動欄標題覆蓋，已修層級並重新 publish；最新原生雙向捲動確認 Name 標題、第一列及 record title 維持固定。
 
-使用者要求側邊欄仿照 Obsidian／VS Code 列出實際目錄，將常用快捷功能整合進右鍵。已歸檔到 Seed rc.12／Plan rc.8／Architecture rc.5：實際資料夾與檔案展開／收合、搜尋、新增筆記／資料夾、改名／搬移、複製路徑、開啟／reveal。檔案操作沿用 IDs、expected versions、journal／恢復，改名搬移保留引用；內部 `.grasp`／`.git`／`artifacts` 不進日常樹。
+排序中編輯 `Imported1.Name` 加入 `AA` 前綴（revision 4）：Triensa 移至首列而 key 不變；重開同一 cell 確認已保存，再恢復原文（revision 5），排序隨之恢復。長路徑擠壓 toolbar 已修；Records 模式提供返回筆記，側欄直接點 Triensa 可回到真正筆記。這些是有限原生流程，不代表九型別／關聯／全部長文卡片或性能已完成。
 
-檔案目錄不等於 Records view 群組，也不取代 S3 內容合併／拆分；不擴張完整 VS Code clone。**Explorer 已實作，建立資料夾／筆記、改名、搬移及重開已取得有限原生 GUI 證據；完整驗收仍未完成。** 最新發行已含 link codec、tree 自動選取、合併／拆分及 table import 入口；新增流程仍須原生驗證。
+本段必要工程修正：generated Markdown 欄位中的手寫 binding 改名不走 shared value 入口，改走 source／field 確認流程以保留 ID；外部 raw 保留；RecordsKnowledge 16 groups、Core 162 fixtures 通過。Host 修正 option／record name 的 raw、generated property 與 cache 同一 journal；外部搬移按 ID 識別並調整相對 link，dirty draft 保留，自己的 echo 為 no-op。RecordsService 針對性 11 assertions、Coordinator 針對性 1 fixture 通過；考量 Upsert 同時修改 key／label 亦受 carrier 影響，另一次 baseline 45 assertions 通過，未擴大重跑全 suite。這批 carrier 修正尚未完成原生驗收，不以工程通過替代。
 
-## 最新整合工作段（已本機發行，尚未完成原生驗收）
+Aura 第 1 張 81×5 表以 key prefix `Aura` 預覽並建立新 collection 成功（revision 6），原來源仍列出。手動下拉選新 collection，從第 1／2 頁切到第 2／2 頁，首列 `Aura51` 可見。發現 import 完成後仍先顯示舊 collection，已修 `InitialCollectionId` 並 publish，尚待原生重驗。
 
-`afcf4ab1d2f1d07259e006d60dc9461f4336683f` 已 commit／push，`ls-remote` 相同。內容包含檔案樹、Markdown authority 與備份 checkpoint。其後本機圖片／wiki 導航、grouped storage／service／UI、Records Knowledge／metadata／service／UI 與 Markdown table import 已整合並本機 publish；這些差異待下一個 Git checkpoint，不宣稱已全部原生驗收。
+Records 性能 hooks 已加入並 publish，尚無新版 hooks 的有效代表量測；當次 ui-20261004-030650.json 約 556.9 秒，但 input／noteSwitchFirst 各只有 1 sample，仍不足 30 次代表操作。來源層既有 30 次提交 p95 334.1 ms 不含 GUI。下一步補 native carrier／九型別與關聯、其他 S1／S2 缺口及有界原生量測，詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。S1／S2 PARTIAL、S3／S4 IN_PROGRESS、Goal active，使用者接受另記。
 
-較早原生 App 已驗相對／wiki 圖片、wiki 導航，以及右鍵改名連動 incoming link，note ID 保持。備份 UI restore 能啟動新 workspace，但找到 generation 選單 state 與顯示不一致；修正已包含於最新發行，尚待重驗。詳見 [S2 Validation](Engineering/S2-Validation.md)。
+### 既有檔案樹及已推送整合基準
 
-Grouped storage 30 assertions、GroupingMetadata 10 fixtures、GroupingLinks 11 fixtures、GroupingService 6 groups、RecordsKnowledge 13 groups、RecordsWorkspace 30 assertions、RecordsService 45 assertions、RecordImport 6 groups、Host HTTP 57 assertions、Content 50 assertions 通過；Core 162、Sources 59、Envelope 12 是本段相關回歸證據。Records reviewer 已修 nested field 外部 shared intent、跨 note record ID 唯一性、欄位內手寫 rename 保 ID。資料表、分組及轉換 UI 已接產品，但 build／HTTP 不能替代原生操作驗收；詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。
+側邊欄依已接受 Seed rc.12／Plan rc.8／Architecture rc.5 呈現實際檔案樹，提供新增、改名、搬移、複製路徑及開啟／reveal；檔案操作保留 IDs、versions、journal／恢復。檔案目錄與 Records view 群組不同，不取代內容合併／拆分。建立資料夾／筆記、改名／搬移／重開及相對／wiki 圖片、wiki 導航已有有限原生證據，完整範圍仍未驗完。
 
-真 Markdown 提交效能：100 nodes／1,000 references／5 notes 暖機後 30 次 p95 334.1 ms；1,000-edge chain 242.4 ms；10,000-target fan-out 832.0 ms。包含 durable journal／原文回寫／SQLite／receipt，**不包含 GUI 可見時間**。原生探針可由 launcher `-MeasurePerformance` 主動啟用，量測結果尚待記錄。
+已推送 f3eb9ea 工作段完成 Solution build 0 warnings／errors、Host／App publish；卡片粗體／清單／段落、Escape 關閉及回到 record 按鈕的焦點已重開驗證。備份 generation 選取亦已重驗，還原收據與畫面選取版本相同；該次前台已釋放，不代表目前工作段已釋放。受控測試入口保留 stacktrace／非零 exit，Content 50 pass，受控 fail 未新增對應 WER。
 
-主代理目前推進原生 GUI／真實資料試用與必要修正，subagents 按不重疊 ownership 做有界審查或文件同步；不為已有工程證據重跑整套測試。S1/S2 PARTIAL，S3/S4 IN_PROGRESS，Goal active；使用者接受另記。
+分組／Records／table import 的既有工程基準与來源層性能保存於 [S3／S4 Validation](Engineering/S3-S4-Validation.md)，S2 圖片／導航及備份原生結果見 [S2 Validation](Engineering/S2-Validation.md)。不因本段文件更新重跑整套已有工程測試。
 
 ## 已接受的重大契約
 
@@ -58,12 +58,12 @@ Grouped storage 30 assertions、GroupingMetadata 10 fixtures、GroupingLinks 11 
 
 | 階段 | 實作 | 必要驗證 | 使用者接受 |
 | --- | --- | --- | --- |
-| P0 | Implemented：最新已推送 checkpoint 為 afcf4ab；後續 S3／S4 整合差異待下一個 checkpoint | 原 P0 的 16 份現行文件／79 個本機 links、版本與 diff whitespace 核對通過；本段不沿用為新增文件驗證 | 最新計畫已明確接受 |
+| P0 | Implemented：最新已推送 checkpoint 為 f3eb9ea；本段修正尚未提交 | 原 P0 的 16 份現行文件／79 個本機 links、版本與 diff whitespace 核對通過；本段不沿用為新增文件驗證 | 最新計畫已明確接受 |
 | S0 既有啟動主幹 | Implemented | 先前 build／publish／App＋Host 啟動及工程驗證 | 不等於 S1 UX 接受 |
 | S1 | PARTIAL：Reading 保留定義排版、delimiter 配對／同步與基本原生 IME 已驗 | Core 162、Host HTTP 34、editor 回歸、架構檢查、Host／App Release 發行通過；IME／dirty 競態、policy GUI、DPI、量化端到端仍待驗 | 尚未宣告接受 |
 | S2 | PARTIAL：Markdown adapter／coordinator、protocol 3、實際檔案樹／右鍵、來源處理、圖片／link 及舊 DB 複製遷移已實作 | 工程及 Windows GUI 部分通過；實際 Obsidian 交替、衝突 UI、完整附件／link 流程與 GUI 效能尚待驗；來源層量測見 S3／S4 Validation | 範圍已接受，成品未接受 |
-| S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；分組工程測試與真 link／backup 整合通過；最新備份選單、合併／拆分的原生操作待驗 | 同上 |
-| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 工程測試通過範圍見 S3／S4 Validation；15／81 列樣本解析成功，實際轉換／編輯／凍結、真實長文卡片與 GUI 量测仍待驗 | 同上 |
+| S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；分組工程測試與真 link／backup 整合通過；備份選單已原生重驗；合併／拆分其餘原生操作待驗 | 同上 |
+| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；九型別／關聯、完整卡片／carrier、import 初始選取修正與 GUI 量測待驗，工程範圍見 S3／S4 Validation | 同上 |
 
 本表依 2026-10-04 本段 checkpoint 更新，主代理每完成實作段再接續。任何功能完成／測試 pass 需實際證據；文件升版不代表程式已切換資料權威。
 
@@ -81,7 +81,7 @@ Sources 59 assertions、MarkdownWorkspace 12 groups、Coordinator 7 groups（含
 
 ## 歷史：2026-10-04 較早 S3 備份整合 checkpoint
 
-以下「獨立底層／尚未構成 UI」是當時狀態；目前分組與 Records 已接產品，仍未原生驗收。
+以下「獨立底層／尚未構成 UI」是當時狀態；目前已接產品並取得上方列出的有限原生證據，完整驗收仍未完成。
 
 已接入手動／有變更定時 checkpoint、設定、正常關閉前備份及還原至新 workspace。Sources 59、Coordinator 7、App Release build 重新通過；Host HTTP 擴充為 43 assertions，實際啟動還原 Host 驗證 raw source、較新 draft、last-good identity 與備份設定。
 
@@ -113,11 +113,11 @@ Computer Use 舊 runtime 阻塞先前已解除並取得上述操作證據；目�
 
 Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`。Repository：其下 `GraspPortable/`，origin `https://github.com/000Sean000/GraspPortable.git`，branch `rewrite/dotnet`。P0 文件整合讀取 HEAD `f4830e757007401489e169e989ad500ae69b9119`；已有八個文件／App／editor 未提交修改，保留有效成果。動態狀態以 Git 為準，未 reset／搬移 repository。
 
-較早 checkpoint `522482affeb4979ac8a6e39b77a6a426f5b89725` 已 push 並核對；最新已推送 checkpoint 是上方的 `afcf4ab1d2f1d07259e006d60dc9461f4336683f`。其後差異待下一次 commit／push 核對，不沿用歷史 SHA 充當最新版本。
+歷史 checkpoint `522482affeb4979ac8a6e39b77a6a426f5b89725`、`afcf4ab1d2f1d07259e006d60dc9461f4336683f` 已 push。最新已推送為 `f3eb9ea89134b79c7ab143aec085d5d4f9e1dd2d`；其後本段凍結／排序互動及 carrier 修正仍待 commit／push 核對。
 
 根目錄 `AGENTS.md` 保存 Workspace／repository 角色、搜尋限定及主動協作，不在本 repository 追蹤。Legacy1 不盤點、不搜索、不修改；舊清理待辦無須接續。
 
-使用者指定 `TestData/MainVault-Source` 已是副本，可按測試需求取用適量，不设無意義硬性上限、不整庫過度測試。四份 Markdown 與四張直接引用圖片已定點複製至忽略的 `workspaces/S4-Sample-Source`；15 位 Eternal Mentors 的兩張 table 與 81 列 Aura 已只做解析統計，無錯誤；Triensa／Anria 的完整卡片及真實轉換／GUI 仍待驗。私人內容及本機 sample manifest 不提交。
+使用者指定 `TestData/MainVault-Source` 已是副本，可按測試需求取用適量，不设無意義硬性上限、不整庫過度測試。四份 Markdown 與四張直接引用圖片已定點複製至忽略的 `workspaces/S4-Sample-Source`；Mentors 第 1 張 15×8 已在 S4-Acceptance-1004 原生轉換及編輯；Aura 81×5 已轉換並驗第二頁 `Aura51`；Mentors 第 2 張 15×3 仍只有解析統計、無錯誤。Triensa／Anria 的完整卡片、關聯與其餘真實樣本流程仍待驗。私人內容及本機 sample manifest 不提交。
 
 目前分工：主代理擁有 Contracts／Host／Knowledge／跨檔一致性及整合；subagents 按指定不重疊檔案實作 editor 或歸檔文件。共享接面、DI、migration 單一 owner，主代理核對差異並執行必要整合驗證。
 
@@ -131,4 +131,4 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-使用最新已 publish 的 App／Host，驗資料表九型別、長文卡片／關聯、凍結／排序編輯、合併／拆分／連結、table import 及備份選單修正；補 S2 Obsidian 交替／衝突 UI 與 S1 IME／dirty 競態、allowlist、DPI。以 opt-in `-MeasurePerformance` 取得至少 30 次操作及約五分鐘互動的原生量測，記錄 workspace、發行版本、結果與缺口；來源層數字不能替代這一步。完成 coherent segment 後 commit／push 並核對 SHA。工具或額度阻塞時保留未驗狀態，未满足完成條件不宣布 Goal complete。
+使用最新 publish 原生重驗 import 初始 collection 選取修正，再完成 carrier 修正的原生確認、九型別／關聯與剩餘長文卡片；已有 15×8 import、view 保存及凍結／排序編輯證據只需隨受影響修正針對性回歸。补 S3 合併／拆分其餘流程、S2 Obsidian 交替／衝突 UI，以及 S1 IME／dirty 競態、allowlist、DPI。Records hooks 已發布但有效代表量測尚缺；以 opt-in `-MeasurePerformance` 取得至少 30 次代表操作及約五分鐘原生互動，記錄發行來源、workspace、結果與缺口；未量測不報 pass，來源層數字不能替代。本段前台已釋放，下次操作前另行提醒；完成 coherent segment 後再 commit／push 並核對 SHA，未滿足全部完成條件不宣布 Goal complete。

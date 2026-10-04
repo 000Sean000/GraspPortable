@@ -11,6 +11,8 @@ Directory.CreateDirectory(root);
 var assertions = 0;
 string Id() => Guid.NewGuid().ToString("N");
 void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); assertions++; Console.WriteLine("PASS " + message); }
+if (args.Length == 0 || args.Contains("baseline", StringComparer.Ordinal))
+{
 var fields = Enum.GetValues<RecordFieldKind>().Select(kind => new RecordFieldSchemaDto("", kind.ToString(), kind.ToString(), kind.ToString(),
     kind is RecordFieldKind.SingleSelect or RecordFieldKind.MultiSelect ? [new("", "選項甲"), new("", "選項乙")] : null)).ToArray();
 CreateCollectionRequest create = new(Id(), 0, "人物集", "Characters.Triensa", "特莉恩莎", fields);
@@ -110,6 +112,43 @@ using (var knowledge = new KnowledgeService(repository))
     Check(data.Rows.Length == 2 && data.Fields.Length == 10 && data.Views.Single().Name == "工作檢視" && data.HasDraft, "reopen preserves schema/records/views/draft");
     Check((await service.SaveViewAsync(collectionId, savedView!)).Status == "committed", "durable view receipt retries despite a later dirty draft");
     Check(repository.Scan(knowledge.Current).Changes.Count == 0, "saved descriptors settle without spurious external changes");
+}
+}
+if (args.Length == 0 || args.Contains("carriers", StringComparer.Ordinal))
+{
+    var carrierRoot = Path.Combine(root, "carriers");
+    using var repository = new MarkdownWorkspaceRepository(carrierRoot);
+    using var knowledge = new KnowledgeService(repository);
+    var records = new WorkspaceRecords(repository, knowledge);
+    var a = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "A", "Source", "來源", [new("", "Link", "關聯", "SingleRelation")]));
+    var b = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "B", "Target", "舊角色名", [new("", "Choice", "選項", "SingleSelect", [new("", "舊選項名")])]));
+    Check(a.Status == "committed" && b.Status == "committed", "carrier fixture creates source/target collections");
+    var aData = records.Read(a.NoteId!); var bData = records.Read(b.NoteId!);
+    Check((await records.ChangeFieldAsync(aData.Rows[0].Id, aData.Fields[0].Id, new(Id(), knowledge.Current.Revision, "", TypedValue: new("Relation", false, Ids: [bData.Rows[0].Id])))).Status == "committed", "relation fixture stores explicit target identity");
+    Check((await records.ChangeFieldAsync(bData.Rows[0].Id, bData.Fields[0].Id, new(Id(), knowledge.Current.Revision, "", TypedValue: new("Select", false, Ids: [bData.Fields[0].Options![0].Id])))).Status == "committed", "option fixture stores explicit option identity");
+    var reader = await knowledge.CreateNoteAsync(Id(), "Reader", "[](:ref:Target.Choice)\n[](:ref:Source.Link)\nordinary [leave](B.md)");
+    var schema = bData.Fields[0] with { Options = [bData.Fields[0].Options![0] with { DisplayName = "新選項名" }] };
+    Check((await records.UpsertFieldAsync(b.NoteId!, new(Id(), knowledge.Current.Revision, schema))).Status == "committed", "option display rename commits metadata and original carrier together");
+    Check(records.Read(b.NoteId!).Rows[0].Cells[0].RawSource.Contains("[新選項名]")
+        && knowledge.Current.Definitions.Values.Single(d => d.Name == "Target.Choice").Value!.Contains("[新選項名]")
+        && knowledge.Current.Notes[reader.NoteId!].Syntax.References.Single(r => r.Name == "Target.Choice").CachedValue.Contains("[新選項名]"), "option UI/raw/generated property/reference Reading agree after rename");
+    var renameOperation = Id();
+    Check((await records.RenameRecordAsync(b.NoteId!, bData.Rows[0].Id, new(renameOperation, knowledge.Current.Revision, "Target", "新角色名"))).Status == "committed", "record display rename updates another source in the same transaction");
+    using (var journal = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(carrierRoot, ".grasp", "semantic-operations", renameOperation + ".json"))))
+        Check(journal.RootElement.GetProperty("Mutations").GetArrayLength() == 3
+            && new GraspPortable.Host.Workspace.FileOperations.RecoverableFileOperations(carrierRoot).Inspect(Guid.Parse(renameOperation)).Phase
+                == GraspPortable.Host.Workspace.FileOperations.FileOperationPhase.SemanticFinalized,
+            "one finalized journal contains target metadata, relation source and expanded reader updates");
+    var aRaw = records.Read(a.NoteId!).Rows[0].Cells[0].RawSource;
+    Check(aRaw.Contains("[新角色名]") && aRaw.Contains(bData.Rows[0].Id)
+        && knowledge.Current.Notes[reader.NoteId!].Syntax.References.Single(r => r.Name == "Source.Link").CachedValue.Contains("[新角色名]"), "relation raw and expanded Reading preserve identity and new label");
+    Check(knowledge.Current.Notes[reader.NoteId!].Source.Contains("ordinary [leave](B.md)"), "unmarked ordinary link remains untouched");
+    var current = knowledge.Current.Notes[a.NoteId!];
+    await knowledge.SaveDraftAsync(new(current.Id, "local", 1, current.Revision, current.Title, current.Source + "\nlocal", current.CurrentSourceHash));
+    Check((await records.RenameRecordAsync(b.NoteId!, bData.Rows[0].Id, new(Id(), knowledge.Current.Revision, "Target", "不能覆蓋草稿"))).Status == "conflict"
+        && records.Read(b.NoteId!).Rows[0].DisplayName == "新角色名" && records.Read(a.NoteId!).Rows[0].Cells[0].RawSource == aRaw,
+        "dirty relation owner rejects the whole display rename without partial metadata changes");
+    Check(knowledge.GetDraft(current.Id)!.Source.EndsWith("local", StringComparison.Ordinal), "carrier refresh retains the exact dirty draft");
 }
 Console.WriteLine($"PASS {assertions} Records service assertions. Workspace: {root}");
 }

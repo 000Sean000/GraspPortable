@@ -52,14 +52,22 @@ public sealed partial class KnowledgeService
             .Parts.All(p=>p.Kind==PartKind.Literal);
     }
 
-    private static string ReplaceSharedSource(Note note,KnowledgeDefinition definition,string value)
+    private static string ReplaceSharedSource(Note note,KnowledgeDefinition definition,string value,IReadOnlyList<string> languages)
     {
         if(definition.FieldOrigin is { } origin)
         {
             if(note.Records is null) throw new InvalidOperationException("Field definition lost its source descriptor.");
             var field=VerticalRecordCodec.PrepareFieldEdit(note.Source,VerticalRecordCodec.Parse(note.Source,note.Records),origin.RecordId,origin.FieldId,new(value));
             if(!field.Success) throw new InvalidOperationException("Shared field cannot be rewritten safely.");
-            return ReferenceCodec.ApplyPatches(note.Source,[field.Patch!]);
+            var source=ReferenceCodec.ApplyPatches(note.Source,[field.Patch!]);
+            var syntax=RecordNoteSyntax.Parse(source,note.Records,languages);
+            if(!syntax.IsValid) throw new InvalidOperationException("欄位包含未完成語法，請前往來源草稿繼續編輯。");
+            var renames=DetectRenames(note.Syntax,syntax);
+            // The generic shared-text command has no rename-confirmation transport.
+            // Use the existing field/source command to confirm and preserve identities.
+            if(renames is null || renames.Count>0)
+                throw new InvalidOperationException("欄位內定義改名需要身分確認；請前往來源或欄位編輯器完成改名，共享值尚未修改。");
+            return source;
         }
         var literal=note.Syntax.Definitions.Single(d=>d.Name==definition.Name);
         return RecordNoteSyntax.ApplyPatches(note.Source,note.Records,[new(literal.ExpressionSpan,LiteralCodec.Serialize(value))]);

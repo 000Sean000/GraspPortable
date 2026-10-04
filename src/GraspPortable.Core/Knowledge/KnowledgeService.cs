@@ -166,7 +166,7 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
         if (drafts.ContainsKey(definition.NoteId)) return Reject(operationId, hash, "conflict", "來源已有草稿，請前往來源編輯。", definition.NoteId);
         var note = basis.Notes[definition.NoteId];
         string source;
-        try { source=ReplaceSharedSource(note,definition,value); }
+        try { source=ReplaceSharedSource(note,definition,value,basis.Languages); }
         catch(InvalidOperationException codecError) { return Reject(operationId,hash,"invalid",codecError.Message,note.Id); }
         var notes = basis.Notes.ToDictionary(p => p.Key, p => p.Value);
         notes[note.Id] = note with { Source = source, Syntax = RecordNoteSyntax.Parse(source, note.Records, basis.Languages) };
@@ -293,7 +293,8 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
     }
 
     private async Task<Receipt> PublishAsync(Snapshot basis, Snapshot next, string operationId, string hash, string? noteId, Draft? consumedDraft, CancellationToken token,
-        string? rejectDirtyNote = null, IReadOnlyDictionary<string, Draft?>? draftGuards = null, string successStatus = "committed")
+        string? rejectDirtyNote = null, IReadOnlyDictionary<string, Draft?>? draftGuards = null, string successStatus = "committed",
+        IReadOnlyDictionary<string,string>? sourceHashGuards = null)
     {
         await writer.WaitAsync(token);
         Receipt receipt;
@@ -306,6 +307,9 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
             if (rejectDirtyNote is not null && drafts.ContainsKey(rejectDirtyNote)) return Reject(operationId, hash, "conflict", "來源已有草稿，請前往來源。", noteId);
             if (draftGuards is not null && draftGuards.Any(pair => GetDraft(pair.Key) != pair.Value))
                 return Reject(operationId, hash, "conflict", "草稿狀態在來源核對期間改變，請重試觀測。", noteId);
+            if(sourceHashGuards is not null && sourceHashGuards.Any(pair => !Current.Notes.TryGetValue(pair.Key,out var guarded)
+                || guarded.CurrentSourceHash != pair.Value || guarded.IsSourceStale))
+                return Reject(operationId,hash,"conflict","附帶來源版本在提交前變更，整批未寫入。",noteId);
             token.ThrowIfCancellationRequested();
             var affected = next.Notes.Values.Where(n => !basis.Notes.TryGetValue(n.Id, out var old) || n.Revision != old.Revision).Select(n => n.Id)
                 .Concat(basis.Notes.Keys.Where(id => !next.Notes.ContainsKey(id))).ToArray();

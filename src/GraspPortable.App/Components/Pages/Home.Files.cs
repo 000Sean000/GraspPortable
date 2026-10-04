@@ -32,7 +32,11 @@ public partial class Home
     }
 
     private async Task OpenFileAsync(WorkspaceFileEntry entry) => await GuardAsync(async () => {
-        if(entry.NoteId is not null) await SelectNoteAsync(entry.NoteId);
+        if(entry.NoteId is not null)
+        {
+            await SelectNoteAsync(entry.NoteId);
+            if(_note?.Id==entry.NoteId)_recordsVisible=false;
+        }
         else if(Path.GetExtension(entry.Name).Equals(".md",StringComparison.OrdinalIgnoreCase))
         {
             await RefreshSourceStatusAsync();
