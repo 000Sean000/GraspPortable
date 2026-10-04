@@ -7,7 +7,7 @@
 @inject IJSRuntime JS
 @inject BackendSession Backend
 
-<div @ref="_element" class="records-markdown @(Compact ? "compact" : "")" aria-label="Markdown 閱讀內容"></div>
+<div @ref="_element" class="records-markdown @(Compact ? "compact" : "")" aria-label="Markdown 閱讀內容" data-records-render-expected="@_generation" data-records-paint-expected="@(_measureRecords ? _generation.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"></div>
 @if (_message is not null) { <p class="markdown-message" role="status">@_message</p> }
 
 @code {
@@ -22,21 +22,27 @@
     private ElementReference _element;
     private IJSObjectReference? _module;
     private DotNetObjectReference<RecordsMarkdown>? _receiver;
-    private (string, string, string, long, string)? _rendered;
+    private (string, string, string, long, string)? _requested;
+    private bool _needsRender;
+    private readonly bool _measureRecords = Environment.GetEnvironmentVariable("GRASP_MEASURE_UI") == "1";
     private long _generation;
     private bool _disposed;
     private string? _message;
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnParametersSet()
     {
         if (_disposed) return;
         var semantics = System.Text.Json.JsonSerializer.Serialize(new { References, Regions });
         var snapshot = (Markdown, OriginNoteId, WorkspaceKey, Revision, semantics);
-        if (_rendered == snapshot) return;
-        var generation = ++_generation;
+        if (_requested == snapshot) return;
+        _requested = snapshot; _needsRender = true; _generation++; _message = null;
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_disposed || !_needsRender) return;
+        var generation = _generation; _needsRender = false;
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Records/RecordsPanel.razor.js");
         if (_disposed || generation != _generation) return;
         _receiver ??= DotNetObjectReference.Create(this);
-        _rendered = snapshot; _message = null;
         await _module.InvokeVoidAsync("renderMarkdown", _element, Markdown, OriginNoteId, _receiver, generation, References ?? [], Regions ?? []);
     }
     private bool IsOriginAllowed(string origin) => origin == OriginNoteId || References?.Any(reference => reference.OriginNoteId == origin) == true;
@@ -69,6 +75,12 @@
         }
         catch (Exception error) when (error is System.Net.Http.HttpRequestException or InvalidOperationException or OperationCanceledException)
         { if (!_disposed && generation == _generation) { _message = error.Message; await InvokeAsync(StateHasChanged); } }
+    }
+    [JSInvokable]
+    public Task NavigateRecord(string recordId, long generation)
+    {
+        if (_disposed || generation != _generation || !Guid.TryParseExact(recordId, "N", out var id) || id == Guid.Empty) return Task.CompletedTask;
+        return OnNavigate.InvokeAsync(new(RecordId: recordId));
     }
     [JSInvokable]
     public Task NavigateDefinition(string name, long generation)

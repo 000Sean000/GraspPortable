@@ -19,6 +19,20 @@ export function disposeMarkdown(element) {
     rendered.delete(element);
 }
 export function renderMarkdown(element, markdown, origin, receiver, generation, references = [], regions = []) {
+    const token = String(generation);
+    if (element.dataset.recordsRenderExpected !== token) return;
+    delete element.dataset.recordsPaintReady;
+    delete element.dataset.recordsPaintFailed;
+    try {
+        renderMarkdownContent(element, markdown, origin, receiver, generation, references, regions);
+        if (element.dataset.recordsRenderExpected === token && element.dataset.recordsPaintExpected === token)
+            element.dataset.recordsPaintReady = token;
+    } catch (error) {
+        if (element.dataset.recordsPaintExpected === token) element.dataset.recordsPaintFailed = token;
+        throw error;
+    }
+}
+function renderMarkdownContent(element, markdown, origin, receiver, generation, references, regions) {
     disposeMarkdown(element);
     const state = { active: true, controller: new AbortController(), pending: new Map(), cache: new Map(), cacheSize: 0 };
     rendered.set(element, state);
@@ -26,11 +40,12 @@ export function renderMarkdown(element, markdown, origin, receiver, generation, 
     const current = () => state.active && rendered.get(element) === state && element.isConnected;
     element.querySelectorAll("a").forEach(anchor => {
         const target = anchor.dataset.localTarget ?? anchor.getAttribute("href") ?? "";
+        const recordId = anchor.dataset.recordId;
         // Empty origin is deliberate: an unresolved cached reference must never
         // borrow the reader's relative path and silently open another same-named file.
         const linkOrigin = anchor.closest("[data-origin-note-id]")?.dataset.originNoteId ?? origin;
         const external = /^https?:\/\//i.test(target);
-        const missingOrigin = linkOrigin === "" && !external;
+        const missingOrigin = linkOrigin === "" && !external && !recordId;
         if (missingOrigin) {
             anchor.setAttribute("aria-disabled", "true");
             anchor.title = "引用來源定義已不存在，無法確定此相對連結的位置。";
@@ -42,6 +57,9 @@ export function renderMarkdown(element, markdown, origin, receiver, generation, 
         anchor.addEventListener("click", event => {
             event.preventDefault(); event.stopPropagation();
             if (!current() || missingOrigin) return;
+            if (recordId) {
+                void receiver.invokeMethodAsync("NavigateRecord", recordId, generation).catch(() => {}); return;
+            }
             void receiver.invokeMethodAsync("Navigate", external ? origin : linkOrigin, target, anchor.dataset.wiki === "true", generation).catch(() => {});
         }, { signal: state.controller.signal });
     });
@@ -94,6 +112,36 @@ export function renderMarkdown(element, markdown, origin, receiver, generation, 
             image.loading = "lazy"; image.src = value; placeholder.replaceWith(image);
         });
     }
+}
+
+// Opt-in parent barrier. DOM tokens contain generations only; no source or IDs
+// are sent to the timing report. Image loading is deliberately not awaited.
+export function waitForRecordsPaint(rootId, token, timeoutMs = 2000) {
+    return new Promise(resolve => {
+        let done = false, frame = 0, timer;
+        const finish = accepted => {
+            if (done) return;
+            done = true; observer.disconnect(); cancelAnimationFrame(frame); clearTimeout(timer); resolve(accepted);
+        };
+        const check = () => {
+            if (done) return;
+            const root = document.getElementById(rootId);
+            if (!root?.isConnected || root.dataset.recordsPaintToken !== token || document.visibilityState === "hidden" || root.getClientRects().length === 0)
+                return finish(false);
+            const scopes = [...document.querySelectorAll("[data-records-paint-scope]")].filter(scope => scope.dataset.recordsPaintScope === rootId);
+            if (!scopes.includes(root) || scopes.some(scope => scope.dataset.recordsPaintToken !== token)) return finish(false);
+            const children = scopes.flatMap(scope => [...scope.querySelectorAll("[data-records-paint-expected]")]);
+            if (children.some(child => child.dataset.recordsPaintFailed === child.dataset.recordsPaintExpected)) return finish(false);
+            if (children.every(child => child.dataset.recordsPaintExpected && child.dataset.recordsPaintReady === child.dataset.recordsPaintExpected)) finish(true);
+        };
+        const observer = new MutationObserver(() => {
+            if (!done && !frame) frame = requestAnimationFrame(() => { frame = 0; check(); });
+        });
+        observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
+            attributeFilter: ["data-records-paint-scope", "data-records-paint-token", "data-records-paint-expected", "data-records-paint-ready", "data-records-paint-failed", "class", "style"] });
+        timer = setTimeout(() => finish(false), Math.max(1, Math.min(timeoutMs, 2000)));
+        check();
+    });
 }
 
 const modals = new Map();

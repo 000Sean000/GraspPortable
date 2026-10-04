@@ -18,6 +18,8 @@ public partial class RecordsPanel : IAsyncDisposable
     private readonly string _modalId = "records-modal-" + Guid.NewGuid().ToString("N");
     [Parameter] public CollectionDto? Collection { get; set; }
     [Parameter] public string InitialCollectionId { get; set; } = "";
+    [Parameter] public string InitialRecordId { get; set; } = "";
+    [Parameter] public EventCallback<string> InitialRecordHandled { get; set; }
     [Parameter] public string WorkspaceKey { get; set; } = "";
     [Parameter] public long Revision { get; set; }
     [Parameter] public EventCallback<string> OnOpenSource { get; set; }
@@ -29,6 +31,8 @@ public partial class RecordsPanel : IAsyncDisposable
     private string _selected = "", _workspace = "", _search = "";
     private string _appliedInitialCollectionId = "";
     private string? _reportedCollectionId;
+    private string _appliedInitialRecordId = "", _relationSearch = "";
+    private long _recordNavigationGeneration;
     private long _observedRevision = -1, _loadEpoch;
     private CancellationTokenSource? _load;
     private bool _busy, _loading, _disposed;
@@ -69,9 +73,13 @@ public partial class RecordsPanel : IAsyncDisposable
             _workspace = WorkspaceKey; _selected = ""; _data = null; _view = null; _collections = []; _page = 0; _search = "";
             _appliedInitialCollectionId = "";
             _reportedCollectionId = null;
+            _appliedInitialRecordId = ""; _recordNavigationGeneration++;
             if (_dialog is not null) _dialogWarning = "工作區已切換；這份輸入仍保留，請先複製或取消，不能送到另一個工作區。";
         }
         if (Collection is not null && Collection.Id != _selected) _selected = Collection.Id;
+        var recordRequest = InitialRecordId.Length > 0 && InitialRecordId != _appliedInitialRecordId ? InitialRecordId : null;
+        _appliedInitialRecordId = InitialRecordId;
+        var requestWorkspace = WorkspaceKey;
         var requested = InitialCollectionId != _appliedInitialCollectionId;
         if (requested)
         {
@@ -80,6 +88,15 @@ public partial class RecordsPanel : IAsyncDisposable
         }
         if (changed || requested || Revision != _observedRevision || _data is null)
         { _observedRevision = Revision; await RefreshAsync(); }
+        if (recordRequest is not null && !_disposed && requestWorkspace == WorkspaceKey && InitialRecordId == recordRequest)
+        {
+            try { await OpenRecordByIdAsync(recordRequest); }
+            finally
+            {
+                if (!_disposed && requestWorkspace == WorkspaceKey && InitialRecordId == recordRequest)
+                    await InitialRecordHandled.InvokeAsync(recordRequest);
+            }
+        }
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -124,14 +141,7 @@ public partial class RecordsPanel : IAsyncDisposable
             ClampPage();
             _recordsAppliedLoadEpoch = epoch;
             QueueRecordPerformance(performance, epoch); performanceQueued = true;
-            if (SelectedCollectionChanged.HasDelegate && _reportedCollectionId != id)
-            {
-                _reportedCollectionId = id;
-                // Parent echoes the remembered selection as InitialCollectionId. Consume
-                // that echo now so it does not reset the current view or query again.
-                _appliedInitialCollectionId = id;
-                await SelectedCollectionChanged.InvokeAsync(id);
-            }
+            await ReportSelectedCollectionAsync(id);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (epoch == _loadEpoch) _error = error.Message; }
@@ -212,6 +222,7 @@ public partial class RecordsPanel : IAsyncDisposable
 
     private void StartDialog(string kind)
     {
+        _recordNavigationGeneration++;
         _dialog = kind; _dialogWorkspace = WorkspaceKey; _editRevision = _data?.Revision ?? Math.Max(Revision, Backend.Workspace?.Revision ?? 0);
         _error = null; _dialogWarning = null; _confirmDiscard = false; _needsConfirmation = false; _conflict = false; _unknownOutcome = false; _pending = null;
         _pendingLink = null;
@@ -259,6 +270,8 @@ public partial class RecordsPanel : IAsyncDisposable
         _selectedIds.Clear(); foreach (var id in _cell?.TypedValue?.Ids ?? []) _selectedIds.Add(id);
         _sourceMode = field.Kind == "Markdown" || _cell?.TypedValue is null && !_null || _raw.Contains(":ref:", StringComparison.Ordinal) || _raw.Contains("[[@", StringComparison.Ordinal) || _raw.Contains("@code{", StringComparison.Ordinal);
         _focusFirst = !_null && (_sourceMode || _kind is "Markdown" or "Number" or "Boolean" or "Date" or "Tag");
+        _relationSearch = "";
+        if (_kind is "SingleRelation" or "MultiRelation" && !_sourceMode) _focusFirst = true;
         SnapshotDialog();
     }
     private void ShowView(bool create)
@@ -418,6 +431,7 @@ public partial class RecordsPanel : IAsyncDisposable
         if (_busy || _unknownOutcome) { _dialogWarning = "請先確認目前保存操作的結果，再開啟連結。"; return; }
         try
         {
+            if (navigation.RecordId is { } recordId) { await OpenRecordByIdAsync(recordId); return; }
             if (navigation.NoteId is not null || navigation.DefinitionName is not null)
             {
                 if (DialogChanged) { _dialogWarning = "這份輸入尚未保存。請先保存或取消編輯，再點選連結；輸入保持不變。"; return; }

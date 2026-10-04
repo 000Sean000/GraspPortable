@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.22.0
+version: 1.23.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,17 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：Wiki／Grasp 共用呈現與直接導航
+## 最新工作段：九型別原生流程及 record ID 導航
+
+本段以已核對遠端 `dd55127fde437ab4110a68c9088d3ef4e8357ca9` 續作。12:06–12:31 原生驗收在 `S4-Acceptance-1004` 完成 Alpha 的空字串→長文、0、false、date-only、單選、多選、tag、跨表單筆關聯與跨表＋同表多筆關聯，revision 16–25。引用檢查筆記同步更新且無診斷，兩式多段引用保留正文；Beta 的未設定欄位保持 null。詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。這是基本流程，不等於九型別的所有邊界或 S4 完成。
+
+已修正 Boolean 選單 false 重繪空白（實際保存值正確），以及關聯 link 只開所屬檔案頂部。Record 導航以既有 canonical carrier ID 定位 fresh record card，不依顯示名或檔案頂部猜測；保護 missing／dirty／過期結果。Relation selector 加本地搜尋，保留已選 ID。主代理負責 Home、整合與原生驗證；editor_fix 負責 renderer／fixtures；ui_review 負責 Records UI／readiness。
+
+新版 Host 12:40:48／App 12:40:58 已發行；12:41–12:49 原生重開確認 false 正確顯示，同表 Beta／跨表 Triensa、Live Preview reference 內 Beta 都直接開正確卡片。搜尋 Beta／LiveLinks 保留選取；新增第三筆關聯時 dirty guard 阻止離開並保留輸入，保存 revision 26 後重開完整欄位仍見三筆。Editor tests、Records 15 fixtures、架構檢查及 publish 通過。App／Host 正常關閉後皆不存在，前台已釋放。未宣稱全部 native 邊界或 S4 完成。
+
+Opt-in Records 已加入 managed child DOM／handlers readiness barrier 再使用雙 rAF；過期、失敗、取消、逾時不算成功，lazy 圖片下載解碼不含在內。新探針 `ui-20261004-044122.json` 有 3 筆 query（p95 230.6 ms），但成功的 revision 26 保存未留下 commit span，須釐清 own refresh／SSE 競態；目前不能宣稱完整提交至可見效能達標。詳見 Validation；關聯搜尋 modal 高度變動亦留作有界 UX 改善。
+
+## 已完成工作段：Wiki／Grasp 共用呈現與直接導航
 
 進入本段時已核對的遠端 checkpoint 為 `62780134a29ab49f8d7a25de973e2f9b0e0041c6`。以下工作已實作、本機 publish 並通過有限必要原生流程；提交主題為 `fix: preserve wiki and reference navigation across record views`，實際 commit／push 結果以 Git 與交付核對為準。全 Goal 維持 `IN_PROGRESS`，未宣稱全部階段完成。
 
@@ -80,7 +90,7 @@ Records 性能 hooks 已加入並 publish，尚無新版 hooks 的有效代表�
 | S1 | PARTIAL：Reading 保留定義排版、delimiter 配對／同步與基本原生 IME 已驗 | Core 162、Host HTTP 34、editor 回歸、架構檢查、Host／App Release 發行通過；IME／dirty 競態、policy GUI、DPI、量化端到端仍待驗 | 尚未宣告接受 |
 | S2 | PARTIAL：Markdown adapter／coordinator、protocol 3、實際檔案樹／右鍵、來源處理、圖片／link 及舊 DB 複製遷移已實作 | 工程及 Windows GUI 部分通過；實際 Obsidian 交替、衝突 UI、完整附件／link 流程與 GUI 效能尚待驗；來源層量測見 S3／S4 Validation | 範圍已接受，成品未接受 |
 | S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；分組工程測試與真 link／backup 整合通過；備份選單已原生重驗；合併／拆分其餘原生操作待驗 | 同上 |
-| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；Wiki／Grasp 各呈現面與部分鍵盤／dirty guard 已驗；九型別／關聯、其餘卡片／carrier、import 初始選取與足量 GUI 量測待驗，詳见 S3／S4 Validation | 同上 |
+| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；Wiki／Grasp 各呈現面與部分鍵盤／dirty guard 已驗；九型別基本保存／引用更新、同表／跨表 ID 卡片導航及關聯 dirty guard 已驗；其餘 carrier、import 初始選取、missing／IME 邊界與足量 GUI 量測待驗，詳见 S3／S4 Validation | 同上 |
 
 本表依 2026-10-04 本段 checkpoint 更新，主代理每完成實作段再接續。任何功能完成／測試 pass 需實際證據；文件升版不代表程式已切換資料權威。
 
@@ -150,4 +160,4 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-先完成本段文件及差異核對，依授權 commit／push 並核對 SHA；Wiki／Grasp 的 reader、cell、完整欄位、card、來源定位、field dirty guard、一般 Wiki Enter 與返回 collection 已有有限必要證據，不重跑完整流程。後續補 Grasp Enter／缺失來源的具體原生案例，再續驗 import 初始選取、carrier 修正、九型別／關聯及剩餘長文卡片。補 S3 合併／拆分其餘流程、S2 Obsidian 交替／衝突 UI，以及 S1 IME／dirty 競態、allowlist、DPI。Opt-in Records／UI 探針已有有限樣本，仍須取得至少 30 次代表操作及約五分鐘原生互動的完整證據；區分父元件更新與 child renderer ready，不拿來源層數字替代可見端到端延遲。只重測受影響項目，測試成本失衡即回頭檢視全局。本段前台已釋放，下次操作前另行提醒；未滿足全部完成條件不宣布 Goal complete。
+先核對本段 commit／push checkpoint，維持 Goal active。不要重做已通過的 Wiki／Grasp 及九型別基本流程；從 revision 26 的驗收 workspace 續作。先定位 Records 保存未留下 commit span 的量測缺口，再取得足量代表性端到端證據；目前 child-ready query 3 筆不能替代。關聯搜尋 modal 高度可作一次有界修整。後續優先完成 S2 真實 Obsidian 交替／衝突、S3 合併／拆分及還原，再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 的具體缺口。每段只重測受影響項目，測試成本失衡即回頭檢視全局。App／Host 已關閉，前台釋放；下次操作前另行提醒。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。

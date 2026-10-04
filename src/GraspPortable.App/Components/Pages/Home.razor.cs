@@ -99,7 +99,7 @@ public partial class Home
     }
     private async Task LoadWorkspaceAsync()
     {
-        _recordsVisible=false;_recordsInitialCollectionId="";
+        _recordsVisible=false;_recordsInitialCollectionId="";_recordsInitialRecordId="";
         _contextGeneration++;
         searchCancellation?.Cancel();
         _search=""; _insertName=""; _selectedDefinition=null; _references=[]; _diagnostics=[];

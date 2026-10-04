@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.5.0
+version: 1.6.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,37 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 九型別原生驗證與關聯導航缺口（revision 16–25）
+
+2026-10-04 12:06–12:31（Asia/Taipei），主代理使用已推送 `dd55127fde437ab4110a68c9088d3ef4e8357ca9` 的本機 Windows App，操作同一驗收 workspace 的兩筆合成紀錄。不是整個 vault 的壓力測試。
+
+| 欄位／步驟 | 原生觀測 |
+| --- | --- |
+| Markdown 空字串 | Alpha 取消 null 後以空字串保存，revision 16；表格為空白，Beta 仍為 null；重開欄位確認 |
+| Markdown 長文 | 保存中文兩段、段間空行、粗體及 Wiki alias，revision 17；摘要與另一篇引用筆記兩式多段展開保留內容 |
+| 數字／布林 | 0、false 分別保存為 revision 18／19，表格與引用筆記顯示正確，未混同 null |
+| 日期 | 原生日曆選擇 2026-10-04，保存 revision 20，引用筆記显示 date-only 值 |
+| 單選／多選／tag | 單選甲、多選甲乙、兩行中文標籤依序保存 revision 21–23，表格與引用筆記保留各項 |
+| 單筆／多筆關聯 | 跨表 Triensa 單筆關聯保存 revision 24；Triensa 加同表 Beta 多筆關聯保存 revision 25，表格呈現兩個可讀連結 |
+| 關聯導航缺口 | 點 Beta 只開啟所屬筆記頂部，未定位紀錄；不能列為 record 導航通過。正以既有 carrier ID 改為開啟對應卡片，待新版原生重驗 |
+| 布林選單缺口 | false 選取後選單曾顯空白，但保存為 false 正確。已改為明確字串對應選項，待新版原生重驗 |
+
+原生保存後，引用檢查筆記無診斷，長文、零、false、日期、選項、標籤及關聯內容隨欄位更新。尚未以本段證據宣稱高精度小數、重開全部型別、選項／record 改名或關聯移動皆已原生驗收。App／Host 正常關閉後程序皆不存在；原驗收檔與私人樣本不進 Git。
+
+`ui-20261004-040644.json` 的前十分鐘探針只有 query 4 筆（p95 155.7 ms）、collection switch 1 筆（72.1 ms）、input 1 筆（5.1 ms）；不能涵蓋之後的原生保存，也不足 30 次代表操作。這仍是舊父層 paint opportunity，不能與正在整合的 managed child DOM ready＋雙 rAF 混算。新 barrier 等待目前 generation 的文字及 handlers，過期／失敗／逾時不計成功；lazy 圖片下載解碼不列入完成條件，尚待整合發行驗證。
+
+### 新版原生回歸（revision 25–26）
+
+本機 Host 12:40:48／App 12:40:58 發行後，12:41–12:49 原生重開同 workspace。Alpha 的長文、0、false、日期仍在，Boolean 欄位選單明確顯示 false。點表格 Beta 關聯直接開 `Checks.Beta` 卡片；跨表 Triensa 開 `Imported1` 卡片並渲染 Wiki 內容。從引用檢查筆記的 Live Preview 多筆 reference 內點 Beta，亦開 Beta 卡片，沒有誤觸外層定義導航。
+
+關聯搜尋以 Beta／LiveLinks 找到 1／99 筆，原來兩個已選 ID 保留。加入第三筆 LiveLinks 後，點已保存預覽中的 Beta 被 dirty guard 阻止，三個選取仍在。保存為 revision 26，重新開啟完整欄位可見三筆關聯；表格摘要只顯示前兩行，不等於正文截斷。App／Host 正常退出，程序皆不存在。
+
+工程：editor build／tests 通過；Records JS syntax check 及 15 個有界 fixtures 通過（readiness 13、ID／普通路由 2）；四專案架構檢查及 App／Host publish 通過。沒有因 UI 變動重跑未受影響的 Core／SQLite 全套測試。Record ID 缺失、快速跨 workspace、原生 Enter 及全部 IME／外部修改邊界仍待有界補驗。
+
+新報告 `ui-20261004-044122.json` 時長 490.6 秒：child-ready query 3 筆 p95 230.6 ms、collection switch 1 筆 83.6 ms、input 2 筆 p95 5.4 ms、首次 note switch 1 筆 30.8 ms；frame 36,000 筆 p95 4.3 ms／max 54.2 ms，scroll 233 筆 p95 4.4 ms／max 37.6 ms。Frame 達 cap 後另有 80,465 個樣本未保存，故不是全時段無停頓證明。
+
+**效能仍未驗收通過：**一次成功的 revision 26 關聯提交沒有產生 `recordsCommitToPaintOpportunity`，須定位 own refresh／SSE／generation 使 span 被取消的情況；不拿 query 數字代替提交至可見结果，也不把這批少量操作推算成足量 p95。新 barrier 已原生帶入 query 顯示，但其提交量測完整性尚未證明。關聯搜尋結果數改變時 modal 高度會改變，亦記為後續有界 UX 修整項目。
 
 ## 本段 Wiki／Grasp 參照原生驗證（有限必要流程通過）
 

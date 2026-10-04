@@ -4,7 +4,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @implements IAsyncDisposable
 
-<section class="records-panel" aria-label="資料表">
+<section class="records-panel" aria-label="資料表" id="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)">
     <header class="records-toolbar">
         <div class="records-title"><span class="records-icon">▦</span><div><small>WORKSPACE RECORDS</small><h1>@(_data?.Title ?? "資料表")</h1></div></div>
         <div class="records-actions"><button @onclick="RefreshAsync" disabled="@_loading" title="重新讀取">↻</button><button class="primary" @onclick="ShowCreate">＋ 資料表</button></div>
@@ -67,7 +67,7 @@
 
 @if (_dialog is not null)
 {
-    <div class="records-backdrop" id="@_modalId" tabindex="-1"><section class="records-dialog @(_dialog is "card" or "cell" or "view" ? "wide" : "")" role="dialog" aria-modal="true" aria-label="資料表操作">
+    <div class="records-backdrop" id="@_modalId" tabindex="-1" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)"><section class="records-dialog @(_dialog is "card" or "cell" or "view" ? "wide" : "")" role="dialog" aria-modal="true" aria-label="資料表操作">
         <header><div><small>@(_dialog == "card" ? "RECORD" : _dialog == "cell" ? "FIELD CONTENT" : "RECORDS")</small><h2>@(_dialog switch { "create" => "建立資料表", "row" => _row is null ? "新增紀錄" : "紀錄名稱", "field" => _field is null ? "新增欄位" : "欄位設定", "cell" => (_row?.DisplayName + " / " + _field?.DisplayName), "view" => "視圖設定", _ => _card?.DisplayName })</h2></div><button type="button" @onclick="() => CloseDialog()" aria-label="關閉">×</button></header>
         @if (_dialogWarning is not null) { <div class="records-message warning" role="alert">@_dialogWarning</div> }
         @if (_pendingLink is not null) { <div class="records-message"><button @onclick="OpenPendingLinkAsync">開啟目標筆記（不定位標題）</button></div> }
@@ -104,13 +104,21 @@
                         <div class="cell-editor-grid"><section>
                             @if (_sourceMode || _kind == "Markdown") { <label>原文<textarea @ref="_firstInput" class="source-input" @bind="_raw" @bind:event="oninput" disabled="@_null" spellcheck="false"></textarea></label> }
                             else if (_kind == "Number") { <label>數字<input @ref="_firstInput" @bind="_number" @bind:event="oninput" disabled="@_null" inputmode="decimal" placeholder="例如 12.50 或 1.2e3" /></label> }
-                            else if (_kind == "Boolean") { <label>值<select @ref="_firstInput" @bind="_boolean" disabled="@_null"><option value="true">true</option><option value="false">false</option></select></label> }
+                            else if (_kind == "Boolean") { <label>值<select @ref="_firstInput" value="@(_boolean ? "true" : "false")" @onchange='e => _boolean = string.Equals(e.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase)' disabled="@_null"><option value="true">true</option><option value="false">false</option></select></label> }
                             else if (_kind == "Date") { <label>日期<input @ref="_firstInput" type="date" value="@_date" @onchange='e => _date = e.Value?.ToString() ?? ""' disabled="@_null" /></label> }
                             else if (_kind == "Tag") { <label>標籤，每行一個<textarea @ref="_firstInput" @bind="_tags" @bind:event="oninput" disabled="@_null" rows="8"></textarea></label> }
                             else if (_kind is "SingleSelect" or "MultiSelect")
                             { <div class="choice-list" aria-label="選項">@foreach (var option in _field?.Options ?? []) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(option.Id)" @onchange='e => ToggleId(option.Id, e.Value is true, _kind == "SingleSelect")' disabled="@_null" />@option.DisplayName</label> }@if (_field?.Options?.Length is null or 0) { <p>尚無選項，請先在欄位設定中建立。</p> }</div> }
                             else if (_kind is "SingleRelation" or "MultiRelation")
-                            { <div class="choice-list" aria-label="跨資料表紀錄關聯">@foreach (var choice in _data?.RelationChoices ?? []) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(choice.Id)" @onchange='e => ToggleId(choice.Id, e.Value is true, _kind == "SingleRelation")' disabled="@_null" /><span>@choice.DisplayName <small>@choice.Key · @(_collections.FirstOrDefault(c => c.Id == choice.CollectionId)?.Title ?? choice.CollectionId)</small></span></label> }</div> }
+                            {
+                                <label>尋找關聯紀錄<input @ref="_firstInput" @bind="_relationSearch" @bind:event="oninput" placeholder="顯示名稱、Key 或資料表…" /></label>
+                                <p class="hint">符合 @FilteredRelationChoices.Length / @(_data?.RelationChoices.Length ?? 0) 筆 · 已選 @_selectedIds.Count 筆</p>
+                                @if (_selectedIds.Count > 0)
+                                {
+                                    <div class="relation-selected" aria-label="已選關聯紀錄">@foreach (var selectedId in _selectedIds.ToArray()) { <button type="button" disabled="@_null" @onclick="() => _selectedIds.Remove(selectedId)" title="移除這項選取">@SelectedRelationName(selectedId) ×</button> }</div>
+                                }
+                                <div class="choice-list" aria-label="跨資料表紀錄關聯">@foreach (var choice in FilteredRelationChoices) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(choice.Id)" @onchange='e => ToggleId(choice.Id, e.Value is true, _kind == "SingleRelation")' disabled="@_null" /><span>@choice.DisplayName <small>@choice.Key · @CollectionName(choice.CollectionId)</small></span></label> }@if (FilteredRelationChoices.Length == 0) { <p>沒有符合的紀錄；已選項目保持不變。</p> }</div>
+                            }
                             <p class="hint">空值、空字串、0 與 false 分開保存。完整原文與段落不會因表格摘要截斷。</p>
                         </section><aside><h3>目前計算結果 · @_cell?.Status</h3>@if (_field is not null && RenderManagedCell(_field, _cell)) { <RecordsMarkdown Markdown="@(_cell!.RawSource)" References="@(_cell!.References)" Regions="@(_cell!.Regions)" OriginNoteId="@(_data?.NoteId ?? "")" WorkspaceKey="@WorkspaceKey" Revision="@(_data?.Revision ?? _editRevision)" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(_cell)</div> }@if (_cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in _cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }@if (_conflict) { <h3>重新讀取的目前原文</h3><pre>@LatestCellText</pre> }<p class="hint">預覽是已讀取的結果；保存後重新計算。</p></aside></div>
                     }
@@ -119,7 +127,7 @@
                         <div class="two-columns"><label>視圖名稱<input @ref="_firstInput" @bind="_viewName" required /></label><label>保存的搜尋條件<input @bind="_viewSearch" /></label></div>
                         <div class="two-columns"><label>額外凍結前幾筆資料（0–10）<input type="number" min="0" max="10" @bind="_frozenRows" /></label><label>額外凍結前幾個欄位<input type="number" min="0" max="@_columns.Count(c => c.Visible)" @bind="_frozenColumns" /></label></div><p class="hint">標題列和紀錄名稱欄永遠固定；每頁最多顯示 50 筆，包含固定資料。</p>
                         <h3>顯示欄位與順序</h3><div class="columns-list">@for (var index = 0; index < _columns.Count; index++) { var column = _columns[index]; var position = index;<div class="column-edit" @key="column.Id"><label class="check"><input type="checkbox" @bind="column.Visible" />@column.Label</label><button type="button" disabled="@(position == 0)" @onclick="() => MoveColumn(position, -1)" aria-label="向上移動欄位">↑</button><button type="button" disabled="@(position + 1 == _columns.Count)" @onclick="() => MoveColumn(position, 1)" aria-label="向下移動欄位">↓</button></div> }</div>
-                        <h3>排序</h3>@foreach (var sort in _sorts) { <div class="rule-row"><select aria-label="排序欄位" @bind="sort.FieldId">@foreach (var field in _data?.Fields ?? []) { <option value="@field.Id">@field.DisplayName</option> }</select><select aria-label="排序方向" @bind="sort.Descending"><option value="false">升冪</option><option value="true">降冪</option></select><button type="button" @onclick="() => _sorts.Remove(sort)">移除</button></div> }<button type="button" @onclick='() => _sorts.Add(new() { FieldId = _data?.Fields.FirstOrDefault()?.Id ?? "" })' disabled="@(_data?.Fields.Length == 0)">＋ 排序條件</button>
+                        <h3>排序</h3>@foreach (var sort in _sorts) { <div class="rule-row"><select aria-label="排序欄位" @bind="sort.FieldId">@foreach (var field in _data?.Fields ?? []) { <option value="@field.Id">@field.DisplayName</option> }</select><select aria-label="排序方向" value="@(sort.Descending ? "true" : "false")" @onchange='e => sort.Descending = string.Equals(e.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase)'><option value="false">升冪</option><option value="true">降冪</option></select><button type="button" @onclick="() => _sorts.Remove(sort)">移除</button></div> }<button type="button" @onclick='() => _sorts.Add(new() { FieldId = _data?.Fields.FirstOrDefault()?.Id ?? "" })' disabled="@(_data?.Fields.Length == 0)">＋ 排序條件</button>
                         <h3>篩選（所有條件都符合）</h3>@foreach (var filter in _filters) { <div class="rule-row"><select aria-label="篩選欄位" @bind="filter.FieldId">@foreach (var field in _data?.Fields ?? []) { <option value="@field.Id">@field.DisplayName</option> }</select><select aria-label="篩選運算" @bind="filter.Operator"><option value="contains">包含</option><option value="equals">等於</option><option value="is-null">是空值</option><option value="not-null">不是空值</option></select>@if (filter.Operator is "contains" or "equals") { <input aria-label="篩選值" @bind="filter.Value" /> }<button type="button" @onclick="() => _filters.Remove(filter)">移除</button></div> }<button type="button" @onclick='() => _filters.Add(new() { FieldId = _data?.Fields.FirstOrDefault()?.Id ?? "" })' disabled="@(_data?.Fields.Length == 0)">＋ 篩選條件</button>
                     }
                 </fieldset>

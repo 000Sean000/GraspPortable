@@ -246,6 +246,33 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     await page.locator('#editor .managed-reference').press('Enter');
     assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'&&e[1]==='MissingSource'),'outer reference can still navigate to missing-definition feedback');
 
+    const recordId='11111111111111111111111111111111';
+    const relation='[關聯角色](Old/Path.md) <!-- grasp:record '+recordId+' -->';
+    const relationSource='前文\n\n'+relation+'\n\nend';
+    await page.evaluate(async source=>{window.events=[];await window.editor.setDocument('record-links',source,0,[],true);window.editor.focusAt(source.length);window.editor.renderReading('reading',source,[]);},relationSource);
+    for(const surface of ['#editor','#reading']) {
+      const link=page.locator(surface+' a[data-record-id]');
+      assert.equal(await link.getAttribute('data-record-id'),recordId);
+      assert.equal(await link.innerText(),'關聯角色');await link.click();await link.press('Enter');
+    }
+    assert.equal((await page.evaluate(()=>window.events)).filter(e=>e[0]==='OnRecordLink'&&e[1]===recordId).length,4,'click and Enter navigate by canonical ID on both surfaces');
+    assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'),false,'canonical ID never falls back to the readable path');
+    await page.evaluate(position=>window.editor.focusAt(position),relationSource.indexOf('grasp:record')+2);
+    assert.equal(await page.locator('#editor a[data-record-id]').count(),0,'editing the canonical comment reveals the complete carrier');
+    const relationCache=await page.evaluate(({referenceCarrier,relation})=>{
+      window.events=[];window.editor.renderReading('reading',referenceCarrier,[{name:'Gone',cachedValue:relation,originNoteId:null,start:0,length:referenceCarrier.length}]);
+      return document.querySelector('#reading a[data-record-id]').getAttribute('aria-disabled');
+    },{referenceCarrier,relation});
+    assert.equal(relationCache,null,'stable record identity does not require the missing cache source path');
+    await page.locator('#reading a[data-record-id]').click();
+    assert.deepEqual((await page.evaluate(()=>window.events)).filter(e=>['OnRecordLink','OnLocalLink','OnReferenceClicked'].includes(e[0])),[['OnRecordLink',recordId]],'nested relation navigation wins over the surrounding Grasp reference');
+    const guardedRelations='`'+relation+'`\n\n```md\n'+relation+'\n```\n\n[plain](Old.md) <!-- grasp:record invalid -->\n\n\\'+relation+'\n\n[zero](Old.md) <!-- grasp:record '+ '0'.repeat(32)+' -->';
+    const guardedIds=await page.evaluate(source=>{
+      const target=document.createElement('div');target.innerHTML=window.editor.renderManagedMarkdown(source);
+      return target.querySelectorAll('[data-record-id]').length;
+    },guardedRelations);
+    assert.equal(guardedIds,0,'code, fence, escaped links and invalid IDs cannot create record navigation');
+
     await page.evaluate(async()=>{window.events=[];window.imageResolver=()=>new Promise(resolve=>window.finishOldImage=resolve);await window.editor.setDocument('old-images','![old](old.png)',0,[],false);window.editor.renderReading('reading','![old](old.png)',[]);});
     await page.waitForFunction(()=>typeof window.finishOldImage==='function');
     await page.evaluate(async png=>{await window.editor.setDocument('new-images','new note',0,[],false);window.editor.renderReading('reading','new note',[]);window.finishOldImage(png);},png);

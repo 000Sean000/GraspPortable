@@ -22,6 +22,9 @@ const setReferences = StateEffect.define<Reference[]>();
 const setRegions = StateEffect.define<Region[]>();
 const escapeHtml = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const attribute = (s: string) => escapeHtml(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+// Same readable carrier shape as RecordValueCodec. This is navigation metadata,
+// not a second Grasp parser: only an adjacent link and exact stable-ID comment.
+const recordCarrierPattern=String.raw`(\[(?:\\.|[^\]\\\r\n])*\]\((?:\\.|[^)\\\r\n])*\)) <!-- grasp:record ((?!0{32})[0-9a-f]{32}) -->`;
 function imagePlaceholder(target: string, alt: string, wiki = false) {
   const remote=/^(?:https?:)?\/\//i.test(target);
   return `<span class="content-image-placeholder" data-source="${attribute(target)}" data-wiki="${wiki}" role="img" aria-label="${attribute(alt || target)}">${escapeHtml(remote ? `［遠端圖片：${alt || target}（未自動載入）］` : `［圖片：${alt || target}（載入中）］`)}</span>`;
@@ -35,6 +38,16 @@ const renderer = new Marked({ renderer: {
   },
   image(token) { return imagePlaceholder(token.href,token.text); }
 }, extensions:[{
+  name:"recordCarrier", level:"inline",
+  start(source) { const at=source.indexOf("[");return at<0?undefined:at; },
+  tokenizer(source) {
+    const match=new RegExp("^"+recordCarrierPattern).exec(source);if(!match)return;
+    const tokens=this.lexer.inlineTokens(match[1]);
+    if(tokens.length!==1 || tokens[0].type!=="link")return;
+    return {type:"recordCarrier",raw:match[0],tokens,recordId:match[2]};
+  },
+  renderer(token) {return this.parser.parseInline(token.tokens!).replace("<a ",`<a data-record-id="${attribute(token.recordId)}" `);}
+},{
   name:"workspaceWiki", level:"inline",
   start(source) { const at=source.search(/!?\[\[(?!@)/); return at<0 ? undefined : at; },
   tokenizer(source) {
@@ -88,7 +101,7 @@ function bindContent(element: HTMLElement,origin: string) {
     if(anchor.dataset.contentBound)return; anchor.dataset.contentBound="true";
     preservePreviewSelection(anchor);
     const target=anchor.dataset.localTarget??anchor.getAttribute("href")??"";
-    const missingOrigin=contentOrigin(anchor,origin)==="" && !/^https?:\/\//i.test(target);
+    const missingOrigin=!anchor.dataset.recordId && contentOrigin(anchor,origin)==="" && !/^https?:\/\//i.test(target);
     if(missingOrigin) {
       anchor.setAttribute("aria-disabled","true"); anchor.title="來源筆記不存在，無法解析相對連結。";
       anchor.classList.add("content-origin-missing");
@@ -96,7 +109,8 @@ function bindContent(element: HTMLElement,origin: string) {
     anchor.addEventListener("click",event=>{
       event.preventDefault(); event.stopPropagation();
       if(missingOrigin)return;
-      if(/^https?:\/\//i.test(target))void dotnet.invokeMethodAsync("OnExternalLink",target);
+      if(anchor.dataset.recordId)void dotnet.invokeMethodAsync("OnRecordLink",anchor.dataset.recordId);
+      else if(/^https?:\/\//i.test(target))void dotnet.invokeMethodAsync("OnExternalLink",target);
       else void dotnet.invokeMethodAsync("OnLocalLink",contentOrigin(anchor,origin),target,anchor.dataset.wiki==="true");
     });
   });
@@ -213,10 +227,17 @@ function decorations(state: EditorState, references: Reference[],regions:Region[
   const source=state.doc.toString(),wiki=/!?\[\[(?!@)[^\]\r\n]+\]\]/g;
   const escapedAt=(position:number)=>{let count=0;for(let at=position-1;at>=0&&source[at]==="\\";at--)count++;return count%2!==0;};
   let match:RegExpExecArray|null;
+  const carriers=new RegExp(recordCarrierPattern,"g");
+  while((match=carriers.exec(source))) {
+    const from=match.index,to=from+match[0].length;
+    if(escapedAt(from) || source[from-1]==="!" || cursor.from<=to&&cursor.to>=from || overlaps(from,from+match[1].length,excluded) || references.some(r=>from<r.start+r.length&&to>r.start))continue;
+    if(!html(match[0]).includes("data-record-id="))continue;
+    contentRanges.push({from,to});ranges.push(Decoration.replace({widget:new ContentWidget(match[0],noteId)}).range(from,to));
+  }
   while((match=wiki.exec(source))) {
     const from=match.index,to=from+match[0].length;
     if(escapedAt(from))continue;
-    if(cursor.from<=to&&cursor.to>=from || overlaps(from,to,excluded) || references.some(r=>from<r.start+r.length&&to>r.start))continue;
+    if(cursor.from<=to&&cursor.to>=from || overlaps(from,to,excluded) || overlaps(from,to,contentRanges) || references.some(r=>from<r.start+r.length&&to>r.start))continue;
     contentRanges.push({from,to});ranges.push(Decoration.replace({widget:new ContentWidget(match[0],noteId)}).range(from,to));
   }
   syntaxTree(state).iterate({ enter(node) {

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.3.1
+version: 1.4.0
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -40,10 +40,16 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 
 ## 資料表與長文卡片
 
+本輪 S4 驗收資料使用以下啟動指令，包含 Mentors、Aura、連結驗收與兩筆九型別合成紀錄；原 TestData 不受修改：
+
+```powershell
+& 'C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace\GraspPortable\Start-GraspPortable.ps1' -Workspace 'C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace\GraspPortable\workspaces\S4-Acceptance-1004'
+```
+
 1. 點左下角「資料表」，按「＋ 資料表」或「建立資料表」。輸入顯示名稱及 ASCII record key，建立後選取該資料表。
 2. 用「＋ 紀錄」「＋ 欄位」增加內容。欄位標題按鈕可設定顯示名稱、key 及型別；支援 Markdown、數字、布林、日期、單選、多選、tag、單筆與多筆關聯。顯示名稱可用中文，key 區分大小寫。
-3. 點 cell 展開完整內容；點紀錄名稱開啟長文卡片。Markdown 可含多段落及 Grasp 引用；其他型別透過專用輸入或選項控制修改。Null 與空字串／0／false 分開操作；診斷或草稿提示應先處理，不把舊成功值當作最新結果。
-4. 新增另一筆紀錄，建立單筆／多筆關聯並檢查目標。用搜尋、視圖設定、欄位順序／顯示、篩選與排序檢查內容。標題列與紀錄名稱欄固定，可另凍結前幾筆及前幾欄；每頁最多 50 筆。排序後再編輯，確認仍修改原來的 record ID。
+3. 點 cell 的 ↗ 展開完整內容；點紀錄名稱開啟長文卡片。Wiki Link／Grasp Reference 在表格、欄位預覽及卡片保留高亮與直接導航，Grasp 定位定義區塊；點 record 關聯依穩定 ID 開啟目標卡片。Markdown 可含多段落及 Grasp 引用；其他型別透過專用輸入或選項控制修改。Null 與空字串／0／false 分開操作；未保存欄位會先阻止連結離開，保留輸入。
+4. 新增另一筆紀錄，建立單筆／多筆關聯並檢查目標。關聯選擇器可按名稱、key 或資料表搜尋，改搜尋不會清掉已選項目。用表格搜尋、視圖設定、欄位順序／顯示、篩選與排序檢查內容。標題列與紀錄名稱欄固定，可另凍結前幾筆及前幾欄；每頁最多 50 筆。排序後再編輯，確認仍修改原來的 record ID。
 5. 以「開啟原文 ↗」檢查 H2 資料表、H3 紀錄、H4 欄位及唯一 Markdown 值；正常關閉重開，核對內容、typed 值、關聯與視圖設定。
 
 ## 右鍵合併／拆分檔案
@@ -61,11 +67,11 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 4. 按「建立新資料表」。新筆記放在來源的同一資料夾，**原筆記完整保留**。欄位起始均為 Markdown，之後可用欄位設定調整型別；wiki link 不會自動變成 Records 關聯或匯入其目標。
 5. 在左下「資料表」中選新 collection，核對長文、空行、圖片相對路徑與數量。相同 prefix／field key 與既有定義或既有引用衝突時需調整 prefix，再預覽。完整原文 snapshot、欄位 mapping 及標題轉換對照保存在 `.grasp/record-import/previews`，隨完整備份保存。
 
-指定私人樣本的解析統計：Mentors 第 1 張 15×8、第 2 張 15×3（40 個 `<br>`）；Aura 第 1 張 81×5。實際轉換／GUI 尚未驗收，不需把整個 vault 匯入才能檢查這些案例。
+指定私人樣本的解析統計：Mentors 第 1 張 15×8、第 2 張 15×3（40 個 `<br>`）；Aura 第 1 張 81×5。第 1 張 Mentors 與 Aura 已有原生轉換及部分表格操作證據；第 2 張 Mentors 尚未原生驗收。不需把整個 vault 匯入才能檢查這些案例，完整邊界見 S3／S4 Validation。
 
 ## 備份與還原
 
-左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。最新 generation 選單修正已發行，仍待原生重驗；請核對實際選取版本與還原目的地。
+左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。Generation 選单修正已有有限原生重驗；完整分組／附件／草稿還原仍依驗證紀錄補齊，請核對實際選取版本與還原目的地。
 
 ## 選用原生效能量測
 
