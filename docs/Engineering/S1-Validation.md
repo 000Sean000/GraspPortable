@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.2.0
+version: 1.3.0
 updated: 2026-10-04
 status: native-gui-partially-verified
 ---
@@ -8,6 +8,14 @@ status: native-gui-partially-verified
 ## 判定
 
 Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助及基本原生中文 IME 已有本次證據；IME／dirty 競態、allowlist GUI、DPI 及量化端到端仍未完整驗收。使用者接受另記。
+
+## 2026-10-04 未接受草稿的引用呈現
+
+沒有匹配 Host metadata 的 reference 原先可能被普通 Markdown link 或 GFM URL 呈現並觸發錯誤導航。現以共用 opaque carrier 呈現遮罩保留原文與「尚未取得匹配的 Grasp 解析結果」提示，不解值、不給身分／導航、不在 cache 建立語意。保留 code context，inline code／HTML tag 可作 carrier 內文字，正常 Wiki／有 metadata 的 reference 維持既有呈現。
+
+真 CodeMirror／Reading 回歸含 7 個 raw cases：兩式、多段 CRLF／Unicode、裸 URL、escaped link、inline code／HTML，另驗 code fence／inline code 排除及點擊無導航。TypeScript build、editor suite 通過；獨立 review 指出的 HTML 漏遮已修。既有 physical bracket composition fixture 曾一次時序失敗、後續重跑通過；原生 IME／dirty 競態仍列待驗，不將重跑視為完整排除。
+
+App 15:18:21 發行後，原生恢復原 rename draft（accepted Resolution.Pending／draft Resolution.Deferred），Live Preview 與 Reading 都露出完整 reference 原文，點擊停留原筆記。已接受資料表的完整欄位仍隱 syntax／highlight，Tab→Enter 正確開來源並選中 LiveLinks.Short 第 15 行。未更動此草稿；正常關閉後與前次還原基底 JSON 完全相同。這是有界引用呈現驗收，不代表 S1 所有狀態完成。
 
 ## 2026-10-04 Reading、補完與基本原生 IME
 

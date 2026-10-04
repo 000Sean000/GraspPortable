@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.7.0
+version: 1.8.0
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -54,7 +54,7 @@ Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義�
 
 1. 點左下角「資料表」，按「＋ 資料表」或「建立資料表」。輸入顯示名稱及 ASCII record key，建立後選取該資料表。
 2. 用「＋ 紀錄」「＋ 欄位」增加內容。欄位標題按鈕可設定顯示名稱、key 及型別；支援 Markdown、數字、布林、日期、單選、多選、tag、單筆與多筆關聯。顯示名稱可用中文，key 區分大小寫。
-3. 點 cell 的 ↗ 展開完整內容；點紀錄名稱開啟長文卡片。Wiki Link／Grasp Reference 在表格、欄位預覽及卡片保留高亮與直接導航，Grasp 定位定義區塊；點 record 關聯依穩定 ID 開啟目標卡片。Markdown 可含多段落及 Grasp 引用；其他型別透過專用輸入或選項控制修改。Null 與空字串／0／false 分開操作；未保存欄位會先阻止連結離開，保留輸入。
+3. 點 cell 的 ↗ 展開完整內容；點紀錄名稱開啟長文卡片。Wiki Link／Grasp Reference 在表格、欄位預覽及卡片保留高亮與直接導航，Grasp 定位定義區塊；也可 Tab 聚焦後按 Enter。點 record 關聯依穩定 ID 開啟目標卡片。Markdown 可含多段落及 Grasp 引用；其他型別透過專用輸入或選項控制修改。Null 與空字串／0／false 分開操作；未保存欄位會先阻止連結離開，保留輸入。未取得匹配解析結果的草稿 reference 保留原文及提示，不假裝成已接受的可跳轉結果。
 4. 新增另一筆紀錄，建立單筆／多筆關聯並檢查目標。關聯選擇器可按名稱、key 或資料表搜尋，改搜尋不會清掉已選項目。用表格搜尋、視圖設定、欄位順序／顯示、篩選與排序檢查內容。標題列與紀錄名稱欄固定，可另凍結前幾筆及前幾欄；每頁最多 50 筆。排序後再編輯，確認仍修改原來的 record ID。
 5. 以「開啟原文 ↗」檢查 H2 資料表、H3 紀錄、H4 欄位及唯一 Markdown 值；正常關閉重開，核對內容、typed 值、關聯與視圖設定。
 

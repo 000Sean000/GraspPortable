@@ -1,7 +1,7 @@
 import { basicSetup } from "codemirror";
 import { EditorView, Decoration, WidgetType, keymap } from "@codemirror/view";
 import { EditorState, StateEffect, StateField, Transaction, Compartment, Prec } from "@codemirror/state";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxTree, ensureSyntaxTree } from "@codemirror/language";
 import { indentWithTab, isolateHistory } from "@codemirror/commands";
 import { Marked } from "marked";
@@ -22,6 +22,47 @@ const setReferences = StateEffect.define<Reference[]>();
 const setRegions = StateEffect.define<Region[]>();
 const escapeHtml = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const attribute = (s: string) => escapeHtml(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+const unacceptedReferenceMessage="尚未取得匹配的 Grasp 解析結果，保留引用原文。";
+type TextRange={from:number;to:number;inlineContext?:boolean};
+// Presentation-only shielding: recognize reserved carrier boundaries without
+// decoding values, resolving names or claiming that the source is valid. Host
+// metadata remains the only authority for managed widgets and navigation.
+function unacceptedReferences(source:string,excluded:TextRange[]):TextRange[] {
+  const ranges:TextRange[]=[];
+  const protectedRanges=[...excluded].sort((a,b)=>a.from-b.from);
+  const boundaries=protectedRanges.filter(r=>!r.inlineContext);
+  let protectedIndex=0,boundaryIndex=0;
+  for(let at=0;at<source.length;at++) {
+    while(protectedIndex<protectedRanges.length && protectedRanges[protectedIndex].to<=at)protectedIndex++;
+    while(boundaryIndex<boundaries.length && boundaries[boundaryIndex].to<=at)boundaryIndex++;
+    const blocked=protectedRanges[protectedIndex];
+    if(blocked && at>=blocked.from){at=blocked.to-1;continue;}
+    if(source[at]==="\\"){at++;continue;}
+    if(source[at]!=="[")continue;
+    const wiki=source.startsWith("[[@",at),start=at;
+    // Inline code/HTML can be literal cache content when the carrier opened
+    // before it. A carrier starting inside those contexts remains excluded.
+    const boundary=boundaries[boundaryIndex]?.from??source.length;
+    let end=at+(wiki?3:1);
+    while(end<boundary && source[end]!=="[" && source[end]!=="]") {
+      if(source[end]==="\\" && end+1<boundary)end++;
+      end++;
+    }
+    if(wiki) {
+      if(end+2<=boundary && source.startsWith("]]",end))end+=2;
+      // An unmistakable but unfinished wiki carrier is inert up to the next
+      // bracket/end; do not turn an embedded URL into an unrelated navigation.
+      if(end>start+3)ranges.push({from:start,to:end});
+    } else if(end+7<=boundary && source.startsWith("](:ref:",end)) {
+      end+=7;
+      while(end<boundary && !/[\r\n)\[]/.test(source[end]))end++;
+      if(end<boundary && source[end]===")")end++;
+      ranges.push({from:start,to:end});
+    } else {at=Math.max(at,end-1);continue;}
+    at=end-1;
+  }
+  return ranges;
+}
 // Same readable carrier shape as RecordValueCodec. This is navigation metadata,
 // not a second Grasp parser: only an adjacent link and exact stable-ID comment.
 const recordCarrierPattern=String.raw`(\[(?:\\.|[^\]\\\r\n])*\]\((?:\\.|[^)\\\r\n])*\)) <!-- grasp:record ((?!0{32})[0-9a-f]{32}) -->`;
@@ -30,6 +71,12 @@ function imagePlaceholder(target: string, alt: string, wiki = false) {
   return `<span class="content-image-placeholder" data-source="${attribute(target)}" data-wiki="${wiki}" role="img" aria-label="${attribute(alt || target)}">${escapeHtml(remote ? `［遠端圖片：${alt || target}（未自動載入）］` : `［圖片：${alt || target}（載入中）］`)}</span>`;
 }
 const renderer = new Marked({ renderer: {
+  link(token) {
+    // Reserved destinations are never filesystem/external URLs, including in
+    // cached Markdown. Preserve the raw token if it lacked a managed carrier.
+    if(token.href.startsWith(":ref:"))return `<span class="unaccepted-reference" title="${unacceptedReferenceMessage}">${escapeHtml(token.raw)}</span>`;
+    return false;
+  },
   html(token) {
     // Only the exact inert identity comment is presentation metadata. Fenced
     // examples stay code; all other raw HTML remains visible escaped text.
@@ -221,10 +268,13 @@ function decorations(state: EditorState, references: Reference[],regions:Region[
     .filter(r => r.from < r.to && !(cursor.from <= r.to && cursor.to >= r.from));
   const ranges = referenceRanges.map(r => Decoration.replace({widget: new ReferenceWidget(r.reference)}).range(r.from, r.to));
   const contentRanges:{from:number;to:number}[]=[];
-  const excluded:{from:number;to:number}[]=regions.map(r=>({from:r.start,to:r.start+r.length}));
-  syntaxTree(state).iterate({enter(node){if(/^(FencedCode|CodeBlock|InlineCode|HTMLBlock|HTMLTag)$/.test(node.name)){excluded.push({from:node.from,to:node.to});return false;}}});
+  const excluded:TextRange[]=regions.map(r=>({from:r.start,to:r.start+r.length}));
+  syntaxTree(state).iterate({enter(node){if(/^(FencedCode|CodeBlock|InlineCode|HTMLBlock|HTMLTag)$/.test(node.name)){excluded.push({from:node.from,to:node.to,inlineContext:node.name==="InlineCode"||node.name==="HTMLTag"});return false;}}});
   const overlaps=(from:number,to:number,list:{from:number;to:number}[])=>list.some(r=>from<r.to&&to>r.from);
   const source=state.doc.toString(),wiki=/!?\[\[(?!@)[^\]\r\n]+\]\]/g;
+  const unaccepted=unacceptedReferences(source,[...excluded,...references.map(r=>({from:r.start,to:r.start+r.length}))]);
+  for(const range of unaccepted)ranges.push(Decoration.mark({class:"unaccepted-reference",attributes:{title:unacceptedReferenceMessage,style:"text-decoration:underline dotted #aa793d"}}).range(range.from,range.to));
+  excluded.push(...unaccepted);
   const escapedAt=(position:number)=>{let count=0;for(let at=position-1;at>=0&&source[at]==="\\";at--)count++;return count%2!==0;};
   let match:RegExpExecArray|null;
   const carriers=new RegExp(recordCarrierPattern,"g");
@@ -435,18 +485,28 @@ export function renderManagedMarkdown(source: string, references: Reference[] = 
   let represented=source;
   const blocks=regions.filter(r=>r.isComplete && r.start>=0 && r.length>0 && r.start+r.length<=source.length);
   const ordered=references.filter(r=>r.start>=0&&r.start+r.length<=source.length && !blocks.some(b=>r.start<b.start+b.length && r.start+r.length>b.start));
+  const excluded:TextRange[]=[...blocks,...ordered].map(r=>({from:r.start,to:r.start+r.length}));
+  markdownLanguage.parser.parse(source).iterate({enter(node){if(/^(FencedCode|CodeBlock|InlineCode|HTMLBlock|HTMLTag)$/.test(node.name)){excluded.push({from:node.from,to:node.to,inlineContext:node.name==="InlineCode"||node.name==="HTMLTag"});return false;}}});
+  const unaccepted=unacceptedReferences(source,excluded);
   const replacements=[...ordered.map((r,index)=>({...r,marker:"\uE000"+nonce+":"+index+"\uE001"})),
-    ...blocks.map((r,index)=>({...r,marker:"\uE000"+nonce+":region:"+index+"\uE001"}))].sort((a,b)=>b.start-a.start);
+    ...blocks.map((r,index)=>({...r,marker:"\uE000"+nonce+":region:"+index+"\uE001"})),
+    ...unaccepted.map((r,index)=>({start:r.from,length:r.to-r.from,marker:"\uE000"+nonce+":source:"+index+"\uE001"}))].sort((a,b)=>b.start-a.start);
   replacements.forEach(r=> { represented=represented.slice(0,r.start)+r.marker+represented.slice(r.start+r.length); });
   target.innerHTML=html(represented);
   const walker=document.createTreeWalker(target,NodeFilter.SHOW_TEXT), nodes:Text[]=[];
   while(walker.nextNode()) nodes.push(walker.currentNode as Text);
   for(const node of nodes) {
-    const expression=new RegExp("\uE000"+nonce+":(region:)?(\\d+)\uE001","g");
+    const expression=new RegExp("\uE000"+nonce+":(region:|source:)?(\\d+)\uE001","g");
     let match:RegExpExecArray|null,last=0; const fragment=document.createDocumentFragment();
     while((match=expression.exec(node.data))) {
       fragment.append(document.createTextNode(node.data.slice(last,match.index)));
-      if(match[1]) {
+      if(match[1]==="source:") {
+        const range=unaccepted[Number(match[2])],text=source.slice(range.from,range.to);
+        const element=document.createElement(/[\r\n]/.test(text)?"div":"span");
+        element.className="unaccepted-reference";element.title=unacceptedReferenceMessage;
+        element.style.whiteSpace="pre-wrap";element.style.textDecoration="underline dotted #aa793d";
+        element.textContent=text;fragment.append(element);
+      } else if(match[1]) {
         const region=blocks[Number(match[2])], pre=document.createElement("pre"), code=document.createElement("code");
         const regionSource=source.slice(region.start,region.start+region.length);
         if(node.parentElement?.closest("pre"))fragment.append(document.createTextNode(regionSource));
@@ -462,10 +522,10 @@ export function renderManagedMarkdown(source: string, references: Reference[] = 
   // Marked initially sees each opaque marker as paragraph text. Split that
   // paragraph around block regions rather than leaving invalid pre-inside-p DOM.
   target.querySelectorAll("p").forEach(paragraph=>{
-    if(!Array.from(paragraph.children).some(child=>child.matches("pre.grasp-definition-region,div.managed-reference")))return;
+    if(!Array.from(paragraph.children).some(child=>child.matches("pre.grasp-definition-region,div.managed-reference,div.unaccepted-reference")))return;
     const fragment=document.createDocumentFragment(); let part=document.createElement("p");
     for(const child of Array.from(paragraph.childNodes)) {
-      if(child instanceof HTMLElement && child.matches("pre.grasp-definition-region,div.managed-reference")) {
+      if(child instanceof HTMLElement && child.matches("pre.grasp-definition-region,div.managed-reference,div.unaccepted-reference")) {
         if(part.childNodes.length)fragment.append(part);
         fragment.append(child); part=document.createElement("p");
       } else part.append(child);

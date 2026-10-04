@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.27.0
+version: 1.28.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,19 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：跨表標籤及較新草稿恢復
+## 最新工作段：改名、轉換選取與未接受引用保護
+
+從已核對遠端 `6081a724e0ba6fa299a97ac3cfe618e316238a0a` 續作。原生 `S4-Acceptance-1004` 完成欄位 key Markdown→Description（revision 47）、Beta 顯示名及 key→Checks.BetaRenamed（48）、單選選項甲改名（49）。兩式多段引用保留粗體／空行／Wiki，點引用定位同來源欄位；record 關聯更新顯示名並仍開正確卡片。唯讀比對前次還原基底：20 個 generated definition IDs 全保留且名稱映射正確，原 durable draft 完全不變。證據在忽略的 `workspaces/AcceptanceSupport/rename-1523-verification.json`。
+
+一列兩欄 NavCheck 小表從檔案右鍵預覽／建立，revision 50，套用後立即選中新 collection，原筆記保留。現在驗收 workspace 15 notes、555 definitions、100 records、1 durable draft；私人材料未入 Git。
+
+修正未接受草稿 reference 被普通 Markdown Link／GFM URL 呈現：沒有匹配 Host metadata 的保留 carrier 只呈現原文與提示，不建立導航，不解析 cache；`:ref:` 永不當一般檔案 URL。共用 Reading／Live Preview 保護，正常 Wiki／managed references 維持原流程。editor_fix 實作，ui_review 唯讀指出 inline HTML 漏遮並已修回歸，主代理審查整合。7 個 raw cases 加 code exclusions／點擊不導航及既有 editor suite 通過，TypeScript build／四 Project 架構檢查／publish 通過。既有 IME 時序 fixture 曾一次失敗、重跑通過，不据此消除原生 IME 競態缺口。
+
+Host 15:18:10／App 15:18:21 發行後，原生確認同一恢復草稿在 Live Preview／Reading 都露完整 reference 原文，點擊不誤跳；已接受完整欄位仍 highlight 隱語法。Tab 聚焦純式 Grasp reference 有外框，Enter 導向改名後來源並選中第 15 行 `LiveLinks.Short`。正常關閉後核對 App／Host 程序數零，前台已釋放。
+
+Goal active，S1／S2 PARTIAL、S3／S4 IN_PROGRESS，未宣稱使用者接受。下一段補 missing record／origin、第二 view 的篩選／隱欄／鍵盤焦點、真實長文外部往返、IME／dirty 外部競態、allowlist UI、縮放及至少 30 次代表操作／五分鐘流暢度。不要重做本段三類改名、小表自動選取或 Grasp Enter。正常改名已有原生證據，dirty owner 拒絕及未取得結果仍主要依工程證據，未宣稱完整故障注入驗收。
+
+## 已完成工作段：跨表標籤及較新草稿恢復
 
 以遠端 `6bbfd48478dfc201069792c1ea37f53d4e57e48a` 續作。已補 workspace 範圍 tag query／UI：只搜尋有效計算後 Tag，每 record／field 一項、50 項 UI 分頁、穩定 ID 導航，顯示 dirty／來源不可用狀態；取消、SSE、關閉及 workspace 變更防止舊回應套用。RecordsService tags 13 assertions、RecordsUi 16 fixtures 通過。原生從 Mentors 表搜尋「角色」，開啟 Types 的 Alpha 卡片；卡片 Wiki 仍 highlight 並導向 Obsidian 改名後來源。
 

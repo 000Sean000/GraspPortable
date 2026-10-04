@@ -73,6 +73,31 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     });
     assert.deepEqual(opaqueCache.names,['A'],'cached source never recursively acquires Grasp semantics');
     assert.match(opaqueCache.text,/\[\[@B\|raw\]\]/);assert.equal(opaqueCache.fenced,0);
+    const unacceptedCases=['[草稿](:ref:Draft)', '[😀第一段\r\n\r\n第二段](:ref:Draft)',
+      '[[@Draft|https://example.invalid]]', '[[@Draft|第一段\r\n\r\nhttps://example.invalid]]',
+      '[[@Draft|\\[link\\](Some.md)]]', '[[@Draft|`example` https://example.invalid]]',
+      '[[@Draft|<em>https://example.invalid</em>]]'];
+    for(const raw of unacceptedCases) {
+      const displayed=await page.evaluate(raw=>{
+        const container=document.createElement('div');container.innerHTML=window.editor.renderManagedMarkdown(raw);
+        return {text:container.querySelector('.unaccepted-reference')?.textContent,links:container.querySelectorAll('a,[data-grasp-definition]').length,title:container.querySelector('.unaccepted-reference')?.title};
+      },raw);
+      assert.equal(displayed.text,raw,'unaccepted carrier preserves exact source, including CRLF/UTF-16');
+      assert.equal(displayed.links,0,'unaccepted cache has no navigation or recursively rendered links');
+      assert.match(displayed.title,/尚未取得/);
+      const source=raw+'\n\nend';
+      await page.evaluate(async source=>{window.events=[];await window.editor.setDocument('unaccepted',source,0,[],true);window.editor.focusAt(source.length);window.editor.renderReading('reading',source,[]);},source);
+      assert.equal(await page.locator('#editor .content-preview,#editor .managed-reference').count(),0,'Live Preview keeps unaccepted reference syntax instead of a Markdown link widget');
+      assert.match(await page.locator('#editor .cm-content').innerText(),/Draft/);
+      await page.locator('#reading .unaccepted-reference').click();
+      assert.equal((await page.evaluate(()=>window.events)).filter(e=>/On(?:LocalLink|ExternalLink|ReferenceClicked)/.test(e[0])).length,0,'unaccepted carrier clicks never navigate');
+    }
+    const fencedUnaccepted=await page.evaluate(()=>{
+      const container=document.createElement('div');container.innerHTML=window.editor.renderManagedMarkdown('```json\n[cache](:ref:Draft)\n[[@Draft|https://example.invalid]]\n```\n\n`[cache](:ref:Draft)`');
+      return {inert:container.querySelectorAll('.unaccepted-reference').length,links:container.querySelectorAll('a').length,code:container.querySelector('pre code').textContent};
+    });
+    assert.equal(fencedUnaccepted.inert,0,'disabled fences and inline code retain code presentation without Grasp interpretation');
+    assert.equal(fencedUnaccepted.links,0);assert.match(fencedUnaccepted.code,/\[\[@Draft/);
     const metadata=await page.evaluate(()=>window.editor.renderManagedMarkdown('[Target](Target.md) <!-- grasp:record 11111111111111111111111111111111 -->\n\n`<!-- grasp:record 11111111111111111111111111111111 -->`\n\n<script>bad()</script>'));
     assert.equal((metadata.match(/grasp:record/g)??[]).length,1,'only the exact inert comment is hidden; code examples remain visible');
     assert.ok(!metadata.includes('<script>'));

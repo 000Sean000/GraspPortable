@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.10.0
+version: 1.11.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,24 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 改名、轉換選取及 Grasp Enter（15:03–15:23）
+
+使用同一 `S4-Acceptance-1004` 的小型資料，不擴大私人樣本。Windows GUI 完成：
+
+| 操作 | 結果 |
+| --- | --- |
+| 長文欄位 key Markdown→Description | revision 47；確認後兩式跨筆記引用改為 Checks.Alpha.Description，粗體／空行／Wiki 保留，點引用開來源欄位第 7 行 |
+| Beta 的 display name／key 改名 | revision 48；同 record ID，關聯欄及引用正文顯示「Beta 改名後關聯目標」；點關聯仍開 Checks.BetaRenamed 卡片 |
+| 單選「選項甲」改為「選項甲（已改名）」 | revision 49；option ID 保留，表格值、Markdown source 及另一筆記 reference cache 同步；獨立多選欄的選項未被混同 |
+| 一列兩欄 NavCheck Markdown table 轉換 | revision 50；套用後直接選中新 collection 並顯示 NavCheck1，原來源筆記仍在檔案樹 |
+| 完整 Links 欄位鍵盤導航 | 最新 App 中 Tab 依序聚焦 Wiki／純式 reference；Enter 開來源檔並選中 LiveLinks.Short 第 15 行，沒有改內容 |
+
+正常關閉後，唯讀 SQLite 比對 revision 46 的前次還原基底：Types 的 20 個 generated definition IDs 全保留、新名稱映射正確，原 durable draft JSON 不變。現有 15 notes、555 definitions、100 records、1 draft；報告 `workspaces/AcceptanceSupport/rename-1523-verification.json` 不進 Git。
+
+最新 App 15:18:21／Host 15:18:10 包含未接受引用的呈現防線；原生確認 Live Preview／Reading 保留完整 source、不誤跳，而有效欄位仍 highlight／可導航。工程範圍與限制見 [S1 Validation](S1-Validation.md)。App／Host 正常退出後程序數零，前台已釋放。
+
+本段沒有足量效能測量；剩餘 native missing／view／真實長文／IME／policy／縮放與端到端門檻依 EXECUTION-STATE 繼續，不宣稱 S4 全部完成。
 
 ## 跨表 tag 與較新 durable draft 還原（14:37–14:54）
 
@@ -27,7 +45,7 @@ RecordsService tags 13 assertions 通過，涵蓋兩表、computed reference tag
 
 Obsidian 改來源檔名後，型別表中的 Wiki 及多段 reference 導航仍有效，詳見 [S2 Validation](S2-Validation.md)。Field key／option／record carrier 改名、缺失目標、第二個 view 的篩選／鍵盤焦點及真實長文外部往返尚有原生缺口。
 
-全局審查確認 **跨資料表 tag 搜尋尚未實作**：目前 RecordsPanel 只篩當前 collection rows，沒有 workspace 範圍 tag query／入口；不得以單表搜尋代稱完成。較新 durable draft 的手動備份／關閉流程亦有已確認阻擋，修復後才能驗收。代表性 30 次操作及五分鐘連續互動仍待量測。
+當時全局審查發現跨資料表 tag 搜尋缺口與 durable draft 的手動備份／關閉阻擋；後續已修正並取得上方 14:37–14:54 的原生證據。代表性 30 次操作及五分鐘連續互動仍待量測。
 
 ## 合併、拆分及完整版本還原（revision 33–36）
 
