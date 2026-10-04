@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.6.0
+version: 1.7.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -39,6 +39,16 @@ status: implemented-parts-with-partial-native-evidence
 新報告 `ui-20261004-044122.json` 時長 490.6 秒：child-ready query 3 筆 p95 230.6 ms、collection switch 1 筆 83.6 ms、input 2 筆 p95 5.4 ms、首次 note switch 1 筆 30.8 ms；frame 36,000 筆 p95 4.3 ms／max 54.2 ms，scroll 233 筆 p95 4.4 ms／max 37.6 ms。Frame 達 cap 後另有 80,465 個樣本未保存，故不是全時段無停頓證明。
 
 **效能仍未驗收通過：**一次成功的 revision 26 關聯提交沒有產生 `recordsCommitToPaintOpportunity`，須定位 own refresh／SSE／generation 使 span 被取消的情況；不拿 query 數字代替提交至可見结果，也不把這批少量操作推算成足量 p95。新 barrier 已原生帶入 query 顯示，但其提交量測完整性尚未證明。關聯搜尋結果數改變時 modal 高度會改變，亦記為後續有界 UX 修整項目。
+
+### 保存通知去重與提交量測回歸（revision 32）
+
+已修同次保存的 SSE 重複 Refresh 導致 own read-back epoch 被取消：已套用 revision 只消費通知，本地保存期間合併最高 revision，結束後僅對仍較新的版本補讀。保留 exact epoch／paint token／child-ready 驗證；真正過期的提交不借用其他 query 算成功。RecordsUi 8 個直接執行 Panel 控制流的 fixtures 通過，涵蓋 command／read-back 兩時序、較高通知、dirty／unknown／conflict、讀取失敗與 workspace／query supersession。新 runner 已列入 solution 及完整建置腳本。
+
+Host 13:08:25／App 13:08:34 發行後，13:09–13:14 使用同一 S4 workspace。原生將 Alpha Number 從 0 改為 42.5，保存 revision 32；畫面成功更新（目前顯示精確 canonical `425e-1`，可讀格式仍待改善）。探針 `ui-20261004-050918.json` 的 `recordsCommitToPaintOpportunity` 留下 1 筆 **207.6 ms**，證明這次定點保存不再漏記；不是足量效能驗收。
+
+本報告時長 283.0 秒，query 3 筆 p95 179.9 ms、collection switch 1 筆 75.8 ms、input 1 筆 2.0 ms、首次 note switch 1 筆 58.0 ms。Foreground frame 36,000 筆 p95 4.3 ms／max 41.8 ms，達 cap 後 10,048 個樣本未保存；不宣稱完整時段無停頓。雙 rAF 是呈現機會，含 child DOM／handlers ready，不含 lazy 圖片下載解碼。
+
+關聯搜尋清單已固定高度避免結果變少時 modal 跳動，本段未另做其原生重驗。App／Host 正常退出且程序不存在，驗收 Obsidian 視窗亦正常關閉，前台已釋放。尚未完成 30 次代表操作及約五分鐘連續互動的整體門檻。
 
 ## 本段 Wiki／Grasp 參照原生驗證（有限必要流程通過）
 

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.23.0
+version: 1.24.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,17 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：九型別原生流程及 record ID 導航
+## 最新工作段：Obsidian 共同編輯及保存刷新修正
+
+以已核對遠端 `123084c7b4d93b76f58dbc13e4ac727097650e4b` 續作。真實 Obsidian 1.13.7 開啟獨立 `S4-Acceptance-1004`，關閉期間新增定義／兩層 composition／兩式 reference，Grasp 重開讀入 revision 27；同時開啟時修改 literal，revision 28 及 Obsidian cache 更新成功。原生發現同篇 reference 改值被誤判 shared-source-conflict，已最小修正 Core guard，保留真正 draft／stale／mixed／版本矛盾。Coordinator 新 2 組與既有 shared 1 組通過。
+
+Records 同版 SSE 重複刷新已修正，保存期間合併通知且保留較高版本補讀；RecordsUi 8 fixtures 通過，已加入 solution／完整建置入口。架構檢查、editor build、Host 13:08:25／App 13:08:34 publish 通過。本段由主代理整合與原生驗證，editor_fix 負責 Core／Coordinator，ui_review 負責 Records UI。
+
+13:09–13:14 原生重驗：恢復原衝突 reference 的已接受基底後 revision 30 正常；再從 Obsidian 只改引用值，來源 literal 與兩層相依成功更新 revision 31、診斷零，Obsidian 亦顯示回寫結果。Alpha Number 保存 42.5 至 revision 32，提交至 child-ready＋paint opportunity 有 1 筆 207.6 ms，漏記問題定點回歸通過，仍不足 30 次代表效能樣本。詳見 [S2 Validation](Engineering/S2-Validation.md)及 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。App／Host 正常關閉且程序不存在，前台釋放。
+
+已確認下一缺陷：已有引用的筆記在外部新增／移除引用，被 topology classifier 一律保留為衝突，尚未修正。數字顯示目前採 canonical `425e-1`，可读格式仍待改善。Goal active；S1／S2 PARTIAL、S3／S4 IN_PROGRESS，未宣稱使用者接受。
+
+## 已完成工作段：九型別原生流程及 record ID 導航
 
 本段以已核對遠端 `dd55127fde437ab4110a68c9088d3ef4e8357ca9` 續作。12:06–12:31 原生驗收在 `S4-Acceptance-1004` 完成 Alpha 的空字串→長文、0、false、date-only、單選、多選、tag、跨表單筆關聯與跨表＋同表多筆關聯，revision 16–25。引用檢查筆記同步更新且無診斷，兩式多段引用保留正文；Beta 的未設定欄位保持 null。詳見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。這是基本流程，不等於九型別的所有邊界或 S4 完成。
 
@@ -160,4 +170,4 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-先核對本段 commit／push checkpoint，維持 Goal active。不要重做已通過的 Wiki／Grasp 及九型別基本流程；從 revision 26 的驗收 workspace 續作。先定位 Records 保存未留下 commit span 的量測缺口，再取得足量代表性端到端證據；目前 child-ready query 3 筆不能替代。關聯搜尋 modal 高度可作一次有界修整。後續優先完成 S2 真實 Obsidian 交替／衝突、S3 合併／拆分及還原，再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 的具體缺口。每段只重測受影響項目，測試成本失衡即回頭檢視全局。App／Host 已關閉，前台釋放；下次操作前另行提醒。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。
+先核對本段 commit／push，維持 Goal active，從 revision 32 驗收 workspace 續作。先修外部新增／移除 reference 的 ordinary source 誤判，保留不明配對／mixed 共享修改保護；再完成 Obsidian 外部檔名／dirty 衝突、S3 合併／拆分及完整還原。不要重做已通過的 Wiki／Grasp、九型別基本流程與同篇共享回寫。Records commit span 定點已驗有效，足量代表性端到端證據仍待完成；relation modal 固定高度已發行未專項重驗，Number canonical 可讀呈現待改善。再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 的具體缺口。每段只重測受影響項目，測試成本失衡即回頭檢視全局。App／Host 已關閉，前台釋放；下次操作前另行提醒。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。

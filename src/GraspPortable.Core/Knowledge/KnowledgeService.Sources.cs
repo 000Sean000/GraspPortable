@@ -60,6 +60,7 @@ public sealed partial class KnowledgeService
         var identities = new Dictionary<string, string>(StringComparer.Ordinal);
         var renames = new Dictionary<string, string>(StringComparer.Ordinal);
         var proposals = new Dictionary<string, List<(string NoteId, ExternalReferenceValueProposal Proposal)>>(StringComparer.Ordinal);
+        var cacheOnlyChanges = new HashSet<string>(StringComparer.Ordinal);
         foreach(var change in changes)
         {
             token.ThrowIfCancellationRequested();
@@ -89,6 +90,7 @@ public sealed partial class KnowledgeService
                     Retain(change, old, "conflict", edits.Diagnostics.Select(d => new ParseDiagnostic(d.Code, d.Message, d.ObservedSpan ?? new(0, 0))).ToArray());
                     continue;
                 }
+                if(edits.Status == ExternalReferenceEditStatus.Proposed) cacheOnlyChanges.Add(change.NoteId);
                 foreach(var proposal in edits.Proposals)
                 {
                     if(!proposals.TryGetValue(proposal.TargetName, out var list)) proposals[proposal.TargetName] = list = [];
@@ -120,7 +122,10 @@ public sealed partial class KnowledgeService
             var owner = definition is null ? null : basis.Notes[definition.NoteId];
             if(owner is not null) guards.TryAdd(owner.Id, GetDraft(owner.Id));
             var conflict = definition is null || !SharedWritable(basis,definition) || owner!.IsSourceStale || guards[owner.Id] is not null
-                || changes.Any(c => c.NoteId == owner!.Id && c.Source != owner.CurrentSource)
+                // A reference may live in its own literal's note. The classifier
+                // already proved that only cache value spans changed; blocking
+                // every owner byte change would reject this normal shared edit.
+                || changes.Any(c => c.NoteId == owner!.Id && c.Source != owner.CurrentSource && !cacheOnlyChanges.Contains(c.NoteId))
                 || intents.Any(i => notes[i.NoteId].IsSourceStale)
                 || intents.Select(i => i.Proposal.ProposedValue).Distinct(StringComparer.Ordinal).Count() != 1
                 || intents.Any(i => i.Proposal.ChangedOccurrences.Any(o => o.AcceptedCachedValue != definition!.Value));
@@ -128,7 +133,7 @@ public sealed partial class KnowledgeService
             {
                 // Validate the actual source codec/identity change before accepting
                 // any shared intent. A refusal retains the observed raw reference.
-                try { _ = ReplaceSharedSource(owner!,definition!,intents[0].Proposal.ProposedValue,basis.Languages); }
+                try { _ = ReplaceSharedSource(notes[owner!.Id],definition!,intents[0].Proposal.ProposedValue,basis.Languages); }
                 catch(InvalidOperationException sharedError) { conflict=true; sharedFailureReason=sharedError.Message; }
             }
             sharedConflict |= conflict;

@@ -33,7 +33,7 @@ public partial class RecordsPanel : IAsyncDisposable
     private string? _reportedCollectionId;
     private string _appliedInitialRecordId = "", _relationSearch = "";
     private long _recordNavigationGeneration;
-    private long _observedRevision = -1, _loadEpoch;
+    private long _observedRevision = -1, _deferredRevision = -1, _loadEpoch;
     private CancellationTokenSource? _load;
     private bool _busy, _loading, _disposed;
     private string? _error, _notice, _dialog, _dialogWarning;
@@ -71,12 +71,14 @@ public partial class RecordsPanel : IAsyncDisposable
         if (changed)
         {
             _workspace = WorkspaceKey; _selected = ""; _data = null; _view = null; _collections = []; _page = 0; _search = "";
+            _observedRevision = -1; _deferredRevision = -1;
             _appliedInitialCollectionId = "";
             _reportedCollectionId = null;
             _appliedInitialRecordId = ""; _recordNavigationGeneration++;
             if (_dialog is not null) _dialogWarning = "工作區已切換；這份輸入仍保留，請先複製或取消，不能送到另一個工作區。";
         }
-        if (Collection is not null && Collection.Id != _selected) _selected = Collection.Id;
+        var collectionChanged = Collection is not null && Collection.Id != _selected;
+        if (collectionChanged) _selected = Collection!.Id;
         var recordRequest = InitialRecordId.Length > 0 && InitialRecordId != _appliedInitialRecordId ? InitialRecordId : null;
         _appliedInitialRecordId = InitialRecordId;
         var requestWorkspace = WorkspaceKey;
@@ -86,8 +88,16 @@ public partial class RecordsPanel : IAsyncDisposable
             _appliedInitialCollectionId = InitialCollectionId;
             if (InitialCollectionId.Length > 0) { _selected = InitialCollectionId; _view = null; _page = 0; _search = ""; }
         }
-        if (changed || requested || Revision != _observedRevision || _data is null)
-        { _observedRevision = Revision; await RefreshAsync(); }
+        var revisionChanged = Revision > _observedRevision;
+        _observedRevision = Math.Max(_observedRevision, Revision);
+        if (changed || requested || collectionChanged) await RefreshAsync();
+        else if (_busy && _dialogWorkspace == WorkspaceKey)
+        {
+            // An SSE echo must not cancel the explicit read-back owned by SaveAsync.
+            // Retain newer notifications even if they arrive before the command response.
+            if (Revision > (_data?.Revision ?? -1)) _deferredRevision = Math.Max(_deferredRevision, Revision);
+        }
+        else if (_data is null || revisionChanged && Revision > _data.Revision) await RefreshAsync();
         if (recordRequest is not null && !_disposed && requestWorkspace == WorkspaceKey && InitialRecordId == recordRequest)
         {
             try { await OpenRecordByIdAsync(recordRequest); }
@@ -295,6 +305,7 @@ public partial class RecordsPanel : IAsyncDisposable
     {
         if (_busy || _dialogWorkspace != WorkspaceKey) return;
         var performance = 0; var performanceQueued = false;
+        var saveWorkspace = WorkspaceKey;
         _busy = true; _error = null;
         try
         {
@@ -351,6 +362,12 @@ public partial class RecordsPanel : IAsyncDisposable
         finally
         {
             _busy = false;
+            // A true later update still needs a read. It deliberately invalidates any
+            // older paint span; never attach that span to an unrelated later query.
+            var deferred = _deferredRevision;
+            _deferredRevision = -1;
+            if (!_disposed && saveWorkspace == WorkspaceKey && deferred > (_data?.Revision ?? -1))
+                await RefreshAsync();
             if (!performanceQueued) await EndRecordPerformanceAsync(performance, false);
         }
     }

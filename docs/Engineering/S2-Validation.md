@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.3.1
+version: 1.4.0
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -12,6 +12,26 @@ S2 的 Markdown adapter／coordinator 已接入實際 Host，App／Host 使用 p
 App／Host 已重新發布，包含最新版 link codec、tree 自動選取、本機圖片與 wiki 導航。下方補記實測範圍；後續分組及 Records 尚未沿用這份 GUI 證據。
 
 ## 2026-10-04 原生操作證據
+
+### Obsidian 共同編輯實測（13:00 左右，S4 驗收 workspace）
+
+使用已安裝 Obsidian 1.13.7 的「Open folder as vault」開啟獨立 `workspaces/S4-Acceptance-1004`，沒有使用日用 vault。Grasp 尚未啟動時，由 Obsidian 在「連結驗收－來源」加入 `Interop.Value`、兩層 composition 與兩式 references；Grasp 重開自動讀入，revision 27 的三個 definitions 為 Valid，兩式 reference cache 更新亦在 Obsidian 可見。
+
+兩個程式同時開啟時，從 Obsidian 修改 `Interop.Value` 的 literal，Grasp 自動更新至 revision 28；兩層相依與 Obsidian 中的引用同步，無診斷。
+
+接著僅從 Obsidian 修改同篇筆記末尾的 wiki-style reference 顯示值，卻收到 `shared-source-conflict`。Grasp 保留外部新原文、標示 Stale，未錯誤發布舊值為最新成功結果，但本案應可唯一對應 literal，因此是實作缺陷，不能將共享回寫驗收標記通過。已定位同檔來源 guard 過度拒絕純 reference cache 變化，修正及重驗結果續記於下方。App／Host 已正常關閉，程序不存在。
+
+以上是真實 Obsidian GUI 證據；尚未涵蓋外部改檔名、dirty／IME 競態或所有共同編輯流程，S2 仍 PARTIAL。
+
+### 同篇共享回寫修正及原生重驗
+
+Core 現在僅放行 classifier 已證明的純 cache 修改；真正 mixed source、dirty draft、stale owner、版本或值矛盾仍保留衝突。改写使用候選原文的 AST 範圍，前置 reference 長度改變不會使 literal 定位偏移。新 Coordinator 定點 2 組與既有跨筆記 shared 1 組通過，涵蓋兩式 reference、多段值、CRLF、ID、兩層相依、另一實檔 cache、own echo，以及 mixed／dirty 拒絕。
+
+13:08:25 Host／13:08:34 App 發行。由 Obsidian 將先前失敗的測試 reference 恢復為已接受值，Grasp 重開至 revision 30、診斷零；再由 Obsidian 只改同一 reference 的顯示值，新版成功回寫 literal，兩層相依更新至 revision 31、全部 Valid。回到 Obsidian 亦親眼確認定義與兩式引用為新值。未使用 API 代替此次 GUI 操作，也未要求自動猜測先前衝突意圖。
+
+另外的唯讀審查確認：已有引用的筆記在外部新增／移除引用，會因 classifier 的 topology 限制被一律保留為衝突；這與一般外部編輯流程不符，列為下一修正。新引用不應冒充共享改值，既有 carrier 無法唯一配對或同時改值時仍需保護。本段未修改這一分支。
+
+### 較早的 S2 檔案樹流程
 
 獨立驗收 workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace\GraspPortable\workspaces\S2-Review-1004`。此資料夾及產生的驗收資料均在忽略區，不進 Git。
 
@@ -57,8 +77,8 @@ Content resolver 44 assertions、editor regression／TypeScript、App／Host 發
 
 ## 尚未完成與下一步
 
-- 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取修正仍待重新發行重驗。
-- 真正 Obsidian／Grasp 交替操作、衝突 UI 與快速操作／IME／dirty 時序；附件呈現與 link 導航。
+- 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取於 10:30 重驗通過，完整還原範圍另驗。
+- Obsidian 關閉期間新增／重開、同時開啟時定義更新已有上方證據；共享引用值回寫缺陷修正與重驗、外部改名、衝突解決及 IME／dirty 時序仍待完成。
 - S1 剩餘政策 GUI、DPI、端到端流暢度；本次沒有新的性能數字。跨檔 journal／完整 snapshot 的成本尚未證明符合成長門檻。
 - S3 分組、checkpoint 排程／介面與 restore UI；S4 長文屬性／Records／凍結表格。
 

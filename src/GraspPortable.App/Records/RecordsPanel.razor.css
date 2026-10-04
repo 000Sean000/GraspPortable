@@ -8,3 +8,4 @@ input,select,textarea{box-sizing:border-box;border:1px solid #ced9c9;border-radi
 .record-cell{box-sizing:border-box;padding:7px 6px 7px 10px;cursor:default}.record-cell-read{flex:1;min-width:0;max-height:42px;overflow:hidden}.cell-plain{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:20px}.cell-edit{flex:0 0 25px;width:25px;height:28px;padding:2px;border-color:transparent;background:transparent;color:#839477}.record-cell:hover .cell-edit,.cell-edit:focus-visible{border-color:#c7d6bf;background:#f0f6e9;color:#365f43}
 .relation-selected{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}.relation-selected button{font-size:12px;padding:4px 8px;background:#edf3df;border-color:#c4d4b4;color:#456039}
 .records-grid thead th.frozen-field-head{z-index:13!important}
+.choice-list[aria-label="跨資料表紀錄關聯"]{box-sizing:border-box;height:min(290px,35vh)}

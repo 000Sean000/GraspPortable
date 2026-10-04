@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.16.1
+version: 1.16.2
 updated: 2026-10-04
 scope: rewrite-branch-entry
 ---
@@ -14,6 +14,8 @@ scope: rewrite-branch-entry
 Wiki／Grasp 參照已在本機發行：非編輯區顯示可讀連結、直接導航，Grasp 定位定義所在檔案與 block；reader、資料表 cell／完整欄位／卡片、草稿保護與一般 Wiki Enter 已通過有限原生流程。Grasp Enter、缺失來源的專項原生案例及足量效能仍待驗。
 
 S1 已有工程、Reading／補完及基本原生中文 IME 證據；IME／dirty 競態、剩餘 GUI 與端到端流暢度尚未完整驗收。已保留新增筆記、範例命名、引用導航、來源草稿及 Live Preview 修正；詳見 [S1 驗證紀錄](docs/Engineering/S1-Validation.md)。當前進度以執行狀態為準，不在 S1 自動停工。
+
+Obsidian 共同編輯已有關閉期间新增／Grasp 重開、同時開啟時修改定義、同篇 reference 值回寫的原生證據；已修同篇共享誤判與 Records 同版通知重複刷新。外部新增／移除引用仍有待修缺口，整體 S2／S4 尚未完成。
 
 [S2 驗證紀錄](docs/Engineering/S2-Validation.md)保存檔案樹建立／改名／搬移、外部更新、圖片／wiki 導航及重開的有限原生證據。[S3／S4 驗證紀錄](docs/Engineering/S3-S4-Validation.md)保存分組、Records／轉換的工程與有限原生結果，以及來源層效能；30 次完整 Markdown 提交 p95 334.1 ms 不包含 GUI 顯示時間。S1／S2 仍 PARTIAL，S3／S4 已接產品且原生驗收進行中，尚未宣告完成或使用者接受。需要原生量測時可明確傳入 launcher `-MeasurePerformance`，預設不開探針。
 

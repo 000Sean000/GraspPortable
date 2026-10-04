@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using GraspPortable.Contracts;
 using GraspPortable.Core.Knowledge;
+using GraspPortable.Core.ValueEngine;
 using GraspPortable.Host.Notifications;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
@@ -62,6 +63,54 @@ await Check("initial plain sources are indexed without byte rewriting; shared ex
     Equal(0, coordinator.Status.Issues.Length);
     SetBody(carrierFile, "[banana](:ref:Fruit)"); await coordinator.ReconcileAsync();
     Equal("banana", Value(knowledge, "Fruit")); True(File.ReadAllText(plain).Contains("{banana}"));
+});
+
+await Check("same-note shared cache edits update exact source ranges and transitive physical caches", async () =>
+{
+    var path = Workspace("same-note-shared"); var repository = new MarkdownWorkspaceRepository(path); using var knowledge = new KnowledgeService(repository);
+    using var coordinator = new WorkspaceCoordinator(repository, knowledge, new RevisionHub(), path);
+    var source = "[[@Interop.Value|原值]]\r\n\r\n@code{\r\n@Interop.Value = {原值}\r\n@Interop.Layer = Interop.Value + {／一}\r\n@Interop.Result = Interop.Layer + {／二}\r\n}\r\n\r\n[原值](:ref:Interop.Value)\r\n[原值／一／二](:ref:Interop.Result)";
+    var owner = await Create(coordinator, knowledge, "Owner", source);
+    var dependent = await Create(coordinator, knowledge, "Reader", "[原值／一／二](:ref:Interop.Result)");
+    var identities = knowledge.Current.Definitions.Values.ToDictionary(d => d.Name, d => d.Id);
+    var ownerFile = FileFor(path, repository, owner); var readerFile = FileFor(path, repository, dependent);
+    foreach (var kind in new[] { ReferenceKind.Wiki, ReferenceKind.Pure })
+    {
+        var desired = kind == ReferenceKind.Wiki ? "由外部引用回寫來源，長度不同" : "第一段\n\n第二段";
+        var accepted = knowledge.Current.Notes[owner];
+        var reference = accepted.Syntax.References.Single(r => r.Kind == kind && r.Name == "Interop.Value");
+        SetBody(ownerFile, ReferenceCodec.ApplyPatches(accepted.Source, [new(reference.Span, ReferenceCodec.Serialize(kind, reference.Name, desired))]));
+        await coordinator.ReconcileAsync();
+        Equal(desired, Value(knowledge, "Interop.Value")); Equal(desired + "／一／二", Value(knowledge, "Interop.Result"));
+        True(!knowledge.Current.Notes[owner].IsSourceStale, "pure cache edit in its own definition note must be accepted");
+        foreach (var pair in identities) Equal(pair.Value, knowledge.Current.Definitions.Values.Single(d => d.Name == pair.Key).Id);
+        var physicalOwner = GraspParser.Parse(MarkdownEnvelopeCodec.Read(File.ReadAllText(ownerFile)).Body, knowledge.Current.Languages);
+        var physicalReader = GraspParser.Parse(MarkdownEnvelopeCodec.Read(File.ReadAllText(readerFile)).Body, knowledge.Current.Languages);
+        True(physicalOwner.IsValid && physicalReader.IsValid);
+        True(physicalOwner.References.Where(r => r.Name == "Interop.Value").All(r => r.CachedValue == desired));
+        Equal(desired + "／一／二", physicalReader.References.Single().CachedValue);
+        True(File.ReadAllText(ownerFile).Contains(LiteralCodec.Serialize(desired)), "literal source was not rewritten");
+        Equal(0, coordinator.Status.Issues.Length);
+        var revision = knowledge.Current.Revision; var bytes = File.ReadAllBytes(ownerFile);
+        await coordinator.ReconcileAsync(); Equal(revision, knowledge.Current.Revision); True(bytes.SequenceEqual(File.ReadAllBytes(ownerFile)), "own file echo rewrote the source again");
+    }
+});
+
+await Check("same-note shared cache edits retain mixed source and dirty draft conflicts", async () =>
+{
+    foreach (var dirty in new[] { false, true })
+    {
+        var path = Workspace("same-note-shared-guard-" + dirty); var repository = new MarkdownWorkspaceRepository(path); using var knowledge = new KnowledgeService(repository);
+        using var coordinator = new WorkspaceCoordinator(repository, knowledge, new RevisionHub(), path);
+        var owner = await Create(coordinator, knowledge, "Owner", "@code{ @Guard = {old} }\n[[@Guard|old]]");
+        var note = knowledge.Current.Notes[owner]; var file = FileFor(path, repository, owner);
+        if (dirty) await knowledge.SaveDraftAsync(new(owner, "local", 1, note.Revision, note.Title, note.Source + "\nlocal draft", note.CurrentSourceHash));
+        var observed = note.Source.Replace("|old]]", "|external]]", StringComparison.Ordinal) + (dirty ? "" : "\nother source edit");
+        SetBody(file, observed); var bytes = File.ReadAllBytes(file); await coordinator.ReconcileAsync();
+        Equal(note.Source, knowledge.Current.Notes[owner].Source); True(knowledge.Current.Notes[owner].IsSourceStale);
+        Equal(observed, knowledge.Current.Notes[owner].CurrentSource); True(bytes.SequenceEqual(File.ReadAllBytes(file)), "conflicting external bytes must remain exact");
+        if (dirty) True(knowledge.GetDraft(owner)!.Source.EndsWith("local draft", StringComparison.Ordinal));
+    }
 });
 
 await Check("invalid metadata becomes unavailable without overwriting and exact-byte repair recovers", async () =>

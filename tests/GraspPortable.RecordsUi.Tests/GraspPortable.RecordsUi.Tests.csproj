@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <!-- The Razor view that reads/assigns these fields is intentionally absent here. -->
+    <NoWarn>$(NoWarn);CS0649;CS0414</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/GraspPortable.Contracts/GraspPortable.Contracts.csproj" />
+    <Compile Include="../../src/GraspPortable.App/Records/RecordsPanel*.cs" Link="Product/%(Filename)%(Extension)" />
+    <Compile Include="../../src/GraspPortable.App/Records/RecordsContentNavigation.cs" Link="Product/RecordsContentNavigation.cs" />
+  </ItemGroup>
+</Project>

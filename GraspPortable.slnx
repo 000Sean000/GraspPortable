@@ -32,5 +32,6 @@
     <Project Path="tests/GraspPortable.RecordImport.Tests/GraspPortable.RecordImport.Tests.csproj" />
     <Project Path="tests/GraspPortable.SourcePerformance.Tests/GraspPortable.SourcePerformance.Tests.csproj" />
     <Project Path="tests/GraspPortable.TestEntry.Tests/GraspPortable.TestEntry.Tests.csproj" />
+    <Project Path="tests/GraspPortable.RecordsUi.Tests/GraspPortable.RecordsUi.Tests.csproj" />
   </Folder>
 </Solution>

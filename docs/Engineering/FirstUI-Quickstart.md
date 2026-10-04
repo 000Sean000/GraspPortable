@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.4.0
+version: 1.4.1
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -36,7 +36,7 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 3. 在自選測試資料夾按右鍵新增資料夾或筆記；編輯並等待保存後，再由右鍵改名或搬移，核對預覽與目標路徑。相同操作不應改變 note／definition 身分。
 4. 未在 Grasp 編輯的測試筆記，可用另一個 editor 修改其 Markdown 正文並保存，再回到 Grasp 查看更新。尚未完成的語法應保留原文及來源診斷，不能當成最新成功計算結果。存在 dirty draft／衝突時先保留兩側內容並依提示處理。
 
-較早 S2 checkpoint 已實測 shell 外部修改；後續另有圖片／wiki 導航與 incoming link 改名的有限原生證據。**Obsidian GUI 交替、完整衝突 UI 與完整附件／導航流程仍未驗收。** 最新 link codec、tree 自動選取及下方 S3／S4 入口已包含於本機發行，尚待補齊原生操作。
+較早 S2 checkpoint 已實測 shell 外部修改；後續另有圖片／wiki 導航與 incoming link 改名的有限原生證據。Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義及同篇共享 reference 回寫已有限原生通過。**已有引用後再於外部新增／移除引用仍有待修缺陷；外部改檔名、完整衝突與附件流程仍未驗完。** 最新 link codec、tree 自動選取及下方 S3／S4 入口已包含於本機發行。
 
 ## 資料表與長文卡片
 
