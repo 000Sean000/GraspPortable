@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.26.0
+version: 1.27.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -17,7 +17,19 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：外部改檔名、重新提交與合併標題
+## 最新工作段：跨表標籤及較新草稿恢復
+
+以遠端 `6bbfd48478dfc201069792c1ea37f53d4e57e48a` 續作。已補 workspace 範圍 tag query／UI：只搜尋有效計算後 Tag，每 record／field 一項、50 項 UI 分頁、穩定 ID 導航，顯示 dirty／來源不可用狀態；取消、SSE、關閉及 workspace 變更防止舊回應套用。RecordsService tags 13 assertions、RecordsUi 16 fixtures 通過。原生從 Mentors 表搜尋「角色」，開啟 Types 的 Alpha 卡片；卡片 Wiki 仍 highlight 並導向 Obsidian 改名後來源。
+
+已修 rename「保留草稿，稍後提交」：最新 note／session／revision／base／title／source 必須與已確認 durable snapshot 相同才可離開；後續新增文字需重存；明確儲存／Ctrl+S 才再次提交。未知 operation 保留相同 request／ID 查核，IME 不放行；切換 workspace 清舊 ack／暫緩決策，恢復 draft 不換原基底。暫緩偏好不跨 App 重啟保存。原生發現首次 Keep 把失焦背景提交視為未知，已改為先等 writer 再判結果；DraftDeparture 53 assertions 含真 semaphore 排隊與未知／連線失敗，App compile 零 warnings／errors，已加入完整建置入口。
+
+原生保留後新增第二版、切換再返回、手動備份及新 workspace restore 成功。14:46:47 generation 共 401 檔，還原至 `workspaces/S4-Draft-Restored-1004-1447`；新草稿／第二版文字可見，舊 Resolution.Pending 已接受定義仍保留。正常關閉後，原與還原 workspace 的 draft JSON 完全相同（revision 2、base 46、同 session／title／source）；證據在忽略的 `workspaces/AcceptanceSupport/draft-1447-verification.json`。這次確實含較新 durable draft，區別於前次 drafts=0。
+
+最終 App 14:52:35／Host 14:37:02 發行。重開原 workspace 恢復同草稿，Ctrl+S 後第一次 Keep 成功，沒有未知操作誤報，再正常關閉；App／Host 程序數零，前台釋放。曾從 sandbox 啟動無視窗 App，已由原 sandbox 身分清理指定 PID，未殘留程序；後續直接用使用者桌面環境啟動。
+
+Goal active，S1／S2 PARTIAL、S3／S4 IN_PROGRESS。下一段聚焦剩餘 native carrier／key／option 改名、小表 import 自動選取、view 篩選／鍵盤焦點、缺失目標／Grasp Enter、長文外部往返，以及 IME／policy／縮放與代表性效能。未知結果故障目前有工程證據，未做完整原生故障注入；不重做已通過的備份還原／基本型別／跨表搜尋。草稿未接受語意時的 reference 呈現另需檢查，不能把已接受來源的 link 驗收擴張到所有草稿狀態。未宣稱使用者接受。
+
+## 已完成工作段：外部改檔名、重新提交與合併標題
 
 以已核對遠端 `5917c3246f41db625823ba8fc01796fc0e2a270c` 續作。真實 Obsidian 在獨立 S4 驗收 vault 改來源檔名，選擇本次更新 4 links／3 files，Grasp revision 39 自動接收。資料表 Wiki 仍開新檔名，多段 Grasp reference 仍定位同一 Message 定義；原 note ID 不變，原日用 vault 未操作。
 

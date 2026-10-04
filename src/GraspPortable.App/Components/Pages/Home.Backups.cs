@@ -1,4 +1,5 @@
 using GraspPortable.Contracts;
+using Microsoft.JSInterop;
 
 namespace GraspPortable.App.Components.Pages;
 
@@ -11,15 +12,18 @@ public partial class Home
     private bool _restoreComplete;
 
     private async Task ShowBackupsAsync() => await GuardAsync(async () => {
-        if(!await SaveCurrentAsync()) return;
-        _dialog="backups"; _backupMessage=null; _restoreComplete=false; _busy=true; StateHasChanged();
+        if(_switching)return;
+        _switching=true; StateHasChanged();
         try
         {
+            if(editor is not null)await editor.InvokeVoidAsync("freeze",true);
+            if(!await SaveCurrentAsync()) return;
+            _dialog="backups"; _backupMessage=null; _restoreComplete=false; _busy=true; StateHasChanged();
             await ReadBackupStatusAsync();
             _backupInterval=_backups!.Options.IntervalMinutes; _backupRetention=_backups.Options.RetainedCopies;
             _restoreDestination=Backend.WorkspacePath+"-Restored-"+DateTime.Now.ToString("yyyyMMdd-HHmmss");
         }
-        finally { _busy=false; }
+        finally { _busy=false; _switching=false; if(editor is not null)await editor.InvokeVoidAsync("freeze",false); StateHasChanged(); }
     });
 
     private async Task ReadBackupStatusAsync()

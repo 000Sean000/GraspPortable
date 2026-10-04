@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.17.0
+version: 1.18.0
 updated: 2026-10-04
 scope: rewrite-branch-entry
 ---
@@ -12,6 +12,8 @@ scope: rewrite-branch-entry
 2026-10-04 已授權以 Goal 持續完成 **S1 → S2 Markdown 共同編輯／實際檔案樹 → S3 整理／恢復 → S4 長文屬性與凍結資料表**，並自行 commit／push。Markdown adapter／coordinator 已接入實際 Host：Markdown 承載已保存原文，SQLite 保存索引、計算、草稿與恢復日誌；舊 schema 1 DB 遷到新的相鄰資料夾並保留原資料。
 
 Wiki／Grasp 參照已在本機發行：非編輯區顯示可讀連結、直接導航，Grasp 定位定義所在檔案與 block；reader、資料表 cell／完整欄位／卡片、草稿保護與一般 Wiki Enter 已通過有限原生流程。Grasp Enter、缺失來源的專項原生案例及足量效能仍待驗。
+
+資料表新增「跨表標籤」搜尋並依 record ID 開原卡片，卡片內連結保留。改名可選保留草稿後切換／備份／正常關閉；較新 durable draft 已實測還原至另一個 workspace，完整內容與版本基底一致。明確儲存仍要求語意確認，未知操作保留原 ID 查核。這些有限原生結果不代表 S4 全部完成。
 
 S1 已有工程、Reading／補完及基本原生中文 IME 證據；IME／dirty 競態、剩餘 GUI 與端到端流暢度尚未完整驗收。已保留新增筆記、範例命名、引用導航、來源草稿及 Live Preview 修正；詳見 [S1 驗證紀錄](docs/Engineering/S1-Validation.md)。當前進度以執行狀態為準，不在 S1 自動停工。
 

@@ -144,6 +144,51 @@ await Run("field save sends empty identity for creation and stable identity for 
         await panel.DisposeAsync();
     }
 });
+await Run("tag search encodes text, pages totals and opens fresh record identity", async () =>
+{
+    var (panel, backend) = Setup(); var recordId = Guid.NewGuid().ToString("N");
+    var hit = new RecordTagMatchDto("collection", "Other table", "note", recordId, "Other.Record", "Target", "tagfield", "Tags", ["中文 & tag"], true);
+    backend.TagRead = (url, _) => Task.FromResult(new RecordTagSearchDto(11, url.Contains("offset=50") ? 50 : 0, 50, 51, 2,
+        url.Contains("offset=50") ? [hit] : Enumerable.Range(0, 50).Select(index => hit with { FieldId = "field" + index }).ToArray()));
+    await panel.OpenTagsForTest(); await panel.SearchTagsForTest("中文 & tag");
+    Check(backend.TagUrls.Last().Contains("search=" + Uri.EscapeDataString("中文 & tag")) && panel.TagsForTest?.Total == 51
+        && panel.TagsForTest.UnavailableCollections == 2 && panel.TagsForTest.Items[0].HasDraft, "encoded query retains total/exclusion/draft metadata");
+    await panel.NextTagsForTest(); Check(panel.TagsForTest?.Offset == 50 && panel.TagsForTest.Items.Length == 1, "second page is not silently capped at 50");
+    backend.Read = _ => Task.FromResult(BackendSession.Data(11) with {
+        Rows = [new(recordId, "Fresh.Key", "Fresh title", [])], RelationChoices = [new(recordId, "Fresh.Key", "Fresh title", "collection")] });
+    await panel.OpenTagForTest(hit);
+    Check(panel.CardIdForTest == recordId && backend.Reads == 1, "tag result navigates through fresh record ID lookup"); await panel.DisposeAsync();
+});
+await Run("tag query ignores superseded and closed late responses", async () =>
+{
+    var (panel, backend) = Setup(); var old = Gate<RecordTagSearchDto>();
+    backend.TagRead = (_, _) => backend.TagUrls.Count == 1 ? old.Task : Task.FromResult(new RecordTagSearchDto(11, 0, 50, 7, 0, []));
+    var initial = panel.OpenTagsForTest(); await panel.SearchTagsForTest("new");
+    old.SetResult(new(11, 0, 50, 99, 0, [])); await initial;
+    Check(panel.TagsForTest?.Total == 7, "late obsolete search cannot replace newest result");
+    var late = Gate<RecordTagSearchDto>(); backend.TagRead = (_, _) => late.Task;
+    var pending = panel.SearchTagsForTest("closing"); panel.CloseTagsForTest(); late.SetResult(new(11, 0, 50, 88, 0, [])); await pending;
+    Check(!panel.HasDialog && panel.TagsForTest is null, "closed search cannot be resurrected by late response"); await panel.DisposeAsync();
+});
+await Run("SSE restarts in-flight tag query and workspace switch rejects old results", async () =>
+{
+    var (panel, backend) = Setup(); var old = Gate<RecordTagSearchDto>();
+    backend.TagRead = (_, _) => backend.TagUrls.Count == 1 ? old.Task : Task.FromResult(new RecordTagSearchDto(12, 0, 50, 12, 0, []));
+    var initial = panel.OpenTagsForTest(); backend.Revision = 12; await panel.Notify(12);
+    old.SetResult(new(11, 0, 50, 11, 0, [])); await initial;
+    Check(panel.TagsForTest?.Revision == 12 && backend.TagUrls.Count == 2, "SSE replaces initial query even before any results exist");
+    await panel.Notify(12); Check(backend.TagUrls.Count == 2, "same revision echo does not query tags again");
+    var late = Gate<RecordTagSearchDto>(); backend.TagRead = (_, _) => late.Task;
+    var pending = panel.SearchTagsForTest("old workspace"); backend.Revision = 2; await panel.Notify(2, "other");
+    late.SetResult(new(12, 0, 50, 90, 0, [])); await pending;
+    Check(panel.TagsForTest is null && backend.TagUrls.Count == 3, "old workspace reply is dropped without querying new workspace under old dialog"); await panel.DisposeAsync();
+});
+await Run("tag search cannot replace a dirty editor", async () =>
+{
+    var (panel, backend) = Setup(); await panel.OpenTagsForTest(false);
+    Check(backend.TagUrls.Count == 0 && panel.HasDialog && panel.Raw == "unsaved input" && panel.EditRevision == 10,
+        "search entry keeps dirty input and baseline untouched"); await panel.DisposeAsync();
+});
 Console.WriteLine($"Records UI: {passed} fixtures passed.");
 return 0;
 }

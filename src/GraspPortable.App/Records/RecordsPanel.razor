@@ -7,7 +7,7 @@
 <section class="records-panel" aria-label="資料表" id="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)">
     <header class="records-toolbar">
         <div class="records-title"><span class="records-icon">▦</span><div><small>WORKSPACE RECORDS</small><h1>@(_data?.Title ?? "資料表")</h1></div></div>
-        <div class="records-actions"><button @onclick="RefreshAsync" disabled="@_loading" title="重新讀取">↻</button><button class="primary" @onclick="ShowCreate">＋ 資料表</button></div>
+        <div class="records-actions"><button @onclick="ShowTagsAsync" disabled="@_busy">跨表標籤</button><button @onclick="RefreshAsync" disabled="@_loading" title="重新讀取">↻</button><button class="primary" @onclick="ShowCreate">＋ 資料表</button></div>
     </header>
     @if (_error is not null) { <div class="records-message error" role="alert"><span>@_error</span><button @onclick="() => _error = null" aria-label="關閉錯誤">×</button></div> }
     @if (_notice is not null) { <div class="records-message" role="status"><span>@_notice</span><button @onclick="() => _notice = null" aria-label="關閉訊息">×</button></div> }
@@ -67,12 +67,41 @@
 
 @if (_dialog is not null)
 {
-    <div class="records-backdrop" id="@_modalId" tabindex="-1" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)"><section class="records-dialog @(_dialog is "card" or "cell" or "view" ? "wide" : "")" role="dialog" aria-modal="true" aria-label="資料表操作">
-        <header><div><small>@(_dialog == "card" ? "RECORD" : _dialog == "cell" ? "FIELD CONTENT" : "RECORDS")</small><h2>@(_dialog switch { "create" => "建立資料表", "row" => _row is null ? "新增紀錄" : "紀錄名稱", "field" => _field is null ? "新增欄位" : "欄位設定", "cell" => (_row?.DisplayName + " / " + _field?.DisplayName), "view" => "視圖設定", _ => _card?.DisplayName })</h2></div><button type="button" @onclick="() => CloseDialog()" aria-label="關閉">×</button></header>
+    <div class="records-backdrop" id="@_modalId" tabindex="-1" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)"><section class="records-dialog @(_dialog is "card" or "cell" or "view" or "tags" ? "wide" : "")" role="dialog" aria-modal="true" aria-label="資料表操作">
+        <header><div><small>@(_dialog == "card" ? "RECORD" : _dialog == "cell" ? "FIELD CONTENT" : "RECORDS")</small><h2>@(_dialog switch { "create" => "建立資料表", "row" => _row is null ? "新增紀錄" : "紀錄名稱", "field" => _field is null ? "新增欄位" : "欄位設定", "cell" => (_row?.DisplayName + " / " + _field?.DisplayName), "view" => "視圖設定", "tags" => "跨資料表標籤", _ => _card?.DisplayName })</h2></div><button type="button" @onclick="() => CloseDialog()" aria-label="關閉">×</button></header>
         @if (_dialogWarning is not null) { <div class="records-message warning" role="alert">@_dialogWarning</div> }
         @if (_pendingLink is not null) { <div class="records-message"><button @onclick="OpenPendingLinkAsync">開啟目標筆記（不定位標題）</button></div> }
         @if (_error is not null) { <div class="records-message error" role="alert">@_error</div> }
-        @if (_dialog == "card" && _card is not null && _data is not null)
+        @if (_dialog == "tags")
+        {
+            <form class="tag-query" @onsubmit="SubmitTagsAsync" @onsubmit:preventDefault>
+                <label>搜尋工作區標籤<input @ref="_firstInput" @bind="_tagSearch" @bind:event="oninput" placeholder="輸入標籤文字後按 Enter；留空列出全部" disabled="@(!TagContextCurrent)" /></label>
+                <button type="submit" class="primary" disabled="@(!TagContextCurrent)">搜尋</button>
+            </form>
+            <div class="tag-results" aria-busy="@_tagLoading">
+                <p class="hint">只列已接受且有效的計算後標籤，不區分大小寫；每個紀錄／欄位一項結果。點擊開啟完整紀錄卡片。</p>
+                @if (_tagError is not null) { <p class="tag-error" role="alert">@_tagError</p> }
+                @if (_tagLoading) { <p role="status">正在搜尋…</p> }
+                @if (_tagResults is { } matches)
+                {
+                    <p class="tag-count" role="status">@(_tagSubmitted.Length == 0 ? "全部標籤" : "搜尋「" + _tagSubmitted + "」") · @matches.Total 項結果 @if (matches.UnavailableCollections > 0) { <span> · @matches.UnavailableCollections 個資料表的來源尚未可用，已排除</span> }</p>
+                    <div class="tag-result-list">
+                        @foreach (var match in matches.Items)
+                        {
+                            <button type="button" class="tag-result" @key="(match.RecordId, match.FieldId)" disabled="@(_tagLoading || !TagContextCurrent || matches.Revision < TagMinimumRevision)" @onclick="() => OpenTagResultAsync(match)">
+                                <span class="tag-location">@match.CollectionTitle · @match.FieldTitle</span><strong>@match.RecordTitle <small>@match.RecordKey</small></strong>
+                                <span class="tag-values">@foreach (var tag in match.Tags) { <span>@tag</span> }</span>
+                                @if (match.HasDraft) { <span class="tag-draft">來源有草稿：此處顯示已接受的標籤，開啟後請先處理草稿。</span> }
+                            </button>
+                        }
+                        @if (matches.Items.Length == 0 && !_tagLoading) { <p class="table-empty">沒有符合的標籤。</p> }
+                    </div>
+                    <div class="tag-pagination"><span>第 @(matches.Total == 0 ? 0 : matches.Offset + 1)–@(matches.Offset + matches.Items.Length) 項，共 @matches.Total 項</span><div><button type="button" @onclick="() => PageTagsAsync(-1)" disabled="@(_tagLoading || !TagContextCurrent || matches.Offset == 0)">上一頁</button><button type="button" @onclick="() => PageTagsAsync(1)" disabled="@(_tagLoading || !TagContextCurrent || matches.Offset + matches.Items.Length >= matches.Total)">下一頁</button></div></div>
+                }
+            </div>
+            <footer class="dialog-actions"><span class="hint">每頁最多 50 項，跨全部資料表</span><button type="button" @onclick="() => CloseDialog()">關閉</button></footer>
+        }
+        else if (_dialog == "card" && _card is not null && _data is not null)
         {
             <div class="record-card"><div class="card-title"><code>@_card.Key</code><button @onclick="() => ShowRow(_card)">修改名稱 / Key</button></div>
                 @foreach (var field in _data.Fields)

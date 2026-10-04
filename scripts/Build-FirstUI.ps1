@@ -11,7 +11,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'SQLite integration checks failed.' }
         dotnet run --project tests/GraspPortable.Host.Tests -c Release
         if ($LASTEXITCODE -ne 0) { throw 'Host HTTP/process checks failed.' }
-        foreach ($suite in @('FileOperations', 'Markdown', 'ExternalEdits', 'Sources', 'MarkdownWorkspace', 'Migration', 'Coordinator', 'FileActions', 'Backup', 'BackupManager', 'GroupedNotes', 'Records', 'Content', 'GroupedWorkspace', 'GroupingMetadata', 'RecordsKnowledge', 'RecordsWorkspace', 'GroupingLinks', 'GroupingService', 'RecordsService', 'RecordImport', 'RecordsUi')) {
+        foreach ($suite in @('FileOperations', 'Markdown', 'ExternalEdits', 'Sources', 'MarkdownWorkspace', 'Migration', 'Coordinator', 'FileActions', 'Backup', 'BackupManager', 'GroupedNotes', 'Records', 'Content', 'GroupedWorkspace', 'GroupingMetadata', 'RecordsKnowledge', 'RecordsWorkspace', 'GroupingLinks', 'GroupingService', 'RecordsService', 'RecordImport', 'RecordsUi', 'DraftDeparture')) {
             dotnet run --project "tests/GraspPortable.$suite.Tests" -c Release
             if ($LASTEXITCODE -ne 0) { throw "$suite checks failed." }
         }

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.6.0
+version: 1.7.0
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -12,6 +12,14 @@ S2 的 Markdown adapter／coordinator 已接入實際 Host，App／Host 使用 p
 App／Host 已重新發布，包含最新版 link codec、tree 自動選取、本機圖片與 wiki 導航。下方補記實測範圍；後續分組及 Records 尚未沿用這份 GUI 證據。
 
 ## 2026-10-04 原生操作證據
+
+### 保留較新草稿與正常離開（14:37–14:54）
+
+rename 確認新增「保留草稿，稍後提交」：只在最新完整 snapshot 已獲保存確認時允許離開；新增文字須再次保存。最初原生發現 lock 前檢查把正在執行的 blur commit 當未知，第一次 Keep 被誤擋。已修為等 writer 完成後核對；最終 App 14:52:35 第一次 Keep 成功，無誤報且正常關閉。DraftDeparture 53 assertions 包含真正 semaphore 排隊／確認結果／未知 DTO／傳輸失敗，未知操作仍保留 exact request／ID；不是全面 GUI 故障注入。
+
+原生確認保留後新增第二版文字，切換筆記再返回、開啟手動備份、還原新工作區及正常關閉有效。原／還原資料庫 draft 完整 JSON 相同，draft revision 2、基底 46，舊已接受原文保留；詳見 [S3／S4 Validation](S3-S4-Validation.md)。明確 Ctrl+S 仍要求改名確認；暫緩選擇只限目前 App workspace session，重新啟動不自動代替使用者選擇。
+
+App／Host 已正常退出並核對程序數零。IME／保存失败／未知结果已有有界工程保護，仍有原生驗收缺口；草稿未接受語意時的 reference 呈現尚需檢查，不沿用已接受來源的可讀連結證據。
 
 ### 外部檔名與合併候選（revision 39、41–46）
 

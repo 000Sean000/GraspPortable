@@ -179,6 +179,49 @@ if (args.Length == 0 || args.Contains("render", StringComparer.Ordinal))
         && records.Read(created.NoteId!).Rows.Single().Cells.Single().References!.All(r => r.CachedValue == "更新\n\n值"),
         "subsequent source update refreshes cell render references without changing their targets");
 }
+if (args.Length == 0 || args.Contains("tags", StringComparer.Ordinal))
+{
+    using var repository = new MarkdownWorkspaceRepository(Path.Combine(root, "tags"));
+    using var knowledge = new KnowledgeService(repository);
+    var records = new WorkspaceRecords(repository, knowledge);
+    var source = await knowledge.CreateNoteAsync(Id(), "TagSource", "@code{ @SharedTags = {- 角色\n- Shared} }");
+    var ids = new List<string>();
+    for (var i = 0; i < 2; i++)
+    {
+        var result = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Tag table " + i, "TagRow" + i, "Record " + i,
+            [new("", "Tags", "標籤", "Tag"), new("", "Text", "文字", "Markdown")]));
+        Check(result.Status == "committed", "tag search collection setup");
+        ids.Add(result.NoteId!);
+        var data = records.Read(result.NoteId!);
+        var changed = await records.ChangeFieldAsync(data.Rows[0].Id, data.Fields[0].Id,
+            new(Id(), knowledge.Current.Revision, ReferenceCodec.Serialize(ReferenceKind.Pure, "SharedTags", "")));
+        Check(changed.Status == "committed", "tag values derive from computed Markdown");
+    }
+    var hits = records.SearchTags("shared", 0, 1);
+    Check(hits.Total == 2 && hits.Items.Length == 1 && hits.Revision == knowledge.Current.Revision
+        && hits.Items[0].Tags.SequenceEqual(new[] { "Shared" }), "workspace tag search finds computed values across collections with bounded payload");
+    var next = records.SearchTags("shared", 1, 1);
+    Check(next.Total == 2 && next.Items.Single().RecordId != hits.Items[0].RecordId, "tag pagination retains stable record identities without duplicates");
+    Check(records.SearchTags("角色").Total == 2 && records.SearchTags("Record").Total == 0,
+        "tag search supports Chinese but does not match unrelated record titles");
+    var edited = knowledge.Current.Notes[ids[0]];
+    await knowledge.SaveDraftAsync(new(edited.Id, "tags-draft", 1, edited.Revision, edited.Title, edited.CurrentSource + "\n草稿", edited.CurrentSourceHash));
+    Check(records.SearchTags("shared").Items.Single(i => i.NoteId == edited.Id).HasDraft,
+        "tag hits disclose durable draft while reading accepted values");
+    // Dirty ownership blocks source propagation, so use the other collection to test invalid raw preservation.
+    var other = records.Read(ids[1]);
+    Check((await records.ChangeFieldAsync(other.Rows[0].Id, other.Fields[0].Id,
+        new(Id(), knowledge.Current.Revision, "not a tag list"))).Status == "committed", "invalid tag source is retained with diagnostics");
+    Check(records.SearchTags("shared").Total == 1 && records.SearchTags("not a tag").Total == 0,
+        "invalid values are not searched as accepted tags");
+    await knowledge.MarkSourceUnavailableAsync(Id(), new Dictionary<string, string> { [edited.Id] = "test unavailable source" });
+    Check(records.SearchTags("shared") is { Total: 0, UnavailableCollections: 1 },
+        "unavailable source cannot publish last-good tags as current matches");
+    Check(records.SearchTags("", -1, 1000) is { Offset: 0, Limit: 100 }, "tag paging clamps untrusted bounds");
+    using var canceled = new CancellationTokenSource(); canceled.Cancel();
+    try { records.SearchTags("", token: canceled.Token); throw new InvalidOperationException("tag cancellation ignored"); }
+    catch (OperationCanceledException) { Check(true, "tag queries honor cancellation"); }
+}
 Console.WriteLine($"PASS {assertions} Records service assertions. Workspace: {root}");
 }
 catch (Exception error)

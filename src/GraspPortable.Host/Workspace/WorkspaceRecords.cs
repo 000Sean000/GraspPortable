@@ -14,7 +14,7 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace GraspPortable.Host.Workspace;
 
 /// <summary>One-note collections initially; caller holds the coordinator mutation gate for commands.</summary>
-public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, KnowledgeService knowledge)
+public sealed partial class WorkspaceRecords(MarkdownWorkspaceRepository repository, KnowledgeService knowledge)
 {
     private sealed record Owner(Note Note, RecordsMetadata Metadata);
     private sealed record CarrierPlan(IReadOnlyDictionary<string, string> Sources, IReadOnlyList<MarkdownScanIssue> Issues);
@@ -240,9 +240,9 @@ public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, Kno
         if (found.Length != 1) throw new InvalidOperationException("Collection 不存在或分散於多個來源，請先核對 metadata。");
         return found[0];
     }
-    private Owner[] Owners()
+    private Owner[] Owners(Snapshot? snapshot = null)
     {
-        var notes = knowledge.Current.Notes;
+        var notes = (snapshot ?? knowledge.Current).Notes;
         return repository.LoadSourceFiles().Where(f => f.Exists).SelectMany(f => MarkdownEnvelopeCodec.Read(f.Text).Metadata?.Notes ?? [])
             .Where(n => n.Records is not null && notes.TryGetValue(n.Id, out var note) && note.CurrentRecords is not null)
             .Select(n => new Owner(notes[n.Id], n.Records!)).ToArray();

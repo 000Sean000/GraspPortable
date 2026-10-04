@@ -4,6 +4,9 @@ public record RecordOptionDto(string Id, string DisplayName);
 public record RecordFieldSchemaDto(string Id, string Key, string DisplayName, string Kind, RecordOptionDto[]? Options = null);
 public record CollectionSummaryDto(string Id, string NoteId, string Title, int RecordCount, int FieldCount, long Revision, bool HasDraft, string SourceStatus);
 public record RecordChoiceDto(string Id, string Key, string DisplayName, string CollectionId);
+public record RecordTagMatchDto(string CollectionId, string CollectionTitle, string NoteId, string RecordId,
+    string RecordKey, string RecordTitle, string FieldId, string FieldTitle, string[] Tags, bool HasDraft);
+public record RecordTagSearchDto(long Revision, int Offset, int Limit, int Total, int UnavailableCollections, RecordTagMatchDto[] Items);
 public record RecordTypedValueDto(string Kind, bool IsNull, string? Text = null, string? Coefficient = null, int? Scale = null,
     bool? Boolean = null, string? Date = null, string[]? Ids = null, string[]? Tags = null);
 public record RecordCellDto(string FieldId, string RawSource, string? ComputedMarkdown, bool IsNull, string Status,

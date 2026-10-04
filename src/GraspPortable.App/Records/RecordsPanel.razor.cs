@@ -70,6 +70,7 @@ public partial class RecordsPanel : IAsyncDisposable
         var changed = _workspace != WorkspaceKey;
         if (changed)
         {
+            CancelTagQuery(); _tagResults = null;
             _workspace = WorkspaceKey; _selected = ""; _data = null; _view = null; _collections = []; _page = 0; _search = "";
             _observedRevision = -1; _deferredRevision = -1;
             _appliedInitialCollectionId = "";
@@ -107,6 +108,7 @@ public partial class RecordsPanel : IAsyncDisposable
                     await InitialRecordHandled.InvokeAsync(recordRequest);
             }
         }
+        await RefreshTagRevisionAsync();
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -146,7 +148,7 @@ public partial class RecordsPanel : IAsyncDisposable
                 _card = data?.Rows.FirstOrDefault(r => r.Id == _card.Id);
                 if (_card is null) { _dialog = null; _notice = "這筆紀錄已不在目前資料表中。"; }
             }
-            if (_dialog is not null && _dialog != "card" && data?.Revision != _editRevision)
+            if (_dialog is not null and not "card" and not "tags" && data?.Revision != _editRevision)
                 _dialogWarning = "資料已有更新；表格已刷新，但這份輸入與原始版本保持不變。保存時會檢查衝突。";
             ClampPage();
             _recordsAppliedLoadEpoch = epoch;
@@ -241,6 +243,7 @@ public partial class RecordsPanel : IAsyncDisposable
 
     private void StartDialog(string kind)
     {
+        CancelTagQuery();
         _recordNavigationGeneration++;
         _dialog = kind; _dialogWorkspace = WorkspaceKey; _editRevision = _data?.Revision ?? Math.Max(Revision, Backend.Workspace?.Revision ?? 0);
         _error = null; _dialogWarning = null; _confirmDiscard = false; _needsConfirmation = false; _conflict = false; _unknownOutcome = false; _pending = null;
@@ -255,6 +258,7 @@ public partial class RecordsPanel : IAsyncDisposable
         if (_busy) return;
         if (_unknownOutcome) { _dialogWarning = "操作結果尚未確認，請先重試同一操作；輸入保持鎖定。"; return; }
         if (!discard && DialogChanged) { _confirmDiscard = true; return; }
+        CancelTagQuery();
         _dialog = null; _pending = null; _card = null; _confirmDiscard = false; _pendingLink = null;
     }
     private void ShowCreate()
@@ -495,6 +499,7 @@ public partial class RecordsPanel : IAsyncDisposable
     [JSInvokable] public Task CloseRecordsModal() => InvokeAsync(() => { CloseDialog(); StateHasChanged(); });
     public async ValueTask DisposeAsync()
     {
+        CancelTagQuery();
         _disposed = true; _loadEpoch++; _load?.Cancel(); _load?.Dispose();
         await DisposeRecordPerformanceAsync();
         if (_module is not null)

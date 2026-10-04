@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.9.0
+version: 1.10.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -9,7 +9,19 @@ status: implemented-parts-with-partial-native-evidence
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
 
-## 新欄位與剩餘功能缺口（revision 40）
+## 跨表 tag 與較新 durable draft 還原（14:37–14:54）
+
+跨表 tag 已補實作：Host 以 snapshot 的已接受 computed Tag 搜尋，無效／null／stale 不冒充有效結果，不再解析 Grasp 求值結果。每 record／field 一項、API limit 上限 100、UI 每頁 50，總數不靜默截斷；回傳穩定 record／field IDs、dirty 及不可用 collection 資訊。UI 入口「跨表標籤」，Enter 搜尋、可分頁、點結果沿 fresh record ID 開卡片。查詢與 workspace／SSE／關閉版本分開，保護 dirty editor。
+
+RecordsService tags 13 assertions 通過，涵蓋兩表、computed reference tag、中文／非標籤不匹配、分頁 ID、dirty、invalid／unavailable、bounds／取消；RecordsUi 16 fixtures 通過，涵蓋新 query 編碼／導航、舊回應、初次 SSE 及 dirty guard。原生從 Mentors 表搜尋「角色」，找到 Types Alpha，點開同卡片；其中 Wiki 隱 syntax／highlight 並跳到改名後來源，無新增內容副本。
+
+較新草稿案例：在來源處理驗收筆記把 definition 改為 Resolution.Deferred，舊 committed 仍是 Resolution.Pending；選保留後再加入「保留後新增第二版，必須一併恢復。」。切換再返回及手動備份可行。14:46:47 的 `generation-20261004T0646474421136Z-4cd7779bd8644039835dea0cdf3dda8f` 含 401 檔，UI 還原至 `workspaces/S4-Draft-Restored-1004-1447` 並開啟，較新兩版草稿、標題及舊定義分開可見。
+
+正常關閉後唯讀確認：原與還原 workspace 的 draft JSON 完全相同（同 note ID／session、revision 2、base 46、title／source／hash），accepted note revision 46 不變。報告 `workspaces/AcceptanceSupport/draft-1447-verification.json` 忽略於 Git。沒有重跑先前全檔 hash restore 驗證；本案補的是 durable draft 差異。
+
+初版 Keep 的背景時序誤報已修；最終 App 14:52:35 重驗第一次 Keep 即成功，正常關閉，程序數零。完整 Goal 仍未完成：其餘 carrier／views／missing／長文／IME／performance 以 EXECUTION-STATE 的下一步為準。
+
+## 新欄位與當時功能缺口（revision 40）
 
 新欄位原先傳入隨機非空 ID，被 Host 判定未知現有欄位而拒絕。改為 create 傳空 ID，由 Host 按 operation 派生；update 仍保留原 ID。RecordsUi 的實際 Save request fixture 覆蓋兩條路徑，合計 12 fixtures 通過。App 14:03:10 原生新增「新增欄位驗收」／Field1／Markdown 成功，型別 collection 由九欄成十欄，兩筆 null；重開設定正確。另一筆 workspace 通知到達時，表單保留輸入與原 revision，未誤寫。
 

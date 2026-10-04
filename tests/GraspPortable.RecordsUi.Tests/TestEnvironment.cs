@@ -13,12 +13,16 @@ namespace GraspPortable.App.Backend
         public long Revision = 11;
         public int Reads;
         public object? LastRequest;
+        public List<string> TagUrls { get; } = [];
+        public Func<string, CancellationToken, Task<RecordTagSearchDto>>? TagRead;
         public Func<Task<OperationResult>>? Command;
         public Func<CancellationToken, Task<CollectionDto>>? Read;
         public async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken = default)
         {
             object result;
-            if (url == "api/records") result = new[] { new CollectionSummaryDto("collection", "note", "Table", 1, 1, Revision, false, "accepted") };
+            if (url.StartsWith("api/records/tags?", StringComparison.Ordinal))
+            { TagUrls.Add(url); result = await TagRead!(url, cancellationToken); }
+            else if (url == "api/records") result = new[] { new CollectionSummaryDto("collection", "note", "Table", 1, 1, Revision, false, "accepted") };
             else { Reads++; result = Read is null ? Data(Revision) : await Read(cancellationToken); }
             return (T)result;
         }
@@ -55,6 +59,13 @@ namespace GraspPortable.App.Records
         public bool HasDialog => _dialog is not null;
         public bool UnknownOutcome => _unknownOutcome;
         public bool CommitQueued => _recordsPerformanceSpans.Values.Any(span => span.MinimumRevision is not null);
+        public Task OpenTagsForTest(bool discard = true) { if (discard) CloseDialog(true); return ShowTagsAsync(); }
+        public Task SearchTagsForTest(string text) { _tagSearch = text; return SubmitTagsAsync(); }
+        public Task NextTagsForTest() => PageTagsAsync(1);
+        public RecordTagSearchDto? TagsForTest => _tagResults;
+        public Task OpenTagForTest(RecordTagMatchDto item) => OpenTagResultAsync(item);
+        public void CloseTagsForTest() => CloseDialog();
+        public string? CardIdForTest => _dialog == "card" ? _card?.Id : null;
         public int MatchingRows(string text, string? filterOperator = null)
         {
             _search = filterOperator is null ? text : "";

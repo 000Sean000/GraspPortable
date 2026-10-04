@@ -88,6 +88,8 @@ ImpactDto Impact(Impact impact) => new(impact.Revision, impact.NoteIds, impact.D
 app.MapGet("/api/workspace", () => { var s = knowledge.Current; return new WorkspaceInfo(s.WorkspaceId, workspacePath, s.Revision, s.PolicyRevision, s.Languages, MigratedFrom: migratedFrom); });
 app.MapGet("/api/workspace/sources", () => coordinator.Status);
 app.MapGet("/api/records",()=>records.ListCollections());
+app.MapGet("/api/records/tags",(string? search,int? offset,int? limit,HttpContext context)=>
+    records.SearchTags(search,offset??0,limit??50,context.RequestAborted));
 app.MapPost("/api/record-import/preview",async(RecordImportPreviewRequest request,HttpContext context)=>
     await coordinator.MutateAsync(()=>Task.FromResult(recordImport.Preview(request)),context.RequestAborted));
 app.MapPost("/api/record-import/apply",async(RecordImportApplyRequest request,HttpContext context)=>

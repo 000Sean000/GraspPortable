@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using GraspPortable.Contracts;
+using GraspPortable.App.Authoring.Editing;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -13,6 +14,9 @@ public partial class Home
     private DotNetObjectReference<Home>? receiver;
     private readonly SemaphoreSlim writes = new(1,1);
     private readonly SemaphoreSlim patches = new(1,1);
+    private readonly DraftDepartureGuard _draftDeparture = new();
+    private PendingNoteCommit? _pendingNoteCommit;
+    private sealed record PendingNoteCommit(string NoteId, CommitNoteRequest Request, string Source, long ContentVersion, long Generation);
     private CancellationTokenSource? debounce, searchCancellation;
     private NoteSummary[] _notes = [];
     private NoteSummary[] _affectedDraftNotes = [];
@@ -99,6 +103,7 @@ public partial class Home
     }
     private async Task LoadWorkspaceAsync()
     {
+        _draftDeparture.EnterWorkspace(Backend.WorkspacePath);
         _recordsVisible=false;_recordsInitialCollectionId="";_recordsInitialRecordId="";
         _contextGeneration++;
         searchCancellation?.Cancel();
@@ -163,10 +168,11 @@ public partial class Home
         var note=await Backend.GetAsync<NoteDto>("api/notes/"+id);
         _notice=null; _commitNotice=null;
         _note=note; _title=note.Draft?.Title??note.Title; _source=note.Draft?.Source??note.Source;
-        _savedSource=_source; _savedTitle=_title; _noteRevision=note.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,note.KnowledgeRevision);
+        _savedSource=_source; _savedTitle=_title; _noteRevision=note.Draft?.BaseNoteRevision??note.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,note.KnowledgeRevision);
         _sessionId=note.Draft?.SessionId??Guid.NewGuid().ToString("N"); _draftRevision=note.Draft?.Revision??0;
-        _baseSourceHash=note.Draft?.BaseSourceHash??note.SourceHash;
+        _baseSourceHash=note.Draft is null?note.SourceHash:note.Draft.BaseSourceHash;
         _hasDraft=note.Draft is not null; _forceDraftSave=false;
+        if(_hasDraft) _draftDeparture.Acknowledge(CurrentDraftSnapshot()); else _draftDeparture.ForgetAcknowledgement(note.Id);
         _editorRevision=0; _contentVersion=0; _diagnostics=note.Diagnostics; _selectedDefinition=null; _references=[];
         _saveStatus=note.Draft is null ? SavedStatus(note) : "草稿已恢復 · 尚未套用";
         await editor!.InvokeVoidAsync("setDocument",note.Id,_source,0,_source==note.Source?note.References:[],_mode=="live",_source==note.Source?note.Regions:[]);
@@ -187,7 +193,7 @@ public partial class Home
     [JSInvokable] public Task OnEditorDeliveryFailed(string message) => InvokeAsync(()=>{_error="編輯同步暫時失敗，內容仍保留在編輯器："+message;StateHasChanged();});
     [JSInvokable] public Task OnEditorBlurred() => SaveButtonAsync();
     [JSInvokable] public Task OnCompositionEnded() => SaveButtonAsync();
-    [JSInvokable] public Task OnSaveRequested() => SaveButtonAsync();
+    [JSInvokable] public Task OnSaveRequested() => SaveButtonAsync(true);
     [JSInvokable] public Task OnReferenceClicked(string name) => InvokeAsync(()=>NavigateToDefinitionAsync(name));
     [JSInvokable] public async Task OnExternalLink(string url)
     {
@@ -214,37 +220,56 @@ public partial class Home
         _editorRevision=Math.Max(_editorRevision,snapshot.Revision);
         return !snapshot.Composing;
     }
-    private async Task SaveButtonAsync() => await GuardAsync(async ()=>{await SaveCurrentAsync();});
+    private Task SaveButtonAsync() => SaveButtonAsync(false);
+    private async Task SaveButtonAsync(bool explicitSubmit) => await GuardAsync(async ()=>{await SaveCurrentAsync(explicitSubmit);});
     private async Task ResubmitSourceAsync() => await ModalActionAsync(async () =>
     {
         if(_note is null || _note.SourceStatus=="accepted")return;
         // Explicit user action only. Blur/debounce must not repeatedly submit
         // unchanged, unaccepted source or reopen its confirmation dialog.
         _forceDraftSave=true;
-        await SaveCurrentAsync();
+        await SaveCurrentAsync(true);
     });
-    private async Task<bool> SaveCurrentAsync()
+    private DurableDraftSnapshot CurrentDraftSnapshot() => new(_note!.Id,_sessionId,_draftRevision,_noteRevision,_baseSourceHash,_title,_source);
+    private const string UnresolvedNoteWriteMessage="先查核尚未確認的提交結果，不能以較舊的草稿判定目前內容已安全保存。";
+    private async Task<bool> SaveCurrentAsync(bool explicitSubmit=false)
     {
-        if(_note is null || editor is null) return true;
         debounce?.Cancel();
-        await writes.WaitAsync(); _saving=true;
+        var previousWriteResolved=await _draftDeparture.AcquireWriterAsync(writes); _saving=true;
         try
         {
+            if(!previousWriteResolved)
+            { _error=UnresolvedNoteWriteMessage; return false; }
+            if(_error==UnresolvedNoteWriteMessage)_error=null;
+            if(_note is null || editor is null) return true;
             if(!await CaptureEditorAsync()) { _saveStatus="輸入法組字中 · 完成後保存"; return false; }
+            if(explicitSubmit) _draftDeparture.RequestSubmission(_note.Id,_sessionId);
             var id=_note.Id; var version=_contentVersion; var source=_source; var title=_title;
             if(!_forceDraftSave && source==_note.Source && title==_note.Title && !_hasDraft) return true;
-            if(_forceDraftSave || source!=_savedSource || title!=_savedTitle || _draftRevision==0)
+            if(_forceDraftSave || source!=_savedSource || title!=_savedTitle || _draftRevision==0 || !_draftDeparture.MatchesAcknowledgement(CurrentDraftSnapshot()))
             {
                 _draftRevision++;
+                var submittedDraft=CurrentDraftSnapshot();
                 var saved=await Backend.SendAsync<OperationResult>(HttpMethod.Put,"api/notes/"+id+"/draft",new SaveDraftRequest(_sessionId,_draftRevision,_noteRevision,title,source,_baseSourceHash));
                 if(saved.Status is "conflict" or "rejected") { await ShowConflictAsync(saved.Message); return false; }
+                if(saved.Status!="draft") { _error="尚未取得草稿保存確認，保留目前畫面。"; return false; }
+                _draftDeparture.Acknowledge(submittedDraft);
                 _savedSource=source; _savedTitle=title; _forceDraftSave=false; _hasDraft=true;
+            }
+            if(_draftDeparture.IsDeferred(id,_sessionId))
+            {
+                var complete=await CaptureEditorAsync();
+                var durable=complete && _draftDeparture.CanLeave(CurrentDraftSnapshot(),false);
+                _saveStatus=durable?"草稿已保存 · 名稱變更尚未提交":"新的編輯尚未保存";
+                if(!durable && complete)ScheduleSave();
+                return durable;
             }
             _saveStatus="草稿已保存 · 計算中"; StateHasChanged();
             await Backend.RefreshWorkspaceAsync(); _knowledgeRevision=Backend.Workspace!.Revision;
             var command=new CommitNoteRequest(Guid.NewGuid().ToString("N"),_sessionId,_draftRevision,_noteRevision,_knowledgeRevision);
             var measure=await BeginPerformanceAsync("commitRequestToRenderedNote");
-            var result=await Backend.CommandAsync("api/notes/"+id+"/commit",command,command.OperationId);
+            var pending=new PendingNoteCommit(id,command,source,version,_contextGeneration);
+            var result=await SendNoteCommitAsync(pending);
             if(result.Status=="confirmation-required")
             {
                 _confirmationNoteId=id; _confirmationSource=source; _confirmationVersion=version; _confirmationGeneration=_contextGeneration;
@@ -252,7 +277,8 @@ public partial class Home
             }
             var accepted=await HandleCommitAsync(result,id,source,version);
             await EndPerformanceAsync(measure,accepted&&result.Status=="committed");
-            return accepted;
+            if(!accepted || !await CaptureEditorAsync())return false;
+            return _hasDraft ? _draftDeparture.CanLeave(CurrentDraftSnapshot(),false) : !IsDirty;
         }
         finally { _saving=false; writes.Release(); StateHasChanged(); }
     }
@@ -290,6 +316,7 @@ public partial class Home
         var previousRevision=_noteRevision;
         _note=fresh; _noteRevision=fresh.Revision; _knowledgeRevision=Math.Max(_knowledgeRevision,fresh.KnowledgeRevision); _diagnostics=fresh.Diagnostics;
         _hasDraft=fresh.Draft is not null;
+        if(!_hasDraft)_draftDeparture.ForgetAcknowledgement(fresh.Id);
         if(_contentVersion==expectedVersion && _source==expectedSource)
         {
             var applied=await editor!.InvokeAsync<bool>("applyCommitted",expectedSource,fresh.Source,fresh.References,fresh.Regions);
@@ -319,7 +346,7 @@ public partial class Home
         _baseSourceHash=_conflictNote.SourceHash;
         _title=_mergeTitle; _source=_mergeSource; _contentVersion++; _editorRevision=0; _forceDraftSave=true;
         await editor!.InvokeVoidAsync("setDocument",_note.Id,_source,0,Array.Empty<ReferenceDto>(),_mode=="live");
-        _dialog=null; await SaveCurrentAsync();
+        _dialog=null; await SaveCurrentAsync(true);
     });
     private async Task ConfirmRenameAsync() => await ModalActionAsync(async () =>
     {
@@ -329,9 +356,50 @@ public partial class Home
         {
             var command=_confirmationRequest with {ConfirmRename=true};
             var id=_confirmationNoteId; var source=_confirmationSource; var version=_confirmationVersion; var generation=_confirmationGeneration;
-            var result=await Backend.CommandAsync("api/notes/"+id+"/commit",command,command.OperationId);
+            var result=await SendNoteCommitAsync(new(id,command,source,version,generation));
             _dialog=null;
             if(generation==_contextGeneration) await HandleCommitAsync(result,id,source,version);
+        }
+        finally {writes.Release();}
+    });
+    private async Task KeepRenameDraftAsync() => await ModalActionAsync(async () =>
+    {
+        if(_note?.Id!=_confirmationNoteId || _confirmationRequest?.SessionId!=_sessionId)return;
+        _draftDeparture.Defer(_note.Id,_sessionId);
+        // Input may have advanced since the confirmation response. Persist and
+        // acknowledge that latest snapshot before dismissing the dialog.
+        if(await SaveCurrentAsync()) { _dialog=null; _confirmationRequest=null; _confirmationResult=null; }
+    });
+    private async Task<OperationResult> SendNoteCommitAsync(PendingNoteCommit pending)
+    {
+        _draftDeparture.BeginOperation(pending.Request.OperationId);
+        _pendingNoteCommit=pending;
+        // Backend already tries the receipt when the response is lost. If it
+        // still throws, retain the exact command; never issue a fresh ID.
+        try
+        {
+            var result=await Backend.CommandAsync("api/notes/"+pending.NoteId+"/commit",pending.Request,pending.Request.OperationId);
+            if(_draftDeparture.CompleteOperation(result.OperationId,result.Status)) _pendingNoteCommit=null;
+            return result;
+        }
+        finally { _draftDeparture.EndOperationAttempt(); }
+    }
+    private async Task RetryPendingNoteCommitAsync() => await ModalActionAsync(async () =>
+    {
+        await writes.WaitAsync();
+        try
+        {
+            if(_pendingNoteCommit is not { } pending)return;
+            var result=await SendNoteCommitAsync(pending);
+            _error=null;
+            if(_note?.Id!=pending.NoteId || _contextGeneration!=pending.Generation)return;
+            if(result.Status=="confirmation-required")
+            {
+                _confirmationNoteId=pending.NoteId; _confirmationSource=pending.Source; _confirmationVersion=pending.ContentVersion;
+                _confirmationGeneration=pending.Generation; _confirmationRequest=pending.Request; _confirmationResult=result;
+                _dialog="rename"; _saveStatus="草稿已保存 · 等待名稱變更確認";
+            }
+            else await HandleCommitAsync(result,pending.NoteId,pending.Source,pending.ContentVersion);
         }
         finally {writes.Release();}
     });
