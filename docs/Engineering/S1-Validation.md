@@ -1,13 +1,23 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.5.0
-updated: 2026-10-04
+version: 1.6.0
+updated: 2026-10-05
 status: native-gui-partially-verified
 ---
 
 ## 判定
 
-Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；IME／dirty 競態、DPI 及量化端到端仍未完整驗收。使用者接受另記。
+Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；微軟注音組字遇外部修改已有下節有限原生證據；DPI、其他快速切換時序及量化端到端仍未完整驗收。使用者接受另記。
+
+## 2026-10-05 微軟注音組字遇外部修改
+
+使用者確認微軟注音、Shift 切換中／英文。Root 於已發行 409821e 版本的原生 Windows App，在主驗收 workspace 新增一篇合成 `IME-Composition-1005.md`；沒有取用更多私人資料。
+
+Live Preview 的輸入區以實體 s 鍵產生帶底線的「ㄋ」，狀態列明示組字中。此時背景定點修改該 Markdown 的 literal 及新增外部段落，watcher 接受至 revision 79；畫面顯示新提交提示，但仍保留組字及本地原文。繼續 u／3 形成帶底線「你」，Return 結束組字後出現衝突視窗：左側外部最新版、右側含「你」的本地原文，沒有自動合併或覆蓋。
+
+選保留草稿並正常關閉後，以新版 diagnostics 發行重新開啟，實際畫面恢復「你」及原 literal；definition panel 同時保留最新已接受的外部值。離開時仍需保留衝突，沒有把草稿冒充已提交。再次正常關閉後，唯讀核對新草稿 revision 1／base 78、筆記 revision 79，所有三份 durable draft JSON 的 SHA-256 與重開前完全相同，實體 Markdown 的外部修改也保留。App／Host 程序零，前台釋放。
+
+私人證據：`workspaces/AcceptanceSupport/ime-composition-1005-verification.json` 及 `ime-composition-1005-reopen-verification.json`。本案驗證真實組字跨外部更新、衝突及重開恢復；不擴張為所有 IME、縮放或快速切換時序通過。
 
 ## 2026-10-04 衝突草稿暫存與正常退出
 
@@ -102,7 +112,7 @@ ValueEngine 依變更的 ordered parts／名稱及反向相依找出受影響閉
 
 ## 尚待驗證
 
-- 真實 Windows UI：IME／dirty patch 競態、快速編輯／切換完整時序、allowlist 設定操作、125%／150% 縮放、視窗縮窄及長時間操作。基本注音組字／提交／取消與 Reading 多段空行已驗，不擴稱所有輸入法及組字時序通過。
+- 真實 Windows UI：快速編輯／切換其他時序、125%／150% 縮放、視窗縮窄及長時間操作。基本注音、組字遇外部修改／衝突重開、allowlist 操作與 Reading 多段空行已有上方有限證據，不擴稱所有輸入法及組字時序通過。
 - 端到端 input-visible／commit-visible、捲動及 warm／cold note 切換門檻。
 - 使用者按 [First UI 操作說明](FirstUI-Quickstart.md) 體驗並接受結果。
 - 清潔電腦 Portable、正式日用資料、完整 Markdown 複雜宿主與跨裝置均屬後期，沒有宣稱本輪通過。

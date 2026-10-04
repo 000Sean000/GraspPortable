@@ -23,6 +23,27 @@ test('opt-in probe only accepts a current foreground paint and preserves full ag
     const guard={rootId:'note',attribute:'data-token',token:'1'};
     const count=kind=>JSON.parse(probe.report()).summary[kind]?.count??0;
     probe.start();
+    const query='recordsQueryToPaintOpportunity',phaseKinds=['recordsQueryListHttp','recordsQueryCollectionHttp','recordsQueryApplyToChildrenReady'];
+    const phases={listHttpMs:11,collectionHttpMs:22,applyToChildrenReadyMs:33};
+    probe.end(probe.begin(query),true,guard,phases);
+    frame();assert.ok(phaseKinds.every(kind=>count(kind)===0));
+    frame();assert.ok(phaseKinds.every(kind=>count(kind)===1));
+    const successful=JSON.parse(probe.report());
+    phaseKinds.forEach((kind,index)=>assert.deepEqual(successful.samples[kind],[11*(index+1)]));
+    const phaseCounts=()=>phaseKinds.map(count);
+    probe.end(probe.begin(query),false,guard,phases);frame();frame();assert.deepEqual(phaseCounts(),[1,1,1]);
+    probe.end(probe.begin(query),true,guard,phases);frame();root.token='2';frame();root.token='1';assert.deepEqual(phaseCounts(),[1,1,1]);
+    probe.end(probe.begin(query),true,guard,phases);frame();focus=false;frame();focus=true;assert.deepEqual(phaseCounts(),[1,1,1]);
+    const obsolete=probe.begin(query);listeners.get('compositionstart')({type:'compositionstart',target:new Element()});
+    probe.end(obsolete,true,guard,phases);frame();frame();assert.deepEqual(phaseCounts(),[1,1,1]);
+    for(const invalid of [NaN,Infinity,-1,'12',null,undefined]){
+      probe.end(probe.begin(query),true,guard,{...phases,collectionHttpMs:invalid});frame();frame();
+      assert.deepEqual(phaseCounts(),[1,1,1]);
+    }
+    probe.end(probe.begin('other-span'),true,guard,phases);frame();frame();assert.deepEqual(phaseCounts(),[1,1,1]);
+    probe.end(probe.begin(query),true,null,phases);frame();frame();assert.deepEqual(phaseCounts(),[1,1,1]);
+    // Valid end-to-end samples survive malformed diagnostics; no phase changes its gate.
+    assert.equal(count(query),8);
     probe.end(probe.begin('rendered'),true,guard);frame();frame();assert.equal(count('rendered'),1);
     probe.end(probe.begin('rejected'),false,guard);frame();frame();assert.equal(count('rejected'),0);
     probe.end(probe.begin('changed-token'),true,guard);frame();root.token='2';frame();assert.equal(count('changed-token'),0);root.token='1';

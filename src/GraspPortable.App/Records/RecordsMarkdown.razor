@@ -20,8 +20,6 @@
     [Parameter] public long Revision { get; set; }
     [Parameter] public EventCallback<RecordsContentNavigation> OnNavigate { get; set; }
     private ElementReference _element;
-    private IJSObjectReference? _module;
-    private Task<IJSObjectReference>? _moduleLoad;
     private RecordsModuleOwner.Lease? _moduleLease;
     private DotNetObjectReference<RecordsMarkdown>? _receiver;
     private (string, string, string, long, string)? _requested;
@@ -29,6 +27,7 @@
     private readonly bool _measureRecords = Environment.GetEnvironmentVariable("GRASP_MEASURE_UI") == "1";
     private long _generation;
     private bool _disposed;
+    private Task? _disposal;
     private string? _message;
     protected override void OnInitialized() => _moduleLease = ModuleOwner.Acquire();
     protected override void OnParametersSet()
@@ -43,11 +42,9 @@
     {
         if (_disposed || !_needsRender) return;
         var generation = _generation; _needsRender = false;
-        _moduleLoad ??= _moduleLease!.GetAsync();
-        _module ??= await _moduleLoad;
         if (_disposed || generation != _generation) return;
         _receiver ??= DotNetObjectReference.Create(this);
-        await _module.InvokeVoidAsync("renderMarkdown", _element, Markdown, OriginNoteId, _receiver, generation, References ?? [], Regions ?? []);
+        await _moduleLease!.RenderAsync(_element, Markdown, OriginNoteId, _receiver, generation, References ?? [], Regions ?? []);
     }
     private bool IsOriginAllowed(string origin) => origin == OriginNoteId || References?.Any(reference => reference.OriginNoteId == origin) == true;
     [JSInvokable]
@@ -92,18 +89,15 @@
         if (_disposed || generation != _generation || References?.Any(reference => reference.Name == name) != true) return Task.CompletedTask;
         return OnNavigate.InvokeAsync(new(DefinitionName: name));
     }
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => new(_disposal ??= DisposeCellAsync());
+    private async Task DisposeCellAsync()
     {
         _disposed = true; _generation++;
         try
         {
-            // Await this cell's in-flight import before releasing its lease. The shared
-            // module remains alive until every child has cleaned its own element.
-            if (_moduleLoad is not null)
-            {
-                var module = await _moduleLoad;
-                await module.InvokeVoidAsync("disposeMarkdown", _element);
-            }
+            // Cleanup supersedes pending renders and follows any already-sent batch.
+            // The receiver and shared module remain alive until its response arrives.
+            if (_receiver is not null) await _moduleLease!.DisposeMarkdownAsync(_element);
         }
         catch (JSException) { }
         finally

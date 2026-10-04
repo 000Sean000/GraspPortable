@@ -39,14 +39,25 @@ export function start(){
   frame=requestAnimationFrame(tick);
 }
 export function begin(kind){if(!active)return 0;const id=++sequence;pending.set(id,{kind,at:performance.now(),activity,foreground:foreground()});return id;}
-export function end(id,accepted=true,guard=null){
+export function end(id,accepted=true,guard=null,queryPhases=null){
   const span=pending.get(id);pending.delete(id);if(!span||!active||!accepted)return;
   const epoch=started,root=guard?document.getElementById(guard.rootId):null;
   const valid=()=>active&&epoch===started&&span.foreground&&foreground()&&span.activity===activity
     &&(!guard||root&&root===document.getElementById(guard.rootId)&&root.isConnected
       &&root.getAttribute(guard.attribute)===guard.token&&root.getClientRects().length>0
       &&getComputedStyle(root).visibility==='visible');
-  afterPaint(()=>add(span.kind,performance.now()-span.at),valid);
+  // Snapshot numeric diagnostics before the async frames; never accept content or IDs.
+  const phases=span.kind==='recordsQueryToPaintOpportunity'&&guard&&queryPhases
+    ? [queryPhases.listHttpMs,queryPhases.collectionHttpMs,queryPhases.applyToChildrenReadyMs] : null;
+  const validPhases=phases?.every(value=>typeof value==='number'&&Number.isFinite(value)&&value>=0);
+  afterPaint(()=>{
+    add(span.kind,performance.now()-span.at);
+    if(validPhases){
+      add('recordsQueryListHttp',phases[0]);
+      add('recordsQueryCollectionHttp',phases[1]);
+      add('recordsQueryApplyToChildrenReady',phases[2]);
+    }
+  },valid);
 }
 function stop(){
   if(active)finished=performance.now();active=false;cancelAnimationFrame(frame);observer?.disconnect();observer=undefined;
@@ -62,5 +73,5 @@ export function report(finish=false){
       p95Population:totals[kind].count===ordered.length?'all':'retained-prefix'};
   }
   return JSON.stringify({format:1,elapsedMs:(finished||performance.now())-started,skipped,
-    measurement:'Two rAF callbacks bound a paint opportunity, not a display-photon timestamp. Successful spans retain foreground, input generation and optional DOM token through both callbacks. Frame samples exclude the initial five seconds. Count/max/atLeast200ms include all observations; p95 uses retained samples; skipped counts omitted raw samples. Long frames require attribution.',summary,samples});
+    measurement:'Two rAF callbacks bound a paint opportunity, not a display-photon timestamp. Successful spans retain foreground, input generation and optional DOM token through both callbacks. Records query HTTP diagnostics include response deserialization; apply-to-children-ready excludes the final two rAF callbacks and lazy images. These internal phases are diagnostic, not end-to-end acceptance gates. Frame samples exclude the initial five seconds. Count/max/atLeast200ms include all observations; p95 uses retained samples; skipped counts omitted raw samples. Long frames require attribution.',summary,samples});
 }

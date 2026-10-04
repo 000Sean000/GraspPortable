@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.2.0
+version: 1.3.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -29,3 +29,14 @@ Context：原 worker 的同子系統 affinity 高；Root 保留 Razor整合、pu
 核對：中；先唯讀取得每cell import／dispose與in-flight洩漏finding，固定lease接面後分工，Root檢查釋放順序、diff與原生導航。
 返工／人工：本段無額外使用者決策；26 fixtures／publish通過。原生暖機仍有超標，不推論模型成敗或費用優勢。
 結果：部分；資源所有權修正和有限GUI重驗通過，效能門檻未全數通過。證據見 Engineering/S3-S4-Validation.md 本日共用module段；下一步由產品工作狀態管理。
+
+## 2026-10-05 Query 分段與原生 IME 並行
+
+任務／政策：同一 Records worker 增加有界 query 分段診斷，Root 同時完成原生注音外部競態及重開；policy rc.2，基底 409821e。
+配置：child 延續先前要求 Sol Medium；Root／child 實際模型及 effort 權威 metadata 仍未知。
+Context：原 worker 對 probe／Records ownership 的 affinity 高，增量交接低；Root 保有既有 GUI／衝突基底，不另轉交前台。
+核對：中；Root 審查成功 guards／測試差異，完成 publish 及原生分段量測。診斷不改門檻、不記原文或 ID。
+返工／人工：使用者提供一次微軟注音及 Shift 設定，完成真實組字案例；本段沒有新增產品決策或路由實驗。
+結果：診斷與有界 IME 證據完成，整體產品仍部分；UI 29 fixtures、probe test、publish 通過，原生資料指向 render／interop 成本。沿同 worker 續作批次渲染；詳細產品證據及進度由 Engineering／EXECUTION-STATE 承載。
+
+同事件續作：沿原 worker 完成 batch render／cleanup；Root 審查指出 C# params 陣列展開風險，worker 修正並加單一 array IPC fixture。33 UI fixtures、2 JS tests、publish 通過；Root 原生重驗卡片導航、草稿保全及同序比較，暖機仍有超標。這是正常整合與產品驗證，不新增跨模型效果結論。

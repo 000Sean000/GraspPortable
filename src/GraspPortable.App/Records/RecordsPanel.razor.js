@@ -18,6 +18,20 @@ export function disposeMarkdown(element) {
     if (state) { state.active = false; state.controller.abort(); state.pending.clear(); state.cache.clear(); }
     rendered.delete(element);
 }
+export function applyMarkdownBatch(commands) {
+    // Fail one cell independently; its existing paint-failed token remains authoritative.
+    return commands.map(command => {
+        try {
+            if (command.operation === "dispose") disposeMarkdown(command.element);
+            else if (command.operation === "render") {
+                if (command.element?.isConnected)
+                    renderMarkdown(command.element, command.markdown, command.origin, command.receiver,
+                        command.generation, command.references, command.regions);
+            } else return false;
+            return true;
+        } catch { return false; }
+    });
+}
 export function renderMarkdown(element, markdown, origin, receiver, generation, references = [], regions = []) {
     const token = String(generation);
     if (element.dataset.recordsRenderExpected !== token) return;

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.18.0
+version: 1.19.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,33 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## Records 分段定位（2026-10-05）
+
+在 409821e 上增加 opt-in query 分段：清單 HTTP（含反序列化）、collection HTTP（含反序列化）、套用至 children ready。只附在既有成功 end IPC，沿用 workspace／epoch／DOM token／前景／輸入世代／兩次 rAF 的有效性條件；失敗、被取代或無效數字不產生分段樣本。端到端門檻、頁數、連結和 lazy image 規則不改；分段本身不是 paint 或完整效能證據。
+
+Records UI 29 fixtures（其中 performance guard 13）、probe 1 test、四 Project 架構及 App／Host publish 通過。原生主 workspace revision 79 的相同五次 collection switch：256.5、119.6、227.3、102.0、232.1 ms，私人報告 `ui-20261004-215324.json`。Aura 暖機仍超過 200 ms。
+
+| 暖機案例 | 清單 HTTP | Collection HTTP | 套用至 children ready | Collection switch 端到端 |
+| --- | ---: | ---: | ---: | ---: |
+| Aura 第一次 | 10.5 ms | 13.3 ms | 149.8 ms | 227.3 ms |
+| Aura 第二次 | 9.4 ms | 12.5 ms | 160.5 ms | 232.1 ms |
+| Mentors 第一次 | 12.5 ms | 9.9 ms | 77.4 ms | 119.6 ms |
+| Mentors 第二次 | 9.4 ms | 9.8 ms | 74.2 ms | 102.0 ms |
+
+分段不加總假稱完整端到端；尚有事件開始、跨界及 paint opportunity 等間隔。此有限資料指出主要剩餘成本在 render／interop，下一步針對批次 cell render 評估最小修改，不繼續擴大後端優化或重複首次分類。原生表格維持 81／15 筆和 Wiki 高亮，正常關閉後程序零；三份 durable drafts 重開後 hash 不變。IME 外部競態的新增證據另見 S1 Validation，其他 S4 缺口仍保留。
+
+## Records 批次 render／cleanup（2026-10-05）
+
+接續上述分段定位，panel owner 的單一 pump 聚合同一 render turn 的工作；每 lease 只保存最新未送出的 command。已送出 render 先完成，再送 cleanup，最後才釋放 receiver／module；重複 dispose 共用 task。JS batch 逐項沿用原 renderer，單 cell 失敗不阻止其他 cell；generation、metadata、來源導航、lazy image 及 children-ready 判定不變。沒有跨版本 cache，也沒有縮小 50 筆頁數。
+
+Records UI 33 fixtures 通過，其中新增 4 個 batching／lifetime 案例；受控 context 的 250 render 與 250 cleanup 各合為一個 array IPC。這只證明受控情境，不假稱原生每次恰好一個 batch。兩項 JS 測試通過：probe 與真 headless renderer，涵蓋失敗隔離、stale／disconnected、不重啟舊 callback、導航 origin／generation、late image 與釋放。Root 審查時指出 params array 展開風險，已改明確單一 array argument 並以 fixture 保護。架構及 App／Host publish 通過。
+
+原生同主 workspace revision 79、同集合序列報告 `ui-20261004-221006.json`：前五次 collection switch 為 254.0、94.0、211.4、122.8、229.4 ms；第六次 94.4 ms 是合成型別表。Aura 暖機仍 **未達 200 ms**，其 apply-to-children 為 129.6／139.6 ms；HTTP 合計 20.5／30.5 ms。相較前段改善有限，樣本不足以作完整 p95 或隔離所有因果；本次沿舊衝突草稿進表，多一列來源提示，viewport 高度也有差異。
+
+Alpha 卡片兩張圖片、Wiki、兩式 Grasp 多段粗體與空行仍可閱讀；點第一式第二段後開啟來源並選中第 10 行 LiveLinks.Message。一次瞬間截圖曾見新表格文字尚未填入，隨後完整呈現；成功探針等待所有 child ready，不把空白框算完成。正常關閉後 App／Host 程序零，三份 durable drafts hash 不變。
+
+全局檢視：batch 減少 crossing 但不是剩餘成本的全部。下一段先針對 JS Markdown／compact link 可见性排版的 read/write 路徑定位；不能僅靠猜測再加 scheduler。縮放焦點與足量代表操作仍待驗，不為多做切換重複擴張本輪數據。
 
 ## 共用 Records JS module（2026-10-05）
 
@@ -284,9 +311,9 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
-下一步處理主驗收資料重解析，再補 IME／dirty 競態、代表性縮放／凍結區鍵盤焦點、Anria 長文與足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
+主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。下一步完成 Records 渲染改善，再補代表性縮放／凍結區鍵盤焦點與足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
 
-指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文仍待定點取樣。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
+指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文已定點取樣，轉換、圖片與返回原卡的有限原生結果見上方 revision 61–62 紀錄。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 
 主代理補驗時記錄發行 checkpoint／未提交來源、實際 workspace、資料規模、操作及通過／失敗／未驗項、探針路徑與結果、DPI／IME 模式、前台釋放狀態。尚無證據的欄位保持待驗。
 

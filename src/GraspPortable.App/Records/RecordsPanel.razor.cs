@@ -138,10 +138,15 @@ public partial class RecordsPanel : IAsyncDisposable
         try
         {
             performance = await BeginRecordPerformanceAsync("recordsQueryToPaintOpportunity");
+            var queryClock = performance == 0 ? null : System.Diagnostics.Stopwatch.StartNew();
             var list = await Backend.GetAsync<CollectionSummaryDto[]>("api/records", token);
+            var listHttpMs = queryClock?.Elapsed.TotalMilliseconds ?? 0;
             var id = list.Any(c => c.Id == _selected) ? _selected : list.FirstOrDefault()?.Id ?? "";
+            queryClock?.Restart();
             var data = id.Length == 0 ? null : await Backend.GetAsync<CollectionDto>("api/records/" + id, token);
+            var collectionHttpMs = queryClock?.Elapsed.TotalMilliseconds ?? 0;
             if (epoch != _loadEpoch || token.IsCancellationRequested || _disposed || workspace != WorkspaceKey) return;
+            var appliedAt = performance == 0 ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
             var previousId = _data?.Id; _collections = list; _selected = id; _data = data;
             if (data is not null && (_view is null || previousId != data.Id))
             { _view = data.Views.FirstOrDefault() ?? DefaultView(data); _search = _view.Search; _page = 0; }
@@ -155,7 +160,8 @@ public partial class RecordsPanel : IAsyncDisposable
                 _dialogWarning = "資料已有更新；表格已刷新，但這份輸入與原始版本保持不變。保存時會檢查衝突。";
             ClampPage();
             _recordsAppliedLoadEpoch = epoch;
-            QueueRecordPerformance(performance, epoch); performanceQueued = true;
+            QueueRecordPerformance(performance, epoch, queryTiming: performance != 0 && data is not null
+                ? new(listHttpMs, collectionHttpMs, appliedAt) : null); performanceQueued = true;
             await ReportSelectedCollectionAsync(id);
         }
         catch (OperationCanceledException) { }

@@ -73,6 +73,13 @@ namespace GraspPortable.App.Records
         public async Task Notify(long revision, string? workspace = null)
         { Revision = revision; if (workspace is not null) WorkspaceKey = workspace; await OnParametersSetAsync(); }
         public Task ExplicitRefresh() => RefreshAsync();
+        public async Task FinishQueryForTest(bool childrenReady = true)
+        {
+            var js = (FakeJs)JS; js.ChildrenReady = childrenReady; _module = js;
+            await FinishRenderedRecordPerformanceAsync(++_recordsRenderSequence);
+        }
+        public void InvalidateQueryPaintForTest() => _search = "different-render-state";
+        public object?[][] EndCallsForTest => ((FakeJs)JS).Ends.ToArray();
         public long Applied => _data?.Revision ?? -1;
         public long Epoch => _loadEpoch;
         public string Raw => _raw;
@@ -113,11 +120,14 @@ namespace GraspPortable.App.Records
     {
         private int next;
         public object?[]? LastEnd;
+        public List<object?[]> Ends { get; } = [];
+        public bool ChildrenReady = true;
         public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => InvokeAsync<T>(identifier, default, args);
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
-            if (identifier == "end") LastEnd = args;
-            object? result = identifier == "import" ? this : identifier == "begin" ? ++next : default(T);
+            if (identifier == "end") { LastEnd = args; Ends.Add(args!); }
+            object? result = identifier == "import" ? this : identifier == "begin" ? ++next
+                : identifier == "waitForRecordsPaint" ? ChildrenReady : default(T);
             return ValueTask.FromResult((T)result!);
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -140,9 +150,27 @@ namespace GraspPortable.App.Records
     internal sealed class CountingRecordsModule : IJSObjectReference
     {
         public int Disposals { get; private set; }
-        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => ValueTask.FromResult(default(T)!);
+        public List<System.Text.Json.JsonElement[]> Batches { get; } = [];
+        public Func<int, Task<bool[]>>? BatchReply;
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args)
+        {
+            if (identifier != "applyMarkdownBatch") return ValueTask.FromResult(default(T)!);
+            if (args is not [{ } commands] || commands is not Array)
+                throw new InvalidOperationException("Batch interop must receive exactly one commands array argument");
+            var payload = System.Text.Json.JsonSerializer.SerializeToElement(commands,
+                new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+            var batch = payload.EnumerateArray().ToArray(); Batches.Add(batch);
+            return new(Reply<T>(batch.Length));
+        }
+        private async Task<T> Reply<T>(int count) => (T)(object)await (BatchReply?.Invoke(count) ?? Task.FromResult(Enumerable.Repeat(true, count).ToArray()));
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<T>(identifier, args);
         public ValueTask DisposeAsync() { Disposals++; return ValueTask.CompletedTask; }
+    }
+    internal sealed class QueuedRecordsContext : SynchronizationContext
+    {
+        private readonly Queue<(SendOrPostCallback Callback, object? State)> work = new();
+        public override void Post(SendOrPostCallback callback, object? state) => work.Enqueue((callback, state));
+        public void Drain() { while (work.TryDequeue(out var item)) item.Callback(item.State); }
     }
 }
 namespace Microsoft.Maui.ApplicationModel

@@ -29,8 +29,9 @@ public partial class RecordsPanel
         }
     }
     private readonly Dictionary<int, RecordsPerformanceSpan> _recordsPerformanceSpans = [];
+    private sealed record RecordsQueryTiming(double ListHttpMs, double CollectionHttpMs, long AppliedAt);
     private sealed record RecordsPerformanceSpan(string Workspace, long RenderSequence = long.MaxValue, long? LoadEpoch = null,
-        long? MinimumRevision = null, string? PaintToken = null, bool WaitingForChildren = false);
+        long? MinimumRevision = null, string? PaintToken = null, bool WaitingForChildren = false, RecordsQueryTiming? QueryTiming = null);
 
     private async Task<int> BeginRecordPerformanceAsync(string kind)
     {
@@ -52,12 +53,12 @@ public partial class RecordsPanel
         }
         catch (Exception) { return 0; } // Optional instrumentation cannot change product behavior.
     }
-    private void QueueRecordPerformance(int id, long? loadEpoch = null, long? minimumRevision = null)
+    private void QueueRecordPerformance(int id, long? loadEpoch = null, long? minimumRevision = null, RecordsQueryTiming? queryTiming = null)
     {
         if (id == 0 || !_recordsPerformanceSpans.TryGetValue(id, out var span)) return;
         // A currently-awaiting OnAfterRender must not finish a span for a later state change.
         _recordsPerformanceSpans[id] = span with { RenderSequence = _recordsRenderSequence + 1, LoadEpoch = loadEpoch,
-            MinimumRevision = minimumRevision, PaintToken = RecordsPaintToken };
+            MinimumRevision = minimumRevision, PaintToken = RecordsPaintToken, QueryTiming = queryTiming };
     }
     private async Task EndRecordPerformanceAsync(int id, bool accepted)
     {
@@ -65,7 +66,11 @@ public partial class RecordsPanel
         _recordsPerformanceSpans.Remove(id, out var span);
         accepted = accepted && span?.PaintToken is not null;
         object? guard = accepted ? new { rootId = _recordsPaintRoot, attribute = "data-records-paint-token", token = span!.PaintToken } : null;
-        try { await _recordsPerformance.InvokeVoidAsync("end", id, accepted, guard); }
+        // Internal query diagnostics share the successful end IPC/guards; they are not paint gates.
+        object? phases = accepted && span?.QueryTiming is { } timing ? new {
+            listHttpMs = timing.ListHttpMs, collectionHttpMs = timing.CollectionHttpMs,
+            applyToChildrenReadyMs = System.Diagnostics.Stopwatch.GetElapsedTime(timing.AppliedAt).TotalMilliseconds } : null;
+        try { await _recordsPerformance.InvokeVoidAsync("end", id, accepted, guard, phases); }
         catch (Exception) { }
     }
     private async Task FinishRenderedRecordPerformanceAsync(long renderedSequence)

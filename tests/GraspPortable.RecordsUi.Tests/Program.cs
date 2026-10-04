@@ -9,6 +9,13 @@ var passed = 0;
 void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 async Task Run(string name, Func<Task> test) { await test().WaitAsync(TimeSpan.FromSeconds(5)); passed++; Console.WriteLine("PASS " + name); }
 TaskCompletionSource<T> Gate<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+void CollectCommands(Action enqueue)
+{
+    var previous = SynchronizationContext.Current; var context = new QueuedRecordsContext();
+    SynchronizationContext.SetSynchronizationContext(context);
+    try { enqueue(); } finally { SynchronizationContext.SetSynchronizationContext(previous); }
+    context.Drain();
+}
 (RecordsPanel Panel, BackendSession Backend) Setup()
 { var backend = new BackendSession(); var panel = new RecordsPanel(); panel.Prepare(backend); return (panel, backend); }
 RecordFieldConversionPreview Conversion(PreviewRecordFieldConversionRequest request) => new(request.ExpectedKnowledgeRevision,
@@ -69,6 +76,67 @@ await Run("Records failed import stays shared and cleanup has no reference to di
     Check(failed && ReferenceEquals(loading, cell.GetAsync()) && js.Imports == 1, "fault is cached until the panel is rebuilt");
     await owner.DisposeAsync(); await cell.DisposeAsync(); await owner.DisposeAsync();
     Check(js.Module.Disposals == 0, "faulted import cannot manufacture a module to dispose");
+});
+await Run("Records sibling cells batch 250 renders and 250 cleanups into one IPC each", async () =>
+{
+    var js = new DeferredRecordsJs(); js.Imported.SetResult(js.Module); var owner = new RecordsModuleOwner(js);
+    var cells = Enumerable.Range(0, 250).Select(_ => owner.Acquire()).ToArray();
+    Task[] rendering = [], cleaning = [];
+    CollectCommands(() => rendering = cells.Select((cell, index) => cell.RenderAsync(default, "readable links", "origin", new { }, index + 1, [], [])).ToArray());
+    await Task.WhenAll(rendering);
+    Check(js.Imports == 1 && js.Module.Batches is [{ Length: 250 } first] && first.All(item => item.GetProperty("operation").GetString() == "render")
+        && first.Select(item => item.GetProperty("generation").GetInt64()).SequenceEqual(Enumerable.Range(1, 250).Select(i => (long)i)),
+        "one array argument retains all cell receivers/generations in one render IPC");
+    CollectCommands(() => cleaning = cells.Select(cell => cell.DisposeMarkdownAsync(default)).ToArray());
+    await Task.WhenAll(cleaning);
+    Check(js.Module.Batches.Count == 2 && js.Module.Batches[1].Length == 250
+        && js.Module.Batches[1].All(item => item.GetProperty("operation").GetString() == "dispose"), "cleanup is also one batch IPC");
+    foreach (var cell in cells) await cell.DisposeAsync(); await owner.DisposeAsync();
+    Check(js.Module.Disposals == 1, "batch completion still releases module exactly once");
+});
+await Run("Records pending newer generation and disposal supersede only their own cell", async () =>
+{
+    var js = new DeferredRecordsJs(); js.Imported.SetResult(js.Module); var owner = new RecordsModuleOwner(js);
+    var retired = owner.Acquire(); var current = owner.Acquire(); Task first = null!, next = null!, cleanup = null!, sibling = null!;
+    CollectCommands(() => {
+        first = retired.RenderAsync(default, "old", "origin", new { }, 1, [], []);
+        next = retired.RenderAsync(default, "new", "origin", new { }, 2, [], []);
+        cleanup = retired.DisposeMarkdownAsync(default);
+        sibling = current.RenderAsync(default, "sibling", "origin", new { }, 3, [], []);
+    });
+    await Task.WhenAll(first, next, cleanup, sibling);
+    Check(js.Module.Batches is [{ Length: 2 } batch] && batch.Count(item => item.GetProperty("operation").GetString() == "dispose") == 1
+        && batch.Single(item => item.GetProperty("operation").GetString() == "render").GetProperty("generation").GetInt64() == 3,
+        "retired renders do not bind and sibling render remains present");
+    var rejected = false;
+    try { _ = retired.RenderAsync(default, "late", "origin", new { }, 4, [], []); } catch (ObjectDisposedException) { rejected = true; }
+    Check(rejected, "cleanup prevents later enqueue from resurrecting the element");
+    await retired.DisposeAsync(); await current.DisposeMarkdownAsync(default); await current.DisposeAsync(); await owner.DisposeAsync();
+});
+await Run("Records in-flight render finishes before cleanup and the last lease release", async () =>
+{
+    var js = new DeferredRecordsJs(); js.Imported.SetResult(js.Module); var reply = Gate<bool[]>();
+    js.Module.BatchReply = count => js.Module.Batches.Count == 1 ? reply.Task : Task.FromResult(Enumerable.Repeat(true, count).ToArray());
+    var owner = new RecordsModuleOwner(js); var cell = owner.Acquire(); Task rendering = null!;
+    CollectCommands(() => rendering = cell.RenderAsync(default, "render", "origin", new { }, 1, [], []));
+    var cleanup = cell.DisposeMarkdownAsync(default); var releasing = cell.DisposeAsync().AsTask();
+    await owner.DisposeAsync();
+    Check(js.Module.Batches.Count == 1 && !cleanup.IsCompleted && !releasing.IsCompleted && js.Module.Disposals == 0,
+        "queued cleanup retains module until already-sent render returns");
+    reply.SetResult([true]); await rendering; await cleanup; await releasing;
+    Check(js.Module.Batches.Count == 2 && js.Module.Batches[1].Single().GetProperty("operation").GetString() == "dispose"
+        && js.Module.Disposals == 1, "cleanup follows render on the same single pump before final release");
+});
+await Run("Records per-cell batch failure does not fail sibling completion or lifetime cleanup", async () =>
+{
+    var js = new DeferredRecordsJs(); js.Imported.SetResult(js.Module); var owner = new RecordsModuleOwner(js);
+    js.Module.BatchReply = count => Task.FromResult(Enumerable.Range(0, count).Select(index => index != 0).ToArray());
+    var failed = owner.Acquire(); var good = owner.Acquire(); Task bad = null!, okay = null!;
+    CollectCommands(() => { bad = failed.RenderAsync(default, "bad", "origin", new { }, 1, [], []); okay = good.RenderAsync(default, "good", "origin", new { }, 2, [], []); });
+    var rejected = false; try { await bad; } catch (Microsoft.JSInterop.JSException) { rejected = true; }
+    await okay; Check(rejected && okay.IsCompletedSuccessfully, "failure is reported only to its own cell");
+    await owner.DisposeAsync(); await failed.DisposeAsync(); await good.DisposeAsync();
+    Check(js.Module.Disposals == 1, "faulted cell completion cannot leak the last lease");
 });
 if (args.Contains("module-owner", StringComparer.Ordinal))
 { Console.WriteLine($"Records module owner: {passed} fixtures passed."); return 0; }
@@ -137,7 +205,45 @@ await Run("Records end forwards the queued DOM token and rejects missing token",
     Check(unqueued[1] is false && unqueued[2] is null, "missing token cannot be accepted by the shared probe");
     await panel.DisposeAsync();
 });
-if (args.Contains("performance-guard", StringComparer.Ordinal)) return 0;
+await Run("Records query phases accompany one successful guarded end IPC", async () =>
+{
+    var (panel, _) = Setup(); await panel.ExplicitRefresh(); await panel.FinishQueryForTest();
+    var end = panel.EndCallsForTest.Single();
+    using var phases = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(end[3]));
+    var properties = phases.RootElement.EnumerateObject().ToArray();
+    Check(end[1] is true && end[2] is not null && properties.Select(p => p.Name).SequenceEqual(new[] {
+        "listHttpMs", "collectionHttpMs", "applyToChildrenReadyMs" }) && properties.All(p => p.Value.TryGetDouble(out var ms) && double.IsFinite(ms) && ms >= 0),
+        "successful query sends exactly three nonnegative numeric durations, with no additional IPC/content");
+    await panel.DisposeAsync();
+});
+await Run("Records query phases are absent for failed ready barrier, changed token and failed HTTP", async () =>
+{
+    foreach (var failure in new[] { "children", "token", "http" })
+    {
+        var (panel, backend) = Setup();
+        if (failure == "http") backend.Read = _ => Task.FromException<CollectionDto>(new IOException("detail unavailable"));
+        await panel.ExplicitRefresh();
+        if (failure == "token") panel.InvalidateQueryPaintForTest();
+        if (failure != "http") await panel.FinishQueryForTest(failure != "children");
+        Check(panel.EndCallsForTest is [{ } end] && end[1] is false && end[2] is null && end[3] is null,
+            "rejected query cannot attach successful diagnostics after " + failure);
+        await panel.DisposeAsync();
+    }
+});
+await Run("Records superseded query cannot inherit the newest query phases", async () =>
+{
+    var (panel, backend) = Setup(); var old = Gate<CollectionDto>();
+    backend.Read = _ => backend.Reads == 1 ? old.Task : Task.FromResult(BackendSession.Data(12));
+    var first = panel.ExplicitRefresh(); await panel.ExplicitRefresh();
+    old.SetResult(BackendSession.Data(11)); await first; await panel.FinishQueryForTest();
+    var ends = panel.EndCallsForTest;
+    Check(ends.Length == 2 && ends.Count(e => e[1] is true && e[3] is not null) == 1
+        && ends.Count(e => e[1] is false && e[3] is null) == 1 && panel.Applied == 12,
+        "only the still-current successful load gets phases");
+    await panel.DisposeAsync();
+});
+if (args.Contains("performance-guard", StringComparer.Ordinal))
+{ Console.WriteLine($"Records UI performance: {passed} fixtures passed."); return 0; }
 
 await Run("same revision during command and read-back retains commit epoch", async () =>
 {
