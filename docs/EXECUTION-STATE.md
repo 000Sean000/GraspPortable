@@ -1,15 +1,19 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.34.0
+version: 1.35.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
 ## 最新授權：routing 遷移後恢復產品開發
 
-2026-10-05 使用者明確澄清：完成 routing 文件／設定遷移後，已讓原產品 Goal 繼續。此恢復授權取代下方暫停 checkpoint；保留完整 P0–S4 目標、既有 Git 授權與驗收門檻。Root 先前將 continuation 誤判為未授權而再次暫停，現在接續保留的四檔 Records 優化，沒有 reset、清除資料或重建 Goal。工具目前沒有 Root 可呼叫的 resume 操作；實際 Goal 狀態另以工具核對，不把本段文字當作平台已恢復證據。
+2026-10-05 使用者明確澄清：完成 routing 文件／設定遷移後，已讓原產品 Goal 繼續。此恢復授權取代下方暫停 checkpoint；保留完整 P0–S4 目標、既有 Git 授權與驗收門檻。Root 先前將 continuation 誤判為未授權而再次暫停，現在接續保留的四檔 Records 優化，沒有 reset、清除資料或重建 Goal。本次收到續跑後，get_goal 已確認 active；沿恢復授權持續推進，不再依較舊停工記錄暫停。使用者另確認本機採微軟注音、Shift 切換中／英文；IME 競態以此進行原生驗證。
 
-當前基底為已推送的 `17f86b9dc30293351822ce76c59bc293c3e17137`。主 workspace revision 77 與兩份 durable drafts 保留。既有未提交修改限 RecordsPanel Razor／code-behind、WorkspaceRecords 及 RecordsService fixtures。必要 targeted tests 已取得 RecordsService 60 assertions 與 Records UI 21 fixtures；四 Project 架構檢查及新版 App／Host publish 通過。原生同流程 Aura 暖機 246.1／247.9 ms，較基線 261.1／254.1 ms 略降但仍未達 200 ms 門檻；Mentors 118.8／115.0 ms。Aura 第二頁身分與高亮正常；正常關閉後 App／Host 程序均無、前台已釋放。詳見 S3／S4 Validation；尚未通過完整效能或 S4。
+前段優化已提交並核對遠端 `70a6f62f170566d4b2a70a7369986d6bbbca2b42`；本段從該 clean checkpoint 續作。主 workspace revision 77 與兩份 durable drafts 保留。前段 RecordsPanel 投影、WorkspaceRecords lookup 及 RecordsService fixtures 均已提交。必要 targeted tests 已取得 RecordsService 60 assertions 與 Records UI 21 fixtures；四 Project 架構檢查及新版 App／Host publish 通過。原生同流程 Aura 暖機 246.1／247.9 ms，較基線 261.1／254.1 ms 略降但仍未達 200 ms 門檻；Mentors 118.8／115.0 ms。Aura 第二頁身分與高亮正常；正常關閉後 App／Host 程序均無、前台已釋放。詳見 S3／S4 Validation；尚未通過完整效能或 S4。
+
+## 最新工作段：Records module 共用與釋放
+
+本段新增 panel-local module owner，cell leases 共用一個 import 且在最後清理後才釋放，包含尚在 import 時離開的處理。Records UI 26 fixtures、四 Project 架構檢查與 App／Host publish 通過。原生同流程 Aura 暖機 192.2／228.1 ms，仍未穩定通過 200 ms；Mentors 110.2／105.0 ms。型別驗收卡的圖片、兩式多段 Grasp 高亮及點擊定位來源第 10 行 LiveLinks.Message 通過有限重驗。正常關閉後 App／Host 程序零，前台已釋放；既有 drafts／revision 77 保留。Goal 已由工具確認 active，S4 尚未完成。
 
 ## 先前收工 checkpoint：依使用者要求暫停
 
@@ -264,6 +268,6 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-使用者已於 2026-10-05 明確恢復產品工作。Records 查詢／render 優化已發布並取得同流程暖機比較，但 Aura 仍超過門檻。下一步針對 cell rendering／interop 定位主要成本，再沿 `S4-Acceptance-1004` revision 77 續作，保留兩份 durable drafts、未完成原文與原還原 workspace，不清 DB。主長文重解析、Anria、衝突草稿關閉／重開已驗，不重做同範圍測試。
+使用者已於 2026-10-05 明確恢復產品工作。Records lookup／投影及共用 module 已發布並取得同流程暖機比較，但 Aura 仍有超過門檻的樣本。下一步以有界分段量測區分後端讀取、Razor／interop與 child rendering 成本，再沿 `S4-Acceptance-1004` revision 77 續作，保留兩份 durable drafts、未完成原文與原還原 workspace，不清 DB。主長文重解析、Anria、衝突草稿關閉／重開已驗，不重做同範圍測試。
 
-優先有界釐清 Records query 491.3 ms 的首次／暖機來源，接著補實際 IME 外部競態、代表性縮放／凍結區鍵盤焦點及至少 30 次代表操作／約五分鐘端到端量測。missing、基本 allowlist、兩式卡片導航、第二 view、改名及較新草稿還原已有證據，按新增風險補測。前台測試前另行提醒；GoalSupport 原監測已退出，沒有持續監測或自動續跑承諾。最後仍需逐項完成條件審核、文件一致及 commit／push 核對，不能將暫時收工標為 Goal complete。
+先前 491.3 ms 已透過同流程比較確認暖機 Aura 確有超標；不要再重做首次／暖機分類。定位剩餘成本後補實際 IME 外部競態（微軟注音、Shift 切換）、代表性縮放／凍結區鍵盤焦點及至少 30 次代表操作／約五分鐘端到端量測。missing、基本 allowlist、兩式卡片導航、第二 view、改名及較新草稿還原已有證據，按新增風險補測。前台測試前另行提醒；GoalSupport 原監測已退出，沒有持續監測或自動續跑承諾。最後仍需逐項完成條件審核、文件一致及 commit／push 核對，不能將暫時收工標為 Goal complete。

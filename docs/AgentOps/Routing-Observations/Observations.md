@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.1.0
+version: 1.2.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -20,3 +20,12 @@ Context：原 worker 已掌握相同兩檔 ownership，續作 affinity 高；額
 核對：中；Root 審查 lookup 的 duplicate／missing 與 draft／stale 行為，整合 App render 投影，跑既有 UI fixtures、publish 及必要原生比較。
 返工／人工：使用者一次澄清遷移後已恢復 Goal；Root 更正誤暫停，沿原 worker 續作。初次 restore 存取受限，worker 使用既有 restore artifacts 的 --no-restore 完成 targeted suite，沒有為模型效果額外拆任務。
 結果：部分；RecordsService 60 assertions、UI 21 fixtures 及 publish 通過，原生 Aura 暖機仍超過產品門檻。產品證據在 Engineering/S3-S4-Validation.md 的本日段落；此結果不構成模型效果比較。
+
+## 2026-10-05 Records module ownership
+
+任務／政策：定位剩餘 cell interop 成本，實作單一 module owner及必要生命周期 fixtures；policy rc.2，基底70a6f62。
+配置：延續原 records_query_review worker（要求 Sol Medium）；Root／child 實際模型及 effort metadata 仍未知，不由設定或自述補值。
+Context：原 worker 的同子系統 affinity 高；Root 保留 Razor整合、publish與原生GUI ownership，worker限helper及測試檔。
+核對：中；先唯讀取得每cell import／dispose與in-flight洩漏finding，固定lease接面後分工，Root檢查釋放順序、diff與原生導航。
+返工／人工：本段無額外使用者決策；26 fixtures／publish通過。原生暖機仍有超標，不推論模型成敗或費用優勢。
+結果：部分；資源所有權修正和有限GUI重驗通過，效能門檻未全數通過。證據見 Engineering/S3-S4-Validation.md 本日共用module段；下一步由產品工作狀態管理。

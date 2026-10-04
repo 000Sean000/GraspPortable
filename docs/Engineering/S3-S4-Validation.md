@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.17.0
+version: 1.18.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,18 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 共用 Records JS module（2026-10-05）
+
+在 70a6f62 基底上，RecordsPanel 與各 cell／card／完整欄位共用一個 panel-local module owner。單一 import task 配合 child leases，parent 離開不等待尚未執行的 child Dispose；最後引用等待 in-flight import 並釋放一次。Child 先清理自己的 DOM／事件／receiver，再釋放 lease。這同時移除每個新 cell 各自 import／dispose module reference 的跨界呼叫，修正 import 完成前離開可能漏釋放 reference 的情況。沒有更動 Markdown renderer、導航契約、generation／workspace guards、圖片上限或量測成功判準。
+
+Records UI 26 fixtures（新增 5 個 module lifetime fixtures）通過，App／Host Release publish 與架構檢查通過。延遲 fake runtime 驗證共享 import、parent 先離開、最後 child 清理、import 途中離開及 fault／未使用 owner；這不是實際 Razor lifecycle 的全面測試。
+
+原生同 workspace revision 77、同前五次集合切換在私人報告 `ui-20261004-213854.json` 得到 252.0、110.2、192.2、105.0、228.1 ms。第一個 Aura 為首次；Aura 暖機 192.2／228.1 ms，改善但仍有樣本超過 200 ms，**尚未通過暖機效能**。Mentors 暖機 110.2／105.0 ms。第六次 102.1 ms 是另開型別驗收表，不能併入 Aura 樣本。兩次暖機僅供有界比較，未聲稱完整 p95 或模型效果。
+
+原生開 Alpha 角色卡，圖片、Wiki 高亮、兩式多段 Grasp 參照及段落粗體保持；點第一式第二段後直接開來源並選中第 10 行 LiveLinks.Message 定義。這同時實際經過離開 RecordsPanel 的 module 清理流程。正常關閉後 App／Host（含 dotnet Host）程序零，前台釋放；既有衝突草稿只選保留，沒有提交或改掉原 revision。
+
+全局檢視：兩段修正已有小幅／部分改善，剩餘成本不能由總延遲直接歸因。下一步先分開觀察資料讀取、Razor／interop及 child 呈現成本，再決定是否批次 render；不縮小既有頁面規模、不關閉 managed links、不放寬門檻。IME／焦點／足量代表操作等整體 S4 缺口仍保留。
 
 ## Records 暖機比較與有界優化（2026-10-05）
 

@@ -14,6 +14,65 @@ TaskCompletionSource<T> Gate<T>() => new(TaskCreationOptions.RunContinuationsAsy
 RecordFieldConversionPreview Conversion(PreviewRecordFieldConversionRequest request) => new(request.ExpectedKnowledgeRevision,
     true,"##### Converted\n\nbody","Heading",[new(0,8,0,14,1,5,0)],[],"preview-token",true);
 
+await Run("Records module shares one import and waits for the last cell cleanup", async () =>
+{
+    var js = new DeferredRecordsJs(); var owner = new RecordsModuleOwner(js);
+    var first = owner.Acquire(); var second = owner.Acquire();
+    var parentLoad = owner.GetAsync(); var firstLoad = first.GetAsync(); var secondLoad = second.GetAsync();
+    Check(js.Imports == 1 && ReferenceEquals(parentLoad, firstLoad) && ReferenceEquals(firstLoad, secondLoad), "all consumers share the same import task");
+    js.Imported.SetResult(js.Module);
+    Check(ReferenceEquals(await firstLoad, await secondLoad), "cells receive the same module");
+    await first.DisposeAsync(); await first.DisposeAsync();
+    Check(js.Module.Disposals == 0, "one cell cannot dispose the shared module");
+    await owner.DisposeAsync();
+    Check(js.Module.Disposals == 0 && ReferenceEquals(await second.GetAsync(), js.Module), "parent departure retains remaining cell cleanup access");
+    await second.DisposeAsync(); await owner.DisposeAsync(); await second.DisposeAsync();
+    Check(js.Module.Disposals == 1, "last release disposes once despite repeated releases");
+});
+await Run("Records parent departure does not await cells or lose an in-flight import", async () =>
+{
+    var js = new DeferredRecordsJs(); var owner = new RecordsModuleOwner(js); var cell = owner.Acquire();
+    var loading = cell.GetAsync();
+    var departing = owner.DisposeAsync();
+    Check(departing.IsCompletedSuccessfully && !loading.IsCompleted, "parent must not wait for child lifecycle or import");
+    await departing;
+    var rejected = false; try { owner.Acquire(); } catch (ObjectDisposedException) { rejected = true; }
+    Check(rejected, "closed parent prohibits new leases");
+    rejected = false; try { _ = owner.GetAsync(); } catch (ObjectDisposedException) { rejected = true; }
+    Check(rejected && ReferenceEquals(loading, cell.GetAsync()), "parent reads reject while a live cell can finish loading");
+    var releasing = cell.DisposeAsync().AsTask();
+    Check(!releasing.IsCompleted && js.Module.Disposals == 0, "last cell release owns the unfinished import");
+    js.Imported.SetResult(js.Module); await releasing; await owner.DisposeAsync(); await cell.DisposeAsync();
+    Check(js.Imports == 1 && js.Module.Disposals == 1, "late module is released exactly once");
+});
+await Run("Records owner releases an in-flight parent import without any cells", async () =>
+{
+    var js = new DeferredRecordsJs(); var owner = new RecordsModuleOwner(js);
+    var loading = owner.GetAsync(); var departing = owner.DisposeAsync().AsTask();
+    Check(!departing.IsCompleted, "owner must retain and await its own unfinished import");
+    js.Imported.SetResult(js.Module); await loading; await departing; await owner.DisposeAsync();
+    Check(js.Imports == 1 && js.Module.Disposals == 1, "parent-only late module is released once");
+});
+await Run("Records unused leases remain lazy and cannot read after release", async () =>
+{
+    var js = new DeferredRecordsJs(); var owner = new RecordsModuleOwner(js); var cell = owner.Acquire();
+    await cell.DisposeAsync();
+    var rejected = false; try { _ = cell.GetAsync(); } catch (ObjectDisposedException) { rejected = true; }
+    await owner.DisposeAsync();
+    Check(rejected && js.Imports == 0 && js.Module.Disposals == 0, "unused panel/leases import nothing and released cells stay closed");
+});
+await Run("Records failed import stays shared and cleanup has no reference to dispose", async () =>
+{
+    var js = new DeferredRecordsJs(); var owner = new RecordsModuleOwner(js); var cell = owner.Acquire();
+    var loading = owner.GetAsync(); js.Imported.SetException(new IOException("import unavailable"));
+    var failed = false; try { await loading; } catch (IOException) { failed = true; }
+    Check(failed && ReferenceEquals(loading, cell.GetAsync()) && js.Imports == 1, "fault is cached until the panel is rebuilt");
+    await owner.DisposeAsync(); await cell.DisposeAsync(); await owner.DisposeAsync();
+    Check(js.Module.Disposals == 0, "faulted import cannot manufacture a module to dispose");
+});
+if (args.Contains("module-owner", StringComparer.Ordinal))
+{ Console.WriteLine($"Records module owner: {passed} fixtures passed."); return 0; }
+
 await Run("field conversion writes only after explicit approval and sends original source",async()=>
 {
     var (panel,backend)=Setup();backend.ConversionPreview=r=>Task.FromResult(Conversion(r));

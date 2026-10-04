@@ -9,5 +9,6 @@
     <ProjectReference Include="../../src/GraspPortable.Contracts/GraspPortable.Contracts.csproj" />
     <Compile Include="../../src/GraspPortable.App/Records/RecordsPanel*.cs" Link="Product/%(Filename)%(Extension)" />
     <Compile Include="../../src/GraspPortable.App/Records/RecordsContentNavigation.cs" Link="Product/RecordsContentNavigation.cs" />
+    <Compile Include="../../src/GraspPortable.App/Records/RecordsModuleOwner.cs" Link="Product/RecordsModuleOwner.cs" />
   </ItemGroup>
 </Project>

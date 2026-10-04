@@ -122,6 +122,28 @@ namespace GraspPortable.App.Records
         }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
+    internal sealed class DeferredRecordsJs : IJSRuntime
+    {
+        public int Imports { get; private set; }
+        public TaskCompletionSource<IJSObjectReference> Imported { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CountingRecordsModule Module { get; } = new();
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => InvokeAsync<T>(identifier, default, args);
+        public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        {
+            if (identifier != "import" || args is not ["./Records/RecordsPanel.razor.js"])
+                throw new InvalidOperationException("Unexpected Records module import");
+            Imports++;
+            return new(Complete<T>());
+        }
+        private async Task<T> Complete<T>() => (T)(object)await Imported.Task;
+    }
+    internal sealed class CountingRecordsModule : IJSObjectReference
+    {
+        public int Disposals { get; private set; }
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => ValueTask.FromResult(default(T)!);
+        public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<T>(identifier, args);
+        public ValueTask DisposeAsync() { Disposals++; return ValueTask.CompletedTask; }
+    }
 }
 namespace Microsoft.Maui.ApplicationModel
 {

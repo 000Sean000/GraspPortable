@@ -53,7 +53,7 @@
                                     <div class="record-cell-read" @onclick:stopPropagation="true">
                                         @if (RenderManagedCell(field, cell))
                                         {
-                                            <RecordsMarkdown Markdown="@(cell!.RawSource)" References="@(cell!.References)" Regions="@(cell!.Regions)" OriginNoteId="@_data.NoteId" WorkspaceKey="@WorkspaceKey" Revision="@_data.Revision" Compact="true" OnNavigate="NavigateContentAsync" />
+                                            <RecordsMarkdown ModuleOwner="@MarkdownModule" Markdown="@(cell!.RawSource)" References="@(cell!.References)" Regions="@(cell!.Regions)" OriginNoteId="@_data.NoteId" WorkspaceKey="@WorkspaceKey" Revision="@_data.Revision" Compact="true" OnNavigate="NavigateContentAsync" />
                                         }
                                         else { <span class="cell-plain">@Preview(cell)</span> }
                                     </div>
@@ -113,7 +113,7 @@
                 @foreach (var field in _data.Fields)
                 {
                     var cell = _card.Cells.FirstOrDefault(c => c.FieldId == field.Id);
-                    <article @key="field.Id"><header><h3>@field.DisplayName <small>@KindName(field.Kind)</small></h3><button @onclick="() => ShowCell(_card, field)">編輯</button></header>@if (RenderManagedCell(field, cell)) { <RecordsMarkdown Markdown="@(cell!.RawSource)" References="@(cell!.References)" Regions="@(cell!.Regions)" OriginNoteId="@_data.NoteId" WorkspaceKey="@WorkspaceKey" Revision="@_data.Revision" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(cell)</div> }<details><summary>原文</summary><pre>@(cell?.RawSource ?? "")</pre></details>@if (cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }</article>
+                    <article @key="field.Id"><header><h3>@field.DisplayName <small>@KindName(field.Kind)</small></h3><button @onclick="() => ShowCell(_card, field)">編輯</button></header>@if (RenderManagedCell(field, cell)) { <RecordsMarkdown ModuleOwner="@MarkdownModule" Markdown="@(cell!.RawSource)" References="@(cell!.References)" Regions="@(cell!.Regions)" OriginNoteId="@_data.NoteId" WorkspaceKey="@WorkspaceKey" Revision="@_data.Revision" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(cell)</div> }<details><summary>原文</summary><pre>@(cell?.RawSource ?? "")</pre></details>@if (cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }</article>
                 }
             </div><footer class="dialog-actions"><button @onclick="OpenSourceAsync">開啟完整 Markdown 原文 ↗</button><button class="primary" @onclick="() => CloseDialog()">完成</button></footer>
         }
@@ -155,7 +155,7 @@
                                 <div class="choice-list" aria-label="跨資料表紀錄關聯">@foreach (var choice in FilteredRelationChoices) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(choice.Id)" @onchange='e => ToggleId(choice.Id, e.Value is true, _kind == "SingleRelation")' disabled="@_null" /><span>@choice.DisplayName <small>@choice.Key · @CollectionName(choice.CollectionId)</small></span></label> }@if (FilteredRelationChoices.Length == 0) { <p>沒有符合的紀錄；已選項目保持不變。</p> }</div>
                             }
                             <p class="hint">空值、空字串、0 與 false 分開保存。完整原文與段落不會因表格摘要截斷。</p>
-                        </section><aside><h3>目前計算結果 · @_cell?.Status</h3>@if (_field is not null && RenderManagedCell(_field, _cell)) { <RecordsMarkdown Markdown="@(_cell!.RawSource)" References="@(_cell!.References)" Regions="@(_cell!.Regions)" OriginNoteId="@(_data?.NoteId ?? "")" WorkspaceKey="@WorkspaceKey" Revision="@(_data?.Revision ?? _editRevision)" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(_cell)</div> }@if (_cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in _cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }@if (_conflict) { <h3>重新讀取的目前原文</h3><pre>@LatestCellText</pre> }<p class="hint">預覽是已讀取的結果；保存後重新計算。</p></aside></div>
+                        </section><aside><h3>目前計算結果 · @_cell?.Status</h3>@if (_field is not null && RenderManagedCell(_field, _cell)) { <RecordsMarkdown ModuleOwner="@MarkdownModule" Markdown="@(_cell!.RawSource)" References="@(_cell!.References)" Regions="@(_cell!.Regions)" OriginNoteId="@(_data?.NoteId ?? "")" WorkspaceKey="@WorkspaceKey" Revision="@(_data?.Revision ?? _editRevision)" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(_cell)</div> }@if (_cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in _cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }@if (_conflict) { <h3>重新讀取的目前原文</h3><pre>@LatestCellText</pre> }<p class="hint">預覽是已讀取的結果；保存後重新計算。</p></aside></div>
                     }
                     else if (_dialog == "view")
                     {

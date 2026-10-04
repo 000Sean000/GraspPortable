@@ -14,6 +14,8 @@ public partial class RecordsPanel : IAsyncDisposable
     [Inject] private BackendSession Backend { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     private IJSObjectReference? _module;
+    private RecordsModuleOwner? _markdownModule;
+    private RecordsModuleOwner MarkdownModule => _markdownModule ??= new(JS);
     private DotNetObjectReference<RecordsPanel>? _receiver;
     private readonly string _modalId = "records-modal-" + Guid.NewGuid().ToString("N");
     [Parameter] public CollectionDto? Collection { get; set; }
@@ -115,7 +117,7 @@ public partial class RecordsPanel : IAsyncDisposable
     {
         if (_disposed) return;
         var renderedSequence = ++_recordsRenderSequence;
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./Records/RecordsPanel.razor.js");
+        _module ??= await MarkdownModule.GetAsync();
         if (_disposed) return;
         _receiver ??= DotNetObjectReference.Create(this);
         await _module.InvokeVoidAsync("syncModal", _modalId, _receiver);
@@ -514,9 +516,10 @@ public partial class RecordsPanel : IAsyncDisposable
         await DisposeRecordPerformanceAsync();
         if (_module is not null)
         {
-            try { await _module.InvokeVoidAsync("releaseModal", _modalId); await _module.DisposeAsync(); }
+            try { await _module.InvokeVoidAsync("releaseModal", _modalId); }
             catch (JSDisconnectedException) { }
         }
+        if (_markdownModule is not null) await _markdownModule.DisposeAsync();
         _receiver?.Dispose();
     }
 
