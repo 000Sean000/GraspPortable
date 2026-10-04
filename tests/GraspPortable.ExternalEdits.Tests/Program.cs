@@ -1,6 +1,8 @@
 using GraspPortable.Core.Knowledge;
 using GraspPortable.Core.ValueEngine;
 
+try
+{
 var checks = 0;
 var cases = new (string Name, string Accepted, string Observed, ExternalReferenceEditStatus Status, string? Value)[]
 {
@@ -47,3 +49,9 @@ foreach (var fixture in cases)
 }
 Console.WriteLine($"External reference edits: {cases.Length} bounded fixtures, {checks} assertions passed.");
 void Check(bool success, string message) { checks++; if (!success) throw new Exception(message); }
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using GraspPortable.Core.Knowledge;
+using GraspPortable.Core.Records;
 using GraspPortable.Core.ValueEngine;
 using GraspPortable.Host.Workspace.FileOperations;
 using GraspPortable.Host.Workspace.Markdown;
@@ -25,6 +26,8 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
     private readonly object gate = new();
     private readonly ConcurrentDictionary<string, MarkdownFileState[]> observations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> creationLocations = new(StringComparer.Ordinal);
+    private sealed record RecordsOverride(string NoteId, RecordsMetadata Metadata);
+    private readonly ConcurrentDictionary<string, RecordsOverride> recordsOverrides = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string DocumentId, string NoteId)> provisional = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<MarkdownScanIssue> recoveryIssues = [];
     private readonly HashSet<string> protectedNoteIds = new(StringComparer.Ordinal);
@@ -32,7 +35,8 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
     public bool UsesSavedSourceAuthority => true;
     private sealed record SemanticIntent(int FormatVersion, Guid FileOperationId, long PreviousRevision,
         Snapshot Next, Receipt Receipt, string? ConsumedDraftNoteId, MarkdownFileState[] Sources, FileMutation[] Mutations);
-    private sealed record Candidate(MarkdownFileState File, MarkdownEnvelope Envelope, string Title);
+    private sealed record Member(string Id, string Title, string Body, IReadOnlyDictionary<string, string>? Bindings, RecordsDocumentDescriptor? Records);
+    private sealed record Candidate(MarkdownFileState File, MarkdownEnvelope Envelope, IReadOnlyList<Member> Members);
     public bool IsWriteBlocked { get { lock (gate) return blocked; } }
     public IReadOnlyList<MarkdownScanIssue> PendingRecoveryIssues { get { lock (gate) return recoveryIssues.ToArray(); } }
     public Action? AfterFilesWrittenForTest { get; set; }
@@ -57,13 +61,23 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
     public Receipt? FindReceipt(string operationId) => database.FindReceipt(operationId);
     public IReadOnlyList<MarkdownFileState> LoadSourceFiles() => database.LoadSourceFiles();
 
+    /// <summary>Host metadata participates in this operation's journal/receipt; failed preparation writes nothing.</summary>
+    public IDisposable BeginRecordsMetadata(string operationId, string noteId, RecordsMetadata metadata)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        var validation = RecordsMetadataCodec.Read(RecordsMetadataCodec.Write(metadata));
+        if (!validation.Success) throw new ArgumentException(string.Join("; ", validation.Issues.Select(i => i.Message)), nameof(metadata));
+        var captured = new RecordsOverride(noteId, validation.Metadata!);
+        if (!recordsOverrides.TryAdd(operationId, captured)) throw new InvalidOperationException("Operation already has a Records metadata lease.");
+        return new Lease(() => ((ICollection<KeyValuePair<string, RecordsOverride>>)recordsOverrides).Remove(new(operationId, captured)));
+    }
+
     /// <summary>Only this operation may consume these captured observations.</summary>
     public IDisposable BeginObservation(string operationId, IReadOnlyList<MarkdownFileState> states)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         var captured = states.ToArray();
-        if (captured.Select(s => s.NoteId).Distinct(StringComparer.Ordinal).Count() != captured.Length)
-            throw new ArgumentException("An observation contains duplicate note identities.", nameof(states));
+        ValidateRegistry(captured);
         foreach (var state in captured) _ = paths.NormalizeUserPath(state.RelativePath);
         if (!observations.TryAdd(operationId, captured)) throw new InvalidOperationException("The operation already has an observation lease.");
         return new Lease(() => ((ICollection<KeyValuePair<string, MarkdownFileState[]>>)observations).Remove(new(operationId, captured)));
@@ -88,114 +102,104 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
         {
             var registry = database.LoadSourceFiles();
             var byPath = registry.ToDictionary(s => s.RelativePath, StringComparer.OrdinalIgnoreCase);
-            var byId = registry.ToDictionary(s => s.NoteId, StringComparer.Ordinal);
             var issues = new List<MarkdownScanIssue>();
             var candidates = new List<Candidate>();
             var physicalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var relative in EnumerateMarkdown(issues))
             {
-                physicalPaths.Add(relative);
-                byPath.TryGetValue(relative, out var registered);
-                byte[]? observedBytes = null;
+                physicalPaths.Add(relative); byPath.TryGetValue(relative, out var registered);
+                byte[]? bytes = null;
+                void Issue(string code, string message, IEnumerable<string>? noteIds = null)
+                {
+                    var ids = (noteIds ?? registered?.NoteIds ?? []).Distinct(StringComparer.Ordinal).ToArray();
+                    var hash = bytes is null ? null : RecoverableFileOperations.Sha256(bytes);
+                    var preserved = bytes is null ? null : PreserveConflict(bytes);
+                    if (ids.Length == 0) issues.Add(new(relative, code, message, null, hash, preserved));
+                    else foreach (var id in ids) issues.Add(new(relative, code, message, id, hash, preserved));
+                }
                 try
                 {
-                    var bytes = observedBytes = ReadBytes(relative) ?? throw new IOException("Source disappeared during the scan.");
-                    var decoded = Decode(bytes);
-                    var envelope = MarkdownEnvelopeCodec.Read(decoded.Text);
-                    if (!envelope.CanRewrite)
-                    {
-                        var preserved = PreserveConflict(bytes);
-                        issues.AddRange(envelope.Issues.Select(i => new MarkdownScanIssue(relative, i.Code, i.Message, registered?.NoteId,
-                            RecoverableFileOperations.Sha256(bytes), preserved)));
-                        continue;
-                    }
-                    if (envelope.Metadata is { Notes.Count: not 1 })
-                    {
-                        issues.Add(new(relative, "multiple-members", "This stage opens one note per file; all bytes were preserved.", registered?.NoteId));
-                        continue;
-                    }
+                    bytes = ReadBytes(relative) ?? throw new IOException("Source disappeared during the scan.");
+                    var decoded = Decode(bytes); var envelope = MarkdownEnvelopeCodec.Read(decoded.Text);
+                    if (!envelope.CanRewrite) { foreach (var issue in envelope.Issues) Issue(issue.Code, issue.Message); continue; }
                     var metadata = envelope.Metadata;
-                    string documentId, noteId;
-                    if (metadata is not null) { documentId = metadata.DocumentId; noteId = metadata.Notes[0].Id; }
-                    else if (registered is not null)
-                    {
-                        if (registered.IsManaged)
-                        {
-                            var preserved = PreserveConflict(bytes);
-                            issues.Add(new(relative, "identity-removed", "Managed identity metadata was removed; source is preserved pending reconciliation.", registered.NoteId,
-                                RecoverableFileOperations.Sha256(bytes), preserved));
-                            continue;
-                        }
-                        documentId = registered.DocumentId; noteId = registered.NoteId;
-                    }
-                    else
+                    if (metadata is { Notes.Count: 0 }) { Issue("metadata-members", "A stored document must contain at least one note identity."); continue; }
+                    if (registered?.IsManaged == true && metadata is null) { Issue("identity-removed", "Managed identity metadata was removed; all members are preserved pending reconciliation."); continue; }
+                    var documentId = metadata?.DocumentId ?? registered?.DocumentId;
+                    var noteId = metadata?.Notes[0].Id ?? registered?.NoteId;
+                    if (documentId is null)
                     {
                         if (!provisional.TryGetValue(relative, out var ids)) provisional[relative] = ids = (Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N"));
-                        (documentId, noteId) = ids;
+                        documentId = ids.DocumentId; noteId = ids.NoteId;
                     }
-                    if (registered is not null && (registered.NoteId != noteId || registered.DocumentId != documentId))
-                    {
-                        var preserved = PreserveConflict(bytes);
-                        issues.Add(new(relative, "identity-changed", "Existing path now carries different canonical identities; no automatic replacement was made.", registered.NoteId,
-                            RecoverableFileOperations.Sha256(bytes), preserved));
-                        continue;
-                    }
-                    var file = new MarkdownFileState(documentId, noteId, relative, decoded.Text, RecoverableFileOperations.Sha256(bytes), decoded.EncodingName, decoded.HasBom, metadata is not null);
-                    candidates.Add(new(file, envelope, metadata?.Notes[0].Title ?? Path.GetFileNameWithoutExtension(relative)));
+                    var memberIds = metadata?.Notes.Select(n => n.Id).ToArray() ?? [noteId!];
+                    if (registered is not null && registered.DocumentId != documentId)
+                    { Issue("identity-changed", "Existing path carries a different document identity."); continue; }
+                    var grouped = metadata?.Layout == "grouped";
+                    var file = new MarkdownFileState(documentId, noteId!, relative, decoded.Text, RecoverableFileOperations.Sha256(bytes),
+                        decoded.EncodingName, decoded.HasBom, metadata is not null, MemberNoteIds: grouped ? memberIds : null, IsGrouped: grouped);
+                    var members = ReadMembers(file, envelope);
+                    candidates.Add(new(file, envelope, members));
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or DecoderFallbackException or ArgumentException)
-                {
-                    var preserved = observedBytes is null ? null : PreserveConflict(observedBytes);
-                    issues.Add(new(relative, "source-read", exception.Message, registered?.NoteId,
-                        observedBytes is null ? null : RecoverableFileOperations.Sha256(observedBytes), preserved));
-                }
+                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or DecoderFallbackException or ArgumentException)
+                { Issue("source-read", error.Message); }
             }
-            var duplicatePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var invalid = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Reject(Candidate candidate, string code, string message, IEnumerable<string>? members = null)
+            {
+                invalid.Add(candidate.File.RelativePath);
+                var ids = (members ?? candidate.File.NoteIds).Concat(byPath.GetValueOrDefault(candidate.File.RelativePath)?.NoteIds ?? []).Distinct(StringComparer.Ordinal);
+                var preserved = PreserveConflict(Encode(candidate.File.Text, candidate.File.EncodingName, candidate.File.HasBom));
+                foreach (var id in ids) issues.Add(new(candidate.File.RelativePath, code, message, id, candidate.File.ByteHash, preserved));
+            }
             void Duplicates(IEnumerable<IGrouping<string, Candidate>> groups, string kind)
             {
                 foreach (var group in groups.Where(g => g.Count() > 1))
-                    foreach (var item in group)
-                    {
-                        duplicatePaths.Add(item.File.RelativePath);
-                        issues.Add(new(item.File.RelativePath, "duplicate-identity", $"Duplicate {kind} identity; all files are preserved.", item.File.NoteId,
-                            item.File.ByteHash, PreserveConflict(Encode(item.File.Text, item.File.EncodingName, item.File.HasBom))));
-                    }
+                    foreach (var item in group) Reject(item, "duplicate-identity", $"Duplicate {kind} identity; source was preserved.");
             }
-            Duplicates(candidates.GroupBy(c => c.File.NoteId, StringComparer.Ordinal), "note");
+            Duplicates(candidates.SelectMany(c => c.File.NoteIds.Select(id => (Id: id, Candidate: c))).GroupBy(x => x.Id, x => x.Candidate, StringComparer.Ordinal), "note");
             Duplicates(candidates.GroupBy(c => c.File.DocumentId, StringComparer.Ordinal), "document");
-            Duplicates(candidates.SelectMany(c => (c.Envelope.Metadata?.Notes[0].Bindings.Values ?? []).Select(id => (Id: id, Candidate: c)))
-                .GroupBy(p => p.Id, p => p.Candidate, StringComparer.Ordinal), "binding");
-            var states = new List<MarkdownFileState>();
-            var changes = new List<ExternalNoteChange>();
-            foreach (var candidate in candidates.Where(c => !duplicatePaths.Contains(c.File.RelativePath)))
+            Duplicates(candidates.SelectMany(c => (c.Envelope.Metadata?.Notes.SelectMany(n => n.Bindings.Values) ?? []).Select(id => (Id: id, Candidate: c)))
+                .GroupBy(x => x.Id, x => x.Candidate, StringComparer.Ordinal), "binding");
+            var validOwners = candidates.Where(c => !invalid.Contains(c.File.RelativePath)).SelectMany(c => c.File.NoteIds).ToHashSet(StringComparer.Ordinal);
+            foreach (var candidate in candidates.ToArray())
+                if (byPath.TryGetValue(candidate.File.RelativePath, out var old) && old.NoteIds.Any(id => !candidate.File.NoteIds.Contains(id) && !validOwners.Contains(id)))
+                    Reject(candidate, "member-removed", "A member disappeared from a still-existing file without another unique owner; explicit grouping/deletion review is required.", old.NoteIds);
+            var states = new List<MarkdownFileState>(); var changes = new List<ExternalNoteChange>();
+            var accepted = candidates.Where(c => !invalid.Contains(c.File.RelativePath)).ToArray();
+            foreach (var candidate in accepted)
             {
-                var file = candidate.File;
-                byId.TryGetValue(file.NoteId, out var old);
-                current.Notes.TryGetValue(file.NoteId, out var note);
-                if (old == file && note is not null && note.SavedSource?.Status != "unavailable") continue;
-                states.Add(file);
-                changes.Add(new(file.NoteId, candidate.Title, candidate.Envelope.Body, note?.CurrentSourceHash, candidate.Envelope.Metadata?.Notes[0].Bindings));
+                var file = candidate.File; var old = registry.FirstOrDefault(f => f.DocumentId == file.DocumentId);
+                var changedFile = old is null || !SameFileState(old, file);
+                if (changedFile) states.Add(file);
+                foreach (var member in candidate.Members)
+                {
+                    current.Notes.TryGetValue(member.Id, out var note);
+                    if (note is null || note.CurrentSource != member.Body || note.Title != member.Title || note.SavedSource?.Status == "unavailable"
+                        || !RecordsMetadataCodec.SameDescriptor(note.CurrentRecords, member.Records)
+                        || changedFile && !BindingIdsMatch(current, member.Id, member.Bindings))
+                        changes.Add(new(member.Id, member.Title, member.Body, note?.CurrentSourceHash, member.Bindings, member.Records));
+                }
             }
-            var seenIds = candidates.Select(c => c.File.NoteId).ToHashSet(StringComparer.Ordinal);
+            var seen = accepted.SelectMany(c => c.File.NoteIds).ToHashSet(StringComparer.Ordinal);
             var missing = new List<string>();
-            foreach (var old in registry.Where(s => !seenIds.Contains(s.NoteId) && !physicalPaths.Contains(s.RelativePath) && current.Notes.ContainsKey(s.NoteId)))
+            foreach (var old in registry.Where(s => !physicalPaths.Contains(s.RelativePath)))
             {
+                var absentIds = old.NoteIds.Where(id => !seen.Contains(id) && current.Notes.ContainsKey(id)).ToArray();
+                if (absentIds.Length == 0) continue;
                 try
                 {
-                    // A skipped reparse point or transient enumeration failure is not deletion.
                     if (File.Exists(paths.Resolve(old.RelativePath))) continue;
-                    if (!old.Exists && current.Notes[old.NoteId].SavedSource?.Status == "missing") continue;
-                    states.Add(old with { Exists = false }); missing.Add(old.NoteId);
+                    if (!old.Exists && absentIds.All(id => current.Notes[id].SavedSource?.Status == "missing")) continue;
+                    states.Add(old with { Exists = false, NoteId = absentIds[0], MemberNoteIds = old.IsGrouped ? absentIds : null }); missing.AddRange(absentIds);
                 }
-                catch (Exception exception) when (exception is IOException or ArgumentException or UnauthorizedAccessException)
-                { issues.Add(new(old.RelativePath, "source-missing-uncertain", exception.Message, old.NoteId)); }
+                catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException)
+                { foreach (var id in absentIds) issues.Add(new(old.RelativePath, "source-missing-uncertain", error.Message, id)); }
             }
-            protectedNoteIds.Clear();
-            protectedNoteIds.UnionWith(issues.Where(i => i.NoteId is not null).Select(i => i.NoteId!));
-            return new(states.ToArray(), changes.ToArray(), issues.ToArray(), missing.ToArray());
+            protectedNoteIds.Clear(); protectedNoteIds.UnionWith(issues.Where(i => i.NoteId is not null).Select(i => i.NoteId!));
+            return new(states, changes, issues, missing);
         }
     }
-
     public void Commit(Snapshot previous, Snapshot next, Receipt receipt, string? consumedDraftNoteId)
     {
         lock (gate)
@@ -206,49 +210,79 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
                 if (found.Fingerprint != receipt.Fingerprint) throw new InvalidOperationException("Operation ID has a different payload.");
                 throw new InvalidOperationException("Operation already committed; reload the semantic snapshot before retrying.");
             }
-            var registry = database.LoadSourceFiles().ToDictionary(f => f.NoteId, StringComparer.Ordinal);
             var observed = observations.TryGetValue(receipt.OperationId, out var captured) ? captured : [];
-            var observedById = observed.ToDictionary(f => f.NoteId, StringComparer.Ordinal);
-            // Captured observations have their own guards, even if a deletion
-            // removes the note from Next or no file write is required.
+            recordsOverrides.TryGetValue(receipt.OperationId, out var recordsOverride);
+            if (recordsOverride is not null && (receipt.NoteId != recordsOverride.NoteId || !next.Notes.TryGetValue(recordsOverride.NoteId, out var target)
+                || target.IsSourceStale || !RecordsMetadataCodec.SameDescriptor(target.CurrentRecords, recordsOverride.Metadata.Descriptor)))
+                throw new InvalidOperationException("Records metadata lease does not match the committed operation's target and descriptor.");
             foreach (var state in observed) VerifyCurrent(state);
-            foreach (var state in observed) registry[state.NoteId] = state;
-            VerifySemanticReads(previous, next, registry);
-            var states = new List<MarkdownFileState>();
-            var mutations = new List<FileMutation>();
-            foreach (var note in next.Notes.Values)
+            var registry = MergeRegistry(database.LoadSourceFiles(), observed);
+            var byNote = registry.SelectMany(f => f.NoteIds.Select(id => (Id: id, File: f))).ToDictionary(x => x.Id, x => x.File, StringComparer.Ordinal);
+            VerifySemanticReads(previous, next, byNote);
+            var observedDocuments = observed.Select(f => f.DocumentId).ToHashSet(StringComparer.Ordinal);
+            var states = new List<MarkdownFileState>(); var mutations = new List<FileMutation>();
+            foreach (var file in registry)
             {
-                registry.TryGetValue(note.Id, out var file);
-                if (file is { Exists: false })
+                var members = file.NoteIds.Where(next.Notes.ContainsKey).Select(id => next.Notes[id]).ToArray();
+                if (members.Length == 0) continue;
+                if (!file.Exists)
                 {
-                    if (note.SavedSource?.Status != "missing") throw new IOException("A missing file requires explicit restore; an ordinary commit cannot recreate it.");
-                    states.Add(file); continue;
+                    if (members.Any(n => n.SavedSource?.Status != "missing")) throw new IOException("A missing physical document requires explicit restore.");
+                    states.Add(file with { NoteId = members[0].Id, MemberNoteIds = file.IsGrouped ? members.Select(n => n.Id).ToArray() : null });
+                    continue;
                 }
-                previous.Notes.TryGetValue(note.Id, out var oldNote);
-                var observedHere = observedById.ContainsKey(note.Id);
-                var ownChange = !observedHere && (oldNote is null || oldNote.CurrentSource != note.CurrentSource || oldNote.Title != note.Title);
+                if (members.Length != file.NoteIds.Count) throw new IOException("An existing document lost a member without an explicit physical regrouping operation.");
+                PrepareDocument(file, members);
+            }
+            foreach (var note in next.Notes.Values.Where(n => !byNote.ContainsKey(n.Id))) PrepareDocument(null, [note]);
+
+            void PrepareDocument(MarkdownFileState? file, IReadOnlyList<Note> members)
+            {
+                var observedHere = file is not null && observedDocuments.Contains(file.DocumentId);
+                var ownChange = !observedHere && members.Any(note => !previous.Notes.TryGetValue(note.Id, out var old) || old.CurrentSource != note.CurrentSource || old.Title != note.Title
+                    || !RecordsMetadataCodec.SameDescriptor(old.CurrentRecords, note.CurrentRecords));
                 var envelope = MarkdownEnvelopeCodec.Read(file?.Text ?? "");
-                var bindings = next.Definitions.Values.Where(d => d.NoteId == note.Id).ToDictionary(d => d.Name, d => d.Id, StringComparer.Ordinal);
+                var existing = file is null ? [] : ReadMembers(file, envelope);
+                var metadataNotes = members.Select(note =>
+                {
+                    // A stale observed member retains its prior identity envelope;
+                    // healthy siblings can still receive derived reference updates.
+                    var old = envelope.Metadata?.Notes.SingleOrDefault(n => n.Id == note.Id);
+                    if (observedHere && note.IsSourceStale && old is not null) return old;
+                    var records = note.CurrentRecords is null ? null : old?.Records is { } retained
+                        ? retained with { Descriptor = note.CurrentRecords } : new RecordsMetadata(note.Id, note.Title, note.CurrentRecords);
+                    if (recordsOverride?.NoteId == note.Id) records = recordsOverride.Metadata;
+                    return new MarkdownIdentityNote(note.Id, note.Title,
+                        next.Definitions.Values.Where(d => d.NoteId == note.Id && d.FieldOrigin is null).ToDictionary(d => d.Name, d => d.Id, StringComparer.Ordinal), records);
+                }).ToArray();
                 var documentId = file?.DocumentId ?? Guid.NewGuid().ToString("N");
-                var metadata = new MarkdownIdentityMetadata(1, documentId, [new(note.Id, note.Title, bindings)]);
-                var sameBody = file is not null && envelope.Body == note.CurrentSource;
+                var metadata = new MarkdownIdentityMetadata(1, documentId, metadataNotes, file?.IsGrouped == true ? "grouped" : envelope.Metadata?.Layout);
+                var sameBody = file is not null && members.All(n => existing.Single(m => m.Id == n.Id).Body == n.CurrentSource);
                 var needsMetadata = file is null || file.IsManaged && !MetadataMatches(envelope.Metadata, metadata) || ownChange;
-                // Incomplete externally saved source stays exact, including its
-                // previous metadata. Reading ordinary files alone never adds IDs.
-                if (file is not null && sameBody && (!needsMetadata || note.IsSourceStale && observedHere)) { states.Add(file); continue; }
-                if (protectedNoteIds.Contains(note.Id)) throw new IOException("This source has an unresolved identity or metadata conflict; no file was overwritten.");
-                if (!envelope.CanRewrite) throw new IOException($"Cannot rewrite metadata for {file?.RelativePath}: {string.Join("; ", envelope.Issues.Select(i => i.Code))}");
+                if (file is not null && sameBody && !needsMetadata) { states.Add(file); return; }
+                if (members.Any(n => protectedNoteIds.Contains(n.Id))) throw new IOException("This physical document has an unresolved member identity or metadata conflict; no source was overwritten.");
+                if (!envelope.CanRewrite) throw new IOException("Cannot rewrite document identity metadata.");
                 if (file is not null) VerifyCurrent(file);
-                var textWithBody = file is null ? note.CurrentSource : file.Text[..envelope.BodyStart] + note.CurrentSource;
+                var body = members[0].CurrentSource;
+                if (file?.IsGrouped == true)
+                {
+                    body = envelope.Body;
+                    foreach (var member in members.Where(n => existing.Single(m => m.Id == n.Id).Body != n.CurrentSource))
+                    {
+                        var updated = GroupedNoteCodec.ReplaceMember(body, GroupedNoteCodec.Parse(body, file.NoteIds), member.Id, member.CurrentSource);
+                        if (!updated.Success) throw new IOException("Grouped member source could not be safely replaced: " + string.Join("; ", updated.Issues.Select(i => i.Message)));
+                        body = updated.Source;
+                    }
+                }
+                var textWithBody = file is null ? body : file.Text[..envelope.BodyStart] + body;
                 var output = MarkdownEnvelopeCodec.Write(MarkdownEnvelopeCodec.Read(textWithBody), metadata);
-                if (!output.Success) throw new IOException("Could not serialize Markdown identity metadata: " + string.Join("; ", output.Issues.Select(i => i.Code)));
-                var relative = file?.RelativePath ?? NewNotePath(note, creationLocations.GetValueOrDefault(receipt.OperationId, ""));
-                var encoding = file?.EncodingName ?? "utf-8";
-                var bom = file?.HasBom ?? false;
-                var bytes = Encode(output.Source, encoding, bom);
-                var desired = RecoverableFileOperations.Sha256(bytes);
+                if (!output.Success) throw new IOException("Could not serialize document identity metadata: " + string.Join("; ", output.Issues.Select(i => i.Code)));
+                var relative = file?.RelativePath ?? NewNotePath(members[0], creationLocations.GetValueOrDefault(receipt.OperationId, ""));
+                var encoding = file?.EncodingName ?? "utf-8"; var bom = file?.HasBom ?? false;
+                var bytes = Encode(output.Source, encoding, bom); var desired = RecoverableFileOperations.Sha256(bytes);
                 if (file is null || desired != file.ByteHash) mutations.Add(new(relative, file?.ByteHash, bytes));
-                states.Add(new(documentId, note.Id, relative, output.Source, desired, encoding, bom, true));
+                states.Add(new(documentId, members[0].Id, relative, output.Source, desired, encoding, bom, true,
+                    MemberNoteIds: file?.IsGrouped == true ? members.Select(n => n.Id).ToArray() : null, IsGrouped: file?.IsGrouped == true));
             }
             if (states.Select(s => s.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != states.Count
                 || states.Select(s => s.DocumentId).Distinct(StringComparer.Ordinal).Count() != states.Count)
@@ -356,10 +390,80 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
 
     private static bool MetadataMatches(MarkdownIdentityMetadata? actual, MarkdownIdentityMetadata expected)
     {
-        if (actual is null || actual.DocumentId != expected.DocumentId || actual.Notes.Count != 1) return false;
-        var a = actual.Notes[0]; var b = expected.Notes[0];
-        return a.Id == b.Id && a.Title == b.Title && a.Bindings.Count == b.Bindings.Count
-            && a.Bindings.All(pair => b.Bindings.TryGetValue(pair.Key, out var id) && id == pair.Value);
+        return actual is not null && actual.DocumentId == expected.DocumentId && actual.Layout == expected.Layout
+            && actual.Notes.Count == expected.Notes.Count && actual.Notes.Zip(expected.Notes).All(pair =>
+                pair.First.Id == pair.Second.Id && pair.First.Title == pair.Second.Title && SameBindings(pair.First.Bindings, pair.Second.Bindings)
+                && SameRecordsMetadata(pair.First.Records, pair.Second.Records));
+    }
+    private static bool SameRecordsMetadata(RecordsMetadata? a, RecordsMetadata? b)
+        => a is null || b is null ? a is null && b is null
+            : a.CollectionId == b.CollectionId && a.Title == b.Title && a.ViewsYaml == b.ViewsYaml
+                && RecordsMetadataCodec.SameDescriptor(a.Descriptor, b.Descriptor);
+    private static bool SameBindings(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)
+        => a.Count == b.Count && a.All(pair => b.TryGetValue(pair.Key, out var id) && id == pair.Value);
+    private static bool BindingIdsMatch(Snapshot snapshot, string noteId, IReadOnlyDictionary<string, string>? actual)
+        => actual is null || SameBindings(actual, snapshot.Definitions.Values.Where(d => d.NoteId == noteId && d.FieldOrigin is null).ToDictionary(d => d.Name, d => d.Id, StringComparer.Ordinal));
+    private static bool SameFileState(MarkdownFileState a, MarkdownFileState b)
+        => a.DocumentId == b.DocumentId && a.RelativePath == b.RelativePath && a.Text == b.Text && a.ByteHash == b.ByteHash
+            && a.EncodingName == b.EncodingName && a.HasBom == b.HasBom && a.IsManaged == b.IsManaged && a.Exists == b.Exists
+            && a.IsGrouped == b.IsGrouped && a.NoteIds.SequenceEqual(b.NoteIds, StringComparer.Ordinal);
+    private static IReadOnlyList<Member> ReadMembers(MarkdownFileState file, MarkdownEnvelope envelope)
+    {
+        if (!envelope.CanRewrite) throw new InvalidDataException("Document envelope cannot be safely interpreted.");
+        if (file.IsGrouped)
+        {
+            if (envelope.Metadata is not { Layout: "grouped" } metadata || !metadata.Notes.Select(n => n.Id).SequenceEqual(file.NoteIds, StringComparer.Ordinal))
+                throw new InvalidDataException("Grouped registry and metadata membership differ.");
+            var grouped = GroupedNoteCodec.Parse(envelope.Body, file.NoteIds);
+            if (!grouped.CanRewrite || grouped.Members.Count != file.NoteIds.Count)
+                throw new InvalidDataException("Grouped framing is ambiguous: " + string.Join("; ", grouped.Issues.Where(i => !i.IsWarning).Select(i => i.Message)));
+            return metadata.Notes.Select(n => new Member(n.Id, n.Title, grouped.Members.Single(m => m.NoteId == n.Id).Body, n.Bindings, n.Records?.Descriptor)).ToArray();
+        }
+        if (file.NoteIds.Count != 1 || envelope.Metadata is { } single && (single.Layout == "grouped" || single.Notes.Count != 1 || single.Notes[0].Id != file.NoteId))
+            throw new InvalidDataException("Single-note registry and metadata membership differ.");
+        return [new(file.NoteId, envelope.Metadata?.Notes[0].Title ?? Path.GetFileNameWithoutExtension(file.RelativePath), envelope.Body, envelope.Metadata?.Notes[0].Bindings, envelope.Metadata?.Notes[0].Records?.Descriptor)];
+    }
+    private static void ValidateRegistry(IReadOnlyList<MarkdownFileState> registry)
+    {
+        var ids = registry.SelectMany(f => f.NoteIds).ToArray();
+        if (registry.Any(f => f.NoteIds.Count == 0 || f.NoteId != f.NoteIds[0] || !f.IsGrouped && f.NoteIds.Count != 1)
+            || ids.Distinct(StringComparer.Ordinal).Count() != ids.Length
+            || registry.Select(f => f.DocumentId).Distinct(StringComparer.Ordinal).Count() != registry.Count
+            || registry.Select(f => f.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != registry.Count)
+            throw new InvalidDataException("Physical document registry has duplicate paths/identities or invalid membership.");
+    }
+    private IReadOnlyList<MarkdownFileState> MergeRegistry(IReadOnlyList<MarkdownFileState> previous, IReadOnlyList<MarkdownFileState> observed)
+    {
+        ValidateRegistry(observed);
+        var result = previous.ToDictionary(f => f.DocumentId, StringComparer.Ordinal);
+        var updated = observed.Select(f => f.DocumentId).ToHashSet(StringComparer.Ordinal);
+        var moved = observed.SelectMany(f => f.NoteIds.Select(id => (Id: id, f.DocumentId))).ToDictionary(p => p.Id, p => p.DocumentId, StringComparer.Ordinal);
+        foreach (var old in previous.Where(f => !updated.Contains(f.DocumentId) && f.NoteIds.Any(id => moved.TryGetValue(id, out var owner) && owner != f.DocumentId)))
+        {
+            if (!old.NoteIds.All(moved.ContainsKey) || File.Exists(paths.Resolve(old.RelativePath)))
+                throw new IOException("Prior document still owns members or physical bytes; regrouping is incomplete.");
+            result.Remove(old.DocumentId);
+        }
+        foreach (var file in observed) result[file.DocumentId] = file;
+        var merged = result.Values.ToArray(); ValidateRegistry(merged); return merged;
+    }
+    /// <summary>Refreshes only derived document observations whose note semantics still exactly match the expected snapshot.</summary>
+    public void RefreshSourceRegistry(Snapshot expectedSnapshot, IReadOnlyList<MarkdownFileState> states)
+    {
+        lock (gate)
+        {
+            if (blocked) throw new IOException("Pending recovery blocks registry refresh.");
+            foreach (var file in states)
+            {
+                VerifyCurrent(file);
+                if (!file.Exists) throw new IOException("Deletion observations require a semantic transaction.");
+                foreach (var member in ReadMembers(file, MarkdownEnvelopeCodec.Read(file.Text)))
+                    if (!expectedSnapshot.Notes.TryGetValue(member.Id, out var note) || note.CurrentSource != member.Body || note.Title != member.Title
+                        || !BindingIdsMatch(expectedSnapshot, member.Id, member.Bindings) || !RecordsMetadataCodec.SameDescriptor(note.CurrentRecords, member.Records))
+                        throw new IOException("Source content or member identity needs semantic reconciliation.");
+            }
+            database.RefreshSourceRegistry(expectedSnapshot, MergeRegistry(database.LoadSourceFiles(), states));
+        }
     }
     private void VerifySemanticReads(Snapshot previous, Snapshot next, IReadOnlyDictionary<string, MarkdownFileState> registry)
     {
@@ -373,7 +477,7 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
         while (requested.TryDequeue(out var name))
         {
             if (!names.Add(name) || !definitions.TryGetValue(name, out var value) || value.Note.IsSourceStale) continue;
-            if (owners.Add(value.Note.Id) && registry.TryGetValue(value.Note.Id, out var file)) VerifyCurrent(file);
+            if (registry.TryGetValue(value.Note.Id, out var file) && owners.Add(file.DocumentId)) VerifyCurrent(file);
             foreach (var part in value.Definition.Parts.Where(p => p.Kind == PartKind.Identifier)) requested.Enqueue(part.Text);
         }
     }

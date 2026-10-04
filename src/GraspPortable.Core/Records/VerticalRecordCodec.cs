@@ -17,7 +17,7 @@ public static class VerticalRecordCodec
         var schemaIds = new HashSet<string>(StringComparer.Ordinal); var recordIds = new HashSet<string>(StringComparer.Ordinal);
         void Problem(string code, string message, int at = 0, int length = 0) => diagnostics.Add(new(code, message, new(at, length)));
         foreach (var field in descriptor.Fields)
-            if (!RecordText.Id(field.Id) || !RecordText.Key(field.Key) || !schemaIds.Add(field.Id)) Problem("field-schema", "Field schema IDs and ASCII keys must be valid and unambiguous.");
+            if (!RecordText.Id(field.Id) || !RecordText.FieldKey(field.Key) || !schemaIds.Add(field.Id)) Problem("field-schema", "Field schema IDs and single-segment ASCII keys must be valid and unambiguous.");
         foreach (var record in descriptor.Records)
         {
             if (!RecordText.Id(record.Id) || !RecordText.Key(record.Key) || !recordIds.Add(record.Id)) Problem("record-schema", "Record identity and ASCII key must be valid and unique.");

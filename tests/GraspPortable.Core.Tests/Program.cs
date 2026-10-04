@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using GraspPortable.Core.ValueEngine;
 
+try
+{
 var passed = 0;
 var failed = 0;
 string[] policy = ["", "grasp"];
@@ -291,3 +293,8 @@ Check("deep chain and wide fanout bounded stress", () =>
 
 Console.WriteLine($"Core fixtures: {passed} passed, {failed} failed.");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}

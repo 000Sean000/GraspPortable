@@ -1,19 +1,19 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.13.0
+version: 1.14.0
 updated: 2026-10-04
 scope: rewrite-branch-entry
 ---
 
 ## Windows 筆記與資料表
 
-`rewrite/dotnet` 已有 Windows Markdown workspace 試用版，含實際檔案樹與右鍵檔案操作。[操作說明](docs/Engineering/FirstUI-Quickstart.md)提供目前已驗的 `S2-Review-1004` 啟動指令、資料位置及現有 FirstUI 的遷移行為。
+`rewrite/dotnet` 已有 Windows Markdown workspace 試用版，含檔案樹、右鍵合併／拆分、長文屬性資料表與 Markdown table 轉換。最新 App／Host 已完成本機 publish；新增 S3／S4 流程尚未完成原生 GUI 驗收。[操作說明](docs/Engineering/FirstUI-Quickstart.md)提供啟動指令、操作入口、資料位置及既有 FirstUI 的遷移行為。
 
 2026-10-04 已授權以 Goal 持續完成 **S1 → S2 Markdown 共同編輯／實際檔案樹 → S3 整理／恢復 → S4 長文屬性與凍結資料表**，並自行 commit／push。Markdown adapter／coordinator 已接入實際 Host：Markdown 承載已保存原文，SQLite 保存索引、計算、草稿與恢復日誌；舊 schema 1 DB 遷到新的相鄰資料夾並保留原資料。
 
 S1 已有工程、Reading／補完及基本原生中文 IME 證據；IME／dirty 競態、剩餘 GUI 與端到端流暢度尚未完整驗收。已保留新增筆記、範例命名、引用導航、來源草稿及 Live Preview 修正；詳見 [S1 驗證紀錄](docs/Engineering/S1-Validation.md)。當前進度以執行狀態為準，不在 S1 自動停工。
 
-[S2 驗證紀錄](docs/Engineering/S2-Validation.md)保存檔案樹建立／改名／搬移、外部檔案更新及重開的有限原生操作證據；尚未完成 Obsidian GUI 交替、附件呈現／導航及量化效能。最新版 link codec 已有工程測試，尚待重新發布與 GUI；S1／S2 仍部分驗證，S3 進行中、S4 待實作，Goal 尚未完成。
+[S2 驗證紀錄](docs/Engineering/S2-Validation.md)保存檔案樹建立／改名／搬移、外部更新、圖片／wiki 導航及重開的有限原生證據。[S3／S4 驗證紀錄](docs/Engineering/S3-S4-Validation.md)保存分組、Records、轉換與來源層效能的工程結果；30 次完整 Markdown 提交 p95 334.1 ms 不包含 GUI 顯示時間。S1／S2 仍 PARTIAL，S3／S4 已接產品但原生驗收進行中，尚未宣告完成或使用者接受。需要原生量測時可明確傳入 launcher `-MeasurePerformance`，預設不開探針。
 
 1. [本輪授權與工作狀態](docs/EXECUTION-STATE.md)：Goal、實作／驗證／接受、證據與 exact next step。
 2. [Project Seed](docs/Project_Seed/README.md)：產品 WHAT／WHY、資料權威、長文欄位及共同編輯。

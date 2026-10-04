@@ -49,6 +49,8 @@ public partial class Home
                 await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(action.Target.RelativePath);
                 _notice="已複製相對路徑。"; return;
             case "reveal": PlatformServices.WorkspaceFileLauncher.Reveal(Backend.WorkspacePath,action.Target.RelativePath); return;
+            case "group-merge": case "group-split": await ShowGroupingAsync(action); return;
+            case "record-import": await ShowRecordImportAsync(action); return;
         }
         if(!await SaveCurrentAsync()) return;
         _fileAction=action; _filePreview=null;

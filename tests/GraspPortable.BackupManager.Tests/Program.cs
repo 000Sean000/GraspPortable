@@ -5,6 +5,8 @@ using GraspPortable.Host.Notifications;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Backups;
 
+try
+{
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../workspaces", "BackupManagerTests-" + Guid.NewGuid().ToString("N")));
 Directory.CreateDirectory(root);
 var passed = 0; var failed = 0;
@@ -172,6 +174,11 @@ await Check("settings-only change produces a checkpoint with recoverable new opt
 
 Console.WriteLine($"{passed} passed, {failed} failed; evidence: {root}");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
 
 sealed class Rig : IDisposable
 {

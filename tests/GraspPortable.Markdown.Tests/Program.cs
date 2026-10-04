@@ -1,6 +1,8 @@
 using GraspPortable.Host.Workspace.Markdown;
 using YamlDotNet.RepresentationModel;
 
+try
+{
 var passed = 0;
 var failed = 0;
 void Check(string name, Action action)
@@ -183,3 +185,8 @@ Check("frontmatter markers in ordinary body and fences are not envelopes", () =>
 
 Console.WriteLine($"Markdown envelope: {passed} passed, {failed} failed.");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}

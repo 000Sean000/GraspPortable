@@ -21,5 +21,16 @@
     <Project Path="tests/GraspPortable.BackupManager.Tests/GraspPortable.BackupManager.Tests.csproj" />
     <Project Path="tests/GraspPortable.GroupedNotes.Tests/GraspPortable.GroupedNotes.Tests.csproj" />
     <Project Path="tests/GraspPortable.Records.Tests/GraspPortable.Records.Tests.csproj" />
+    <Project Path="tests/GraspPortable.Content.Tests/GraspPortable.Content.Tests.csproj" />
+    <Project Path="tests/GraspPortable.GroupedWorkspace.Tests/GraspPortable.GroupedWorkspace.Tests.csproj" />
+    <Project Path="tests/GraspPortable.GroupingMetadata.Tests/GraspPortable.GroupingMetadata.Tests.csproj" />
+    <Project Path="tests/GraspPortable.RecordsKnowledge.Tests/GraspPortable.RecordsKnowledge.Tests.csproj" />
+    <Project Path="tests/GraspPortable.RecordsWorkspace.Tests/GraspPortable.RecordsWorkspace.Tests.csproj" />
+    <Project Path="tests/GraspPortable.GroupingLinks.Tests/GraspPortable.GroupingLinks.Tests.csproj" />
+    <Project Path="tests/GraspPortable.GroupingService.Tests/GraspPortable.GroupingService.Tests.csproj" />
+    <Project Path="tests/GraspPortable.RecordsService.Tests/GraspPortable.RecordsService.Tests.csproj" />
+    <Project Path="tests/GraspPortable.RecordImport.Tests/GraspPortable.RecordImport.Tests.csproj" />
+    <Project Path="tests/GraspPortable.SourcePerformance.Tests/GraspPortable.SourcePerformance.Tests.csproj" />
+    <Project Path="tests/GraspPortable.TestEntry.Tests/GraspPortable.TestEntry.Tests.csproj" />
   </Folder>
 </Solution>

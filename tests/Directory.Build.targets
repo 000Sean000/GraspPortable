@@ -1,0 +1,10 @@
+<Project>
+  <!-- Preserve any future ancestor targets; this file affects console tests only. -->
+  <PropertyGroup>
+    <_GraspAncestorTargets>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))</_GraspAncestorTargets>
+  </PropertyGroup>
+  <Import Project="$(_GraspAncestorTargets)" Condition="'$(_GraspAncestorTargets)' != ''" />
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/ConsoleTestFailure.cs" Link="TestSupport/ConsoleTestFailure.cs" />
+  </ItemGroup>
+</Project>

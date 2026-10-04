@@ -19,6 +19,7 @@ internal static class RecordText
     internal static string NewLine(string text) => Lines(text).Select(l => l.Eol).FirstOrDefault(e => e.Length > 0) ?? "\n";
     internal static bool Id(string id) => Guid.TryParseExact(id, "N", out var parsed) && parsed != Guid.Empty && parsed.ToString("N") == id;
     internal static bool Key(string key) => Regex.IsMatch(key, @"\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\z", RegexOptions.CultureInvariant);
+    internal static bool FieldKey(string key) => Regex.IsMatch(key, @"\A[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant);
     /// <summary>Line-oriented fenced-code state, after a known container's indentation is removed.</summary>
     internal sealed class Fence
     {

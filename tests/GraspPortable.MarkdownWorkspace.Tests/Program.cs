@@ -3,6 +3,8 @@ using GraspPortable.Core.Knowledge;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
 
+try
+{
 var passed = 0;
 var failed = 0;
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
@@ -31,6 +33,8 @@ async Task Observe(MarkdownWorkspaceRepository repository, KnowledgeService serv
 {
     var batch = repository.Scan(service.Current);
     True(batch.Issues.Count == 0, string.Join("; ", batch.Issues.Select(i => i.Code + ": " + i.Message)));
+    if (batch.Changes.Count == 0 && batch.MissingNoteIds.Count == 0 && batch.States.Count > 0)
+        repository.RefreshSourceRegistry(service.Current, batch.States);
     if (batch.Changes.Count > 0)
     {
         var op = Op(); using var lease = repository.BeginObservation(op, batch.States.Where(s => s.Exists).ToArray());
@@ -267,3 +271,8 @@ await Check("create location lease and readable collision-safe paths", async () 
 
 Console.WriteLine($"Markdown workspace: {passed} passed, {failed} failed. Evidence workspace: {testRoot}");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}

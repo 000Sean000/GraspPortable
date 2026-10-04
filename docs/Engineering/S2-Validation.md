@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.1.0
+version: 1.3.0
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -9,7 +9,7 @@ status: engineering-and-native-gui-partially-verified
 
 S2 的 Markdown adapter／coordinator 已接入實際 Host，App／Host 使用 protocol 3。已保存原文與最後接受的 AST／診斷分開；無效外部原文保留並標示 Stale，外部版本與 dirty draft 衝突不以舊文字覆蓋。實際檔案樹與右鍵操作已有工程與有限 Windows GUI 證據，**S2 仍為 PARTIAL，沒有宣告使用者接受或完整共同編輯驗收通過**。
 
-App／Host Release build、publish 及下列原生操作已完成。這次 GUI 使用的發行檔尚未包含後續最新版 link codec 與即將整合的 tree 自動選取修正；兩者不能沿用本次 GUI 結果。以 [EXECUTION-STATE](../EXECUTION-STATE.md) 記錄後續發行與重測，保持程式、已發行內容、實測和使用者接受分開。
+App／Host 已重新發布，包含最新版 link codec、tree 自動選取、本機圖片與 wiki 導航。下方補記實測範圍；後續分組及 Records 尚未沿用這份 GUI 證據。
 
 ## 2026-10-04 原生操作證據
 
@@ -23,7 +23,19 @@ App／Host Release build、publish 及下列原生操作已完成。這次 GUI �
 
 這是原生 Grasp UI 加上外部檔案修改的證據；**未在本段操作 Obsidian GUI，沒有重測原生 IME，也沒有量化端到端效能結果**。複製路徑／reveal 接面已實作，但上述紀錄不構成兩者完整原生驗收。
 
+## 本機圖片、改名連結及還原補驗
+
+同一 Windows App 與 `S2-Review-1004`，新增合成色塊 PNG 與 `Notes/圖片連結驗證.md`。Live Preview／Reading 均顯示相對 Markdown image 及 wiki image；wiki 筆記連結可開啟相同 note ID。JSON fence 的 wiki 文字保持展示內容。
+
+右鍵將 `Notes/重新命名驗證.md` 改為 `Notes/右鍵連結改名驗證.md`：預覽包含來源及 incoming link 檔案；套用後 ID `3d3aba5a`／TreeCheck 保留，另一筆記的 wiki 目標改寫，GUI 點擊可導航。
+
+備份介面手動 capture 成功、restore 至新資料夾並開啟，筆記及圖片可讀。**發現 GUI 選單顯示新版但 state 保留舊 generation 的問題，實際還原的是較舊備份；已修 capture 後明確選取新版及 keyed select，尚待重新發布重驗，不能標記整項通過。** 本次還原目錄為 `workspaces/S2-Review-1004-Restored-20261004-041108`。正常關閉，App／Host 都已結束，前台釋放。
+
+Content resolver 44 assertions、editor regression／TypeScript、App／Host 發行通過。未以此取代 Obsidian GUI、原生 IME 競態或量化效能驗收。
+
 ## 有界工程驗證
+
+2026-10-04 10:30 原生重驗：最新發行 App 在同一工作區按「立即建立備份」，選單更新為 10:30:25；按「還原至新工作區」成功建立 `workspaces/S2-Review-1004-Restored-20261004-103009`。其 `.grasp/restore-receipt.json` 的 SourceGeneration 明確為 `generation-20261004T0230258277980Z-d447f320557f459e899e0b18dcaf4ea6`，與畫面新建版本一致；還原 Notes 保留最新的 `右鍵連結改名驗證.md`。本次確認 generation 選取缺陷已修，不代表尚未執行的所有還原故障案例都通過。
 
 以下為本段已取得的結果；assertions、fixtures、groups 沿測試 runner 的計量，不混加為涵蓋率。
 
@@ -45,7 +57,7 @@ App／Host Release build、publish 及下列原生操作已完成。這次 GUI �
 
 ## 尚未完成與下一步
 
-- 最新 link codec 與 tree 自動選取修正重新發布後，補實際 GUI 操作。
+- 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取修正仍待重新發行重驗。
 - 真正 Obsidian／Grasp 交替操作、衝突 UI 與快速操作／IME／dirty 時序；附件呈現與 link 導航。
 - S1 剩餘政策 GUI、DPI、端到端流暢度；本次沒有新的性能數字。跨檔 journal／完整 snapshot 的成本尚未證明符合成長門檻。
 - S3 分組、checkpoint 排程／介面與 restore UI；S4 長文屬性／Records／凍結表格。

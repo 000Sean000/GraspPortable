@@ -3,6 +3,7 @@
 @using GraspPortable.App.Backend
 @using GraspPortable.App.PlatformServices
 @using GraspPortable.App.Workspace.Files
+@using GraspPortable.App.Records
 @implements IAsyncDisposable
 @inject BackendSession Backend
 @inject WorkspaceFolderPicker FolderPicker
@@ -12,10 +13,11 @@
  <div class="brand"><span class="brand-mark">G</span><div>GraspPortable<small>LOCAL MARKDOWN WORKSPACE</small></div></div>
  <button class="workspace-button" @onclick="OpenWorkspaceDialog" title="@Backend.WorkspacePath"><span class="status-dot @(Backend.Connected?"online":"")"></span>@WorkspaceName <span>⌄</span></button>
  @if(Backend.Connected){<WorkspaceFileTree LoadPage="ReadFilesAsync" WorkspaceKey="@Backend.Workspace?.WorkspaceId" SelectedNoteId="@_note?.Id" SelectedPath="@_note?.RelativePath" RefreshVersion="@_filesRefresh" OnOpen="OpenFileAsync" OnAction="HandleExplorerActionAsync" />}
- <div class="sidebar-bottom"><button @onclick="ShowBackupsAsync" disabled="@(!Backend.Connected)">備份與還原</button><button @onclick="ShowSettings" disabled="@(!Backend.Connected)">⚙ 解析設定</button><small>本機資料 · 獨立測試工作區</small></div>
+ <div class="sidebar-bottom"><button @onclick="ShowRecordsAsync" disabled="@(!Backend.Connected)">資料表</button><button @onclick="ShowBackupsAsync" disabled="@(!Backend.Connected)">備份與還原</button><button @onclick="ShowSettings" disabled="@(!Backend.Connected)">⚙ 解析設定</button><small>本機資料 · 獨立測試工作區</small></div>
 </aside>
 <main>
  <header class="toolbar"><div class="breadcrumb" title="@_note?.RelativePath">工作區 / @(_note?.RelativePath??_note?.Title??"開始使用")</div><div class="toolbar-actions">
+ @if(_recordsVisible){<button @onclick="()=>_recordsVisible=false">回到筆記</button>}
  <div class="mode-switch">
  <button class="@(_mode=="source"?"active":"")" @onclick='() => ChangeModeAsync("source")'>原文</button>
  <button class="@(_mode=="live"?"active":"")" @onclick='() => ChangeModeAsync("live")'>即時預覽</button>
@@ -27,8 +29,10 @@
  @if(_notice is not null){<div class="notice info"><span>@_notice</span><button @onclick="() => _notice=null">×</button></div>}
  @if(_note is { SourceStatus: not "accepted" }){<div class="notice info"><span>@SavedStatus(_note)。共享值顯示上次結果及診斷。</span></div>}
  @if(_sourceStatus?.Issues.Length>0){<details class="source-issues"><summary>來源核對有 @_sourceStatus.Issues.Length 項需要處理@(_sourceStatus.WritesBlocked?" · 暫停寫入，請保留草稿並重開":"")</summary>@foreach(var issue in _sourceStatus.Issues){<p><strong>@issue.RelativePath</strong> @issue.Message</p>}</details>}
- <div class="document-layout"><section class="document"><div class="document-heading">
+ @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" OnOpenSource="OpenRecordSourceAsync" /></div>}
+ <div class="document-layout @(_recordsVisible?"hidden":"")"><section class="document"><div class="document-heading">
  @if(_note is not null){
+ @if(_note.FileMembers?.Length>0){<label class="file-members">檔案中的筆記<select value="@_note.Id" @onchange="async e=>{if(e.Value is string id) await SelectNoteAsync(id);}">@foreach(var member in _note.FileMembers){<option value="@member.Id">@member.Title</option>}</select></label>}
  <div class="eyebrow">NOTE · @(_note.Id[..Math.Min(8,_note.Id.Length)])</div><input class="note-title" disabled="@(_switching||Backend.Closing)" aria-label="筆記標題" value="@_title" @oninput="TitleChanged" @onblur="SaveButtonAsync" />
  <div class="document-tools"><button @onclick="InsertExampleAsync" disabled="@(_mode=="reading")">＋ 定義範例</button><select aria-label="選擇定義" @bind="_insertName"><option value="">選擇定義…</option>@foreach(var d in _definitions){<option value="@d.Name">@d.Name</option>}</select><button @onclick="() => InsertReferenceAsync(false)" disabled="@(string.IsNullOrEmpty(_insertName)||_mode=="reading")">插入 [引用]</button><button @onclick="() => InsertReferenceAsync(true)" disabled="@(string.IsNullOrEmpty(_insertName)||_mode=="reading")">插入 [[引用]]</button></div>
  }else{<div class="empty-state"><span class="empty-mark">G</span><h1>讓筆記中的內容彼此連動</h1><p>建立一篇筆記，定義內容，再從另一篇引用。<br />編輯、計算與儲存都在這台電腦完成。</p><button class="primary" @onclick="ShowCreate" disabled="@(!Backend.Connected)">建立第一篇筆記</button></div>}
@@ -36,7 +40,7 @@
  @if(_showInspector){<aside class="inspector"><div class="inspector-heading">內容與關聯 <small>@_definitions.Length 個定義</small></div><section><h2>本篇定義</h2>
  @if(_note?.Definitions.Length>0){@foreach(var definition in _note.Definitions){<button class="definition-card" @onclick="() => InspectDefinitionAsync(definition.Name)"><strong>@definition.Name</strong><span>@Preview(definition.Value??definition.LastGoodValue??"尚未解析")</span><small>@definition.Status</small></button>}}else{<p class="muted">在原文輸入 @@code{…} 來建立定義。</p>}
  </section>
- @if(_selectedDefinition is not null){<section><h2>@_selectedDefinition.Name</h2><div class="value-preview">@(_selectedDefinition.Value??_selectedDefinition.LastGoodValue??"尚無值")</div><div class="stack-actions"><button @onclick="LocateDefinitionAsync">前往定義</button><button @onclick="ShowSharedEditAsync" disabled="@(!_selectedDefinition.IsLiteral)">修改共享值…</button></div>@if(!_selectedDefinition.IsLiteral){<p class="muted">組合值請前往原文修改其組成。</p>}<h3>引用位置 · @_references.Length</h3>@foreach(var reference in _references){<button class="reference-link" @onclick="() => LocateReferenceAsync(reference)"><span>@NoteTitle(reference.NoteId)</span><small>@reference.Kind · @Preview(reference.CachedValue)</small></button>}</section>}
+ @if(_selectedDefinition is not null){<section><h2>@_selectedDefinition.Name</h2><div class="value-preview">@(_selectedDefinition.Value??_selectedDefinition.LastGoodValue??"尚無值")</div><div class="stack-actions"><button @onclick="LocateDefinitionAsync">前往定義</button><button @onclick="ShowSharedEditAsync" disabled="@(!_selectedDefinition.CanEditShared)">修改共享值…</button></div>@if(!_selectedDefinition.CanEditShared){<p class="muted">組合值請前往原文修改其組成。</p>}<h3>引用位置 · @_references.Length</h3>@foreach(var reference in _references){<button class="reference-link" @onclick="() => LocateReferenceAsync(reference)"><span>@NoteTitle(reference.NoteId)</span><small>@reference.Kind · @Preview(reference.CachedValue)</small></button>}</section>}
  <section><h2>診斷 · @_diagnostics.Length</h2>@if(_diagnostics.Length==0){<p class="muted">目前沒有診斷。</p>}@foreach(var diagnostic in _diagnostics){<button class="diagnostic" @onclick="() => LocateDiagnosticAsync(diagnostic)"><strong>@diagnostic.Code</strong><span>@diagnostic.Message</span></button>}</section></aside>}
  </div><footer><span class="@(IsDirty?"pending-status":"")">@_saveStatus</span><span>@Backend.Status</span><span>@_source.Length 字元 · revision @_knowledgeRevision</span></footer>
 </main></div>
@@ -47,6 +51,41 @@
  <h2>@(_fileAction.Action=="new-folder"?"新增資料夾":_fileAction.Action=="rename"?"重新命名":"搬移")</h2><p>來源：@(_fileAction.Target.RelativePath.Length==0?"工作區根目錄":_fileAction.Target.RelativePath)</p><label>@(_fileAction.Action=="move"?"新的工作區相對路徑":"名稱")<input @ref="_fileDestinationInput" @bind="_fileDestination" @bind:event="oninput" @bind:after="() => _filePreview=null" /></label>
  @if(_filePreview is not null){<div class="impact">@foreach(var change in _filePreview.Changes){<p>@change.Path → @(change.NewPath??change.Kind)</p>}@foreach(var warning in _filePreview.Warnings){<p class="warning-text">@warning</p>}</div>}
  <div class="modal-actions"><button @onclick="CloseDialog">取消</button><button @onclick="PreviewFileActionAsync" disabled="@_busy">預覽影響</button><button class="primary" @onclick="ApplyFileActionAsync" disabled="@(_busy||_filePreview?.CanApply!=true)">確認套用</button></div>
+ }else if(_dialog=="grouping"){
+ <h2>@(_groupingAction=="merge"?"合併筆記檔案":"拆分筆記檔案")</h2><p>預覽內容、路徑與連結變更後再套用。筆記身分與定義保持不變；原檔保留在恢復日誌。</p>
+ @if(_groupingAction=="merge"){
+ <label>篩選來源<input @bind="_groupingSearch" @bind:event="oninput" /></label>
+ <div class="grouping-source-list">
+ @foreach(var source in FilteredGroupingSources.Take(_groupingVisible)){
+ <label class="checkbox"><input type="checkbox" checked="@_groupingSelected.Contains(source.RelativePath)" @onchange="e=>ToggleGroupingSource(source.RelativePath,e.Value is true)" />@source.RelativePath <small>（@source.Members.Length 篇）</small></label>
+ }
+ @if(FilteredGroupingSources.Count()>_groupingVisible){<button @onclick="()=>_groupingVisible+=50">載入更多來源</button>}
+ </div><small>已選 @_groupingSelected.Count 個檔案</small>
+ <label>合併後的相對路徑<input @bind="_groupingDestination" @bind:event="oninput" @bind:after="()=>_groupingPreview=null" /></label>
+ }else{
+ @foreach(var source in _groupingSources.Where(s=>_groupingSelected.Contains(s.RelativePath))){
+ <p>來源：@source.RelativePath</p>
+ @foreach(var member in source.Members){<label>@member.Title<input value="@_splitTargets[member.Id]" @oninput="e=>{_splitTargets[member.Id]=e.Value?.ToString()??string.Empty;_groupingPreview=null;}" /></label>}
+ }
+ }
+ <label>未分配內容的保留檔（需要時建立）<input @bind="_groupingPreservation" @bind:event="oninput" @bind:after="()=>_groupingPreview=null" /></label>
+ @if(_groupingPreview is not null){<div class="impact grouping-impact">
+ @foreach(var member in _groupingPreview.Members){<p>@member.Title → @member.DestinationPath</p>}
+ @foreach(var change in _groupingPreview.Changes){<p>@change.Kind：@change.Path → @change.NewPath</p>}
+ @foreach(var warning in _groupingPreview.Warnings){<p class="warning-text">@warning</p>}
+ </div>}
+ <div class="modal-actions"><button @onclick="CloseDialog">取消</button><button @onclick="PreviewGroupingAsync" disabled="@_busy">預覽影響</button><button class="primary" @onclick="ApplyGroupingAsync" disabled="@(_busy||_groupingPreview?.CanApply!=true)">確認套用</button></div>
+ }else if(_dialog=="record-import"){
+ <h2>從 Markdown 表格建立資料表</h2><p>來源：@_importSourcePath。建立新的縱向 Markdown，原筆記完整保留；確認後可在資料表調整欄位型別。</p>
+ <label>第幾個表格<input type="number" min="1" @bind="_importTable" @bind:after="()=>{_importPreview=null;_importMappings=[];}" /></label>
+ <label>資料表名稱<input @bind="_importTitle" @bind:event="oninput" @bind:after="()=>_importPreview=null" /></label>
+ <label>Record key 前綴（ASCII，可含 namespace）<input @bind="_importKey" @bind:event="oninput" @bind:after="()=>_importPreview=null" /></label>
+ <div class="grouping-source-list">@for(var i=0;i<_importMappings.Length;i++){var index=i;var mapping=_importMappings[index];<div class="import-mapping"><strong>欄位 @(index+1)</strong><label>Key<input value="@mapping.Key" @oninput="e=>ImportMappingChanged(index,key:e.Value?.ToString()??string.Empty)" /></label><label>顯示名稱<input value="@mapping.DisplayName" @oninput="e=>ImportMappingChanged(index,label:e.Value?.ToString()??string.Empty)" /></label></div>}</div>
+ @if(_importPreview is not null){<div class="impact grouping-impact"><p>@_importPreview.RowCount 筆 · @_importPreview.Columns.Length 欄 · 共 @_importPreview.TableCount 個原始表格</p>
+ @foreach(var row in _importPreview.SampleRows.Take(2)){<details><summary>範例 record</summary>@for(var j=0;j<row.Length;j++){<p><strong>@(_importPreview.Columns.ElementAtOrDefault(j)?.DisplayName)</strong><br />@Preview(row[j])</p>}</details>}
+ @foreach(var warning in _importPreview.Warnings){<p class="warning-text">@warning</p>}
+ </div>}
+ <div class="modal-actions"><button @onclick="CloseDialog">取消</button><button @onclick="PreviewRecordImportAsync" disabled="@_busy">預覽轉換</button><button class="primary" @onclick="ApplyRecordImportAsync" disabled="@(_busy||_importPreview?.CanApply!=true)">建立新資料表</button></div>
  }else if(_dialog=="workspace"){
  <div class="eyebrow">LOCAL WORKSPACE</div><h2>開啟工作區</h2><p>選擇 Markdown 資料夾；檔案將自動進入解析。舊版 DB 工作區會遷移至新資料夾，原資料保留。</p><label>工作區路徑<input @bind="_workspacePath" /></label><button @onclick="BrowseWorkspaceAsync">選擇資料夾…</button><div class="modal-actions"><button @onclick="CloseDialog">取消</button><button class="primary" @onclick="ChangeWorkspaceAsync" disabled="@_busy">開啟</button></div>
  }else if(_dialog=="literal" && _selectedDefinition is not null){
@@ -56,7 +95,7 @@
  }else if(_dialog=="backups"){
  <h2>備份與還原</h2><p>有變更時定期建立完整版本，正常關閉前補做。還原會建立新的工作區資料夾。</p>
  @if(_backups is not null){<div class="backup-settings"><label>間隔（分鐘）<input type="number" min="1" max="1440" @bind="_backupInterval" /></label><label>保留份數<input type="number" min="1" max="30" @bind="_backupRetention" /></label></div><button @onclick="SaveBackupSettingsAsync" disabled="@_busy">保存設定</button>
- <label>完整備份<select @bind="_restoreGeneration">@if(_backups.Generations.Length==0){<option value="">尚無完整備份</option>}@foreach(var generation in _backups.Generations){<option value="@generation.Path">@generation.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") · @generation.FileCount 個檔案</option>}</select></label>
+ <label>完整備份<select @key="_restoreGeneration" @bind="_restoreGeneration" @bind:after="() => _restoreComplete=false">@if(_backups.Generations.Length==0){<option value="">尚無完整備份</option>}@foreach(var generation in _backups.Generations){<option @key="generation.Path" value="@generation.Path">@generation.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") · @generation.FileCount 個檔案</option>}</select></label>
  <button @onclick="CaptureBackupAsync" disabled="@_busy">立即建立備份</button><label>還原至新資料夾<input @bind="_restoreDestination" @bind:after="() => _restoreComplete=false" /></label>
  @foreach(var issue in _backups.Issues){<p class="warning-text">@issue.Path @issue.Message</p>}
  }

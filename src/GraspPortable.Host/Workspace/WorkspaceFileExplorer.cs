@@ -39,7 +39,9 @@ public sealed class WorkspaceFileExplorer(string workspaceRoot, Func<IReadOnlyLi
                 var name = Path.GetFileName(fullPath);
                 if(!string.IsNullOrWhiteSpace(search) && isDirectory && !isLink) pending.Push(fullPath);
                 if(!string.IsNullOrWhiteSpace(search) && !relative.Contains(search, StringComparison.OrdinalIgnoreCase)) continue;
-                entries.Add(new(relative, name, isDirectory, byPath.GetValueOrDefault(relative)?.NoteId,
+                // One Explorer entry per physical document; the primary member is
+                // an opening anchor, not a claim that grouped siblings do not exist.
+                entries.Add(new(relative, name, isDirectory, byPath.GetValueOrDefault(relative)?.NoteIds.FirstOrDefault(),
                     isDirectory && !isLink && Directory.EnumerateFileSystemEntries(fullPath).Any(Visible)));
             }
             if(string.IsNullOrWhiteSpace(search)) break;

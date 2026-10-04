@@ -32,6 +32,8 @@ public partial class Home
         var result=await Backend.SendAsync<BackupResultDto>(HttpMethod.Post,"api/backups/capture",new CheckpointRequest(Guid.NewGuid().ToString("N")));
         _backupMessage=result.Path is not null?"已建立完整備份："+result.Path:"備份狀態："+result.Status;
         if(result.Issues.Length>0) _backupMessage+="\n"+string.Join("\n",result.Issues.Select(i=>i.Path+" "+i.Message));
+        if(result.Status=="published" && result.Path is not null) _restoreGeneration=result.Path;
+        _restoreComplete=false;
         await ReadBackupStatusAsync();
     });
 

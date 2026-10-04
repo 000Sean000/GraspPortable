@@ -1,5 +1,7 @@
 using GraspPortable.Host.Workspace.Markdown;
 
+try
+{
 var a = "11111111111111111111111111111111";
 var b = "22222222222222222222222222222222";
 var c = "33333333333333333333333333333333";
@@ -119,3 +121,8 @@ Test("external body edit and headings remain body source", () =>
 
 Console.WriteLine($"GroupedNotes: {passed} fixtures passed, {failed} failed.");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}

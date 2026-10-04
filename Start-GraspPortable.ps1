@@ -1,4 +1,4 @@
-param([string]$Workspace, [switch]$Build)
+param([string]$Workspace, [switch]$Build, [switch]$MeasurePerformance)
 $ErrorActionPreference = 'Stop'
 $repository = $PSScriptRoot
 if (-not $Workspace) { $Workspace = Join-Path $repository 'workspaces/FirstUI' }
@@ -11,4 +11,8 @@ if ($Build -or -not (Test-Path -LiteralPath $application) -or -not (Test-Path -L
 $env:GRASP_WORKSPACE = $Workspace
 $env:GRASP_HOST_PATH = $backend
 # The foreground App is the requested interactive product; its Host uses a hidden process.
-Start-Process -FilePath $application -WorkingDirectory (Split-Path -Parent $application)
+$previousMeasure = $env:GRASP_MEASURE_UI
+try {
+    $env:GRASP_MEASURE_UI = if($MeasurePerformance) { '1' } else { $null }
+    Start-Process -FilePath $application -WorkingDirectory (Split-Path -Parent $application)
+} finally { $env:GRASP_MEASURE_UI = $previousMeasure }

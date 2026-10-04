@@ -7,7 +7,7 @@ namespace GraspPortable.Host.Workspace;
 
 /// <summary>Serializes source reconciliation with API mutations. Draft saves keep their own Core guard.</summary>
 public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository, KnowledgeService knowledge,
-    RevisionHub revisions, string root, WorkspaceFileActions? fileActions = null) : BackgroundService
+    RevisionHub revisions, string root, WorkspaceFileActions? fileActions = null, WorkspaceGrouping? grouping = null) : BackgroundService
 {
     private readonly SemaphoreSlim mutations = new(1, 1);
     private readonly Channel<bool> signals = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
@@ -20,7 +20,7 @@ public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository,
         await mutations.WaitAsync(token);
         try {
             await ReconcileInsideAsync(token);
-            if(fileActions?.HasPendingOperations == true) throw new IOException("有尚未完成的檔案操作，保留草稿並重開工作區以恢復。");
+            if(HasPendingFiles) throw new IOException("有尚未完成的檔案操作，保留草稿並重開工作區以恢復。");
             return await action();
         }
         finally { mutations.Release(); }
@@ -38,7 +38,7 @@ public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository,
         var issues = new List<MarkdownScanIssue>(repository.PendingRecoveryIssues);
         try
         {
-            if(fileActions?.HasPendingOperations == true)
+            if(HasPendingFiles)
                 issues.Add(new("", "file-operation-pending", "檔案操作尚有恢復作業，暫停來源回寫；草稿仍可保存。"));
             else if(!repository.IsWriteBlocked)
             {
@@ -59,13 +59,16 @@ public sealed class WorkspaceCoordinator(MarkdownWorkspaceRepository repository,
                     var result = await knowledge.ObserveExternalAsync(op, scan.Changes, token, expected, unavailable);
                     if(result.Status != "source-observed") issues.Add(new("", result.Status, result.Message ?? "來源尚未接受，稍後重新觀測。"));
                 }
+                else if(scan.States.Count > 0) repository.RefreshSourceRegistry(knowledge.Current,scan.States);
             }
         }
         catch(Exception error) when(error is IOException or UnauthorizedAccessException or InvalidOperationException)
         { issues.Add(new("", "reconcile-pending", error.Message)); }
-        Volatile.Write(ref status, new(repository.IsWriteBlocked || fileActions?.HasPendingOperations == true,
+        Volatile.Write(ref status, new(repository.IsWriteBlocked || HasPendingFiles,
             issues.Select(i => new WorkspaceSourceIssue(i.RelativePath, i.Code, i.Message, i.NoteId)).Distinct().ToArray(), DateTimeOffset.UtcNow));
     }
+
+    private bool HasPendingFiles => fileActions?.HasPendingOperations == true || grouping?.HasPendingOperations == true;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

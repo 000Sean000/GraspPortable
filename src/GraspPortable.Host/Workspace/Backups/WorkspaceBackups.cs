@@ -325,9 +325,10 @@ public sealed class WorkspaceBackups
         var receipts = Rows<Receipt>("receipts").ToDictionary(r => r.OperationId, StringComparer.Ordinal);
         var drafts = Rows<Draft>("drafts");
         if (sources.Select(s => s.RelativePath).Distinct(StringComparer.OrdinalIgnoreCase).Count() != sources.Length
-            || sources.Select(s => s.NoteId).Distinct(StringComparer.Ordinal).Count() != sources.Length
+            || sources.Any(s => s.NoteIds.Count == 0 || s.NoteId != s.NoteIds[0] || !s.IsGrouped && s.NoteIds.Count != 1)
+            || sources.SelectMany(s => s.NoteIds).Distinct(StringComparer.Ordinal).Count() != sources.Sum(s => s.NoteIds.Count)
             || sources.Select(s => s.DocumentId).Distinct(StringComparer.Ordinal).Count() != sources.Length
-            || notes.Keys.Except(sources.Select(s => s.NoteId), StringComparer.Ordinal).Any()
+            || notes.Keys.Except(sources.SelectMany(s => s.NoteIds), StringComparer.Ordinal).Any()
             || drafts.Any(d => !notes.ContainsKey(d.NoteId)) || definitions.Any(d => !notes.ContainsKey(d.NoteId)))
             throw new InvalidDataException("Snapshot contains ambiguous source identities or orphaned notes/drafts/definitions.");
         var problems = new List<BackupProblem>();
@@ -339,20 +340,29 @@ public sealed class WorkspaceBackups
             var physical = Inside(content, source.RelativePath);
             if (!source.Exists)
             {
-                if (File.Exists(physical) || Directory.Exists(physical) || notes.TryGetValue(source.NoteId, out var missing) && missing.SavedSource?.Status != "missing")
+                if (File.Exists(physical) || Directory.Exists(physical) || source.NoteIds.Any(id => notes.TryGetValue(id, out var missing) && missing.SavedSource?.Status != "missing"))
                     throw new InvalidDataException("Missing source registry does not match physical/saved source state.");
                 problems.Add(new("source-missing", source.RelativePath, "Deleted source is retained in the database with its draft; reconcile after restore."));
                 continue;
             }
-            if (!notes.TryGetValue(source.NoteId, out var note)) throw new InvalidDataException("Registered source has no note.");
+            if (source.NoteIds.Any(id => !notes.ContainsKey(id))) throw new InvalidDataException("Registered source has a missing member note.");
             var bytes = File.ReadAllBytes(physical);
             if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != source.ByteHash || !Encode(source).AsSpan().SequenceEqual(bytes))
                 throw new InvalidDataException("External file differs from the observed source registry: " + source.RelativePath);
             var envelope = MarkdownEnvelopeCodec.Read(source.Text);
-            if (!envelope.CanRewrite || envelope.Body != note.CurrentSource
-                || source.IsManaged && (envelope.Metadata is not { Notes.Count: 1 } metadata || metadata.DocumentId != source.DocumentId || metadata.Notes[0].Id != source.NoteId))
+            if (!envelope.CanRewrite || source.IsManaged && (envelope.Metadata is not { } metadata || metadata.DocumentId != source.DocumentId
+                    || !metadata.Notes.Select(n => n.Id).SequenceEqual(source.NoteIds, StringComparer.Ordinal)
+                    || (metadata.Layout == "grouped") != source.IsGrouped))
                 throw new InvalidDataException("Markdown and the semantic saved-source base do not match: " + source.RelativePath);
-            if (note.IsSourceStale) problems.Add(new("source-stale", source.RelativePath, "Saved raw text and last accepted semantics are preserved separately; reconcile after restore."));
+            if (source.IsGrouped)
+            {
+                var grouped = GroupedNoteCodec.Parse(envelope.Body, source.NoteIds);
+                if (!grouped.CanRewrite || grouped.Members.Count != source.NoteIds.Count || grouped.Members.Any(m => m.Body != notes[m.NoteId].CurrentSource))
+                    throw new InvalidDataException("Grouped member bodies do not match the saved semantic source: " + source.RelativePath);
+            }
+            else if (envelope.Body != notes[source.NoteId].CurrentSource)
+                throw new InvalidDataException("Markdown and the saved source body differ: " + source.RelativePath);
+            if (source.NoteIds.Any(id => notes[id].IsSourceStale)) problems.Add(new("source-stale", source.RelativePath, "Saved raw text and last accepted semantics are preserved separately; reconcile after restore."));
         }
         var registered = sources.Where(s => s.Exists).Select(s => s.RelativePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var file in inventory.Files)
@@ -412,14 +422,15 @@ public sealed class WorkspaceBackups
             if (operation != expectedOperation) throw new InvalidDataException("Semantic intent operation identity differs from its receipt.");
             _ = Read<CompletionMarker>(Inside(content, $".grasp/operations/{operation:N}/semantic-finalized.json"));
         }
-        foreach (var file in JsonFiles(".grasp/file-actions/intents"))
+        foreach (var store in new[]{"file-actions","grouping"})
+        foreach (var file in JsonFiles(".grasp/"+store+"/intents"))
         {
             using var document = JsonDocument.Parse(File.ReadAllBytes(file)); var intent = document.RootElement;
             var id = intent.GetProperty("OperationId").GetString() ?? "";
             if (!Guid.TryParseExact(id, "N", out _) || intent.GetProperty("Format").GetInt32() != 1
                 || intent.GetProperty("Plan").GetProperty("WorkspaceId").GetString() != workspaceId)
                 throw new InvalidDataException("Invalid file action intent.");
-            using var receipt = JsonDocument.Parse(File.ReadAllBytes(Inside(content, ".grasp/file-actions/receipts/" + id + ".json")));
+            using var receipt = JsonDocument.Parse(File.ReadAllBytes(Inside(content, ".grasp/"+store+"/receipts/" + id + ".json")));
             if (receipt.RootElement.GetProperty("OperationId").GetString() != id || receipt.RootElement.GetProperty("Format").GetInt32() != 1
                 || receipt.RootElement.GetProperty("Result").GetProperty("OperationId").GetString() != id
                 || receipt.RootElement.GetProperty("PreviewId").GetString() != intent.GetProperty("Plan").GetProperty("PreviewId").GetString())

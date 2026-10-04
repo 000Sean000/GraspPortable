@@ -3,6 +3,8 @@ using GraspPortable.Core.Knowledge;
 using GraspPortable.Host.Workspace;
 using Microsoft.Data.Sqlite;
 
+try
+{
 var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 var workspace = Path.Combine(repoRoot, "workspaces", "integration-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"));
 Directory.CreateDirectory(workspace);
@@ -127,3 +129,9 @@ foreach (var count in new[] { 1000, 10000 })
     Check(watch.Elapsed.TotalMilliseconds <= 2000, $"stress {count} <=2s backend commit");
 }
 Console.WriteLine($"PASS {passed} assertions. Temporary evidence: {workspace}");
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

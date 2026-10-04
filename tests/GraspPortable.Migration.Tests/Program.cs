@@ -4,6 +4,8 @@ using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
 using Microsoft.Data.Sqlite;
 
+try
+{
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 var root = Path.Combine(repositoryRoot, "workspaces", "migration-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -157,3 +159,9 @@ var identityBefore = Hashes(identityCollision);
 Refuses(() => LegacyWorkspaceMigration.MigrateToNewFolder(identityCollision), "existing managed Markdown identities require collision review");
 Check(EqualHashes(identityBefore, Hashes(identityCollision)) && !File.Exists(Path.Combine(identityCollision + "-Markdown", ".grasp/migration/completed.json")), "ambiguous identity migration leaves source intact and target incomplete");
 Console.WriteLine($"PASS: {count} migration assertions. Workspace: {root}");
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

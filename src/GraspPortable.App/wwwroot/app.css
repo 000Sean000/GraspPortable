@@ -14,3 +14,9 @@ footer{font-size:12px;color:#526857;flex-shrink:0}
 
 
 .backup-settings{display:flex;gap:18px}.backup-settings label{flex:1}.backup-message{white-space:pre-wrap;overflow-wrap:anywhere}.modal select{max-width:100%;padding:8px}
+
+.grouping-source-list,.grouping-impact{max-height:240px;overflow:auto}.grouping-source-list .checkbox{margin:8px 0}.grouping-source-list small{color:var(--muted)}
+
+.records-workbench{flex:1;min-height:0;overflow:hidden}.document-layout.hidden{display:none}.file-members{display:flex;align-items:center;gap:12px;font-size:12px;margin-bottom:18px}.file-members select{max-width:360px;padding:5px}
+
+.import-mapping{padding:10px 0;border-bottom:1px solid #e2e5dd}.import-mapping label{display:inline-flex;width:46%;margin-right:3%;font-size:12px}

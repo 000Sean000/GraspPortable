@@ -13,7 +13,8 @@ public enum EvaluationStatus { Valid, Missing, Cycle, DependencyError, ResourceL
 
 public sealed record BindingPart(PartKind Kind, string Text, SourceSpan Span);
 public sealed record Definition(string Name, SourceSpan NameSpan, SourceSpan Span,
-    SourceSpan ExpressionSpan, IReadOnlyList<BindingPart> Parts);
+    SourceSpan ExpressionSpan, IReadOnlyList<BindingPart> Parts, FieldDefinitionOrigin? FieldOrigin = null);
+public sealed record FieldDefinitionOrigin(string RecordId, string FieldId);
 public sealed record ParsedReference(ReferenceKind Kind, string Name, SourceSpan NameSpan,
     SourceSpan ValueSpan, SourceSpan Span, string CachedValue);
 public sealed record ParseDiagnostic(string Code, string Message, SourceSpan Span);

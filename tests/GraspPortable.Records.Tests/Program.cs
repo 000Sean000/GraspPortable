@@ -2,6 +2,8 @@ using System.Numerics;
 using GraspPortable.Core.Records;
 using GraspPortable.Core.ValueEngine;
 
+try
+{
 var count = 0;
 void Check(bool pass, string label) { if (!pass) throw new Exception(label); count++; Console.WriteLine("PASS: " + label); }
 string Id() => Guid.NewGuid().ToString("N");
@@ -106,3 +108,9 @@ var containerHeading = "> # Nested H1\n";
 Check(!HeadingConversion.Preview(containerHeading).CanApply && HeadingConversion.Preview(containerHeading).ConvertedSource == containerHeading,
     "unsupported container heading is preserved read-only rather than silently leaving converted H1");
 Console.WriteLine($"PASS: {count} bounded Records assertions.");
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

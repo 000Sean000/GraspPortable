@@ -8,7 +8,7 @@ import { Marked } from "marked";
 import DOMPurify from "dompurify";
 import { literalAction } from "./graspEditing";
 
-type Reference = { name: string; cachedValue: string; start: number; length: number };
+type Reference = { name: string; cachedValue: string; start: number; length: number; originNoteId?: string | null };
 type Region = { start: number; length: number; isComplete: boolean };
 type Delta = { from: number; to: number; insert: string };
 type DotNet = { invokeMethodAsync(name: string, ...args: unknown[]): Promise<unknown> };
@@ -17,10 +17,104 @@ let live = false, quiet = false, timer: ReturnType<typeof setTimeout> | undefine
 let locked = false, compositionActive = false;
 const editability = new Compartment();
 let pending: Delta[] = [], sending = Promise.resolve(), refs: Reference[] = [];
+let graspRegions:Region[]=[];
 const setReferences = StateEffect.define<Reference[]>();
+const setRegions = StateEffect.define<Region[]>();
 const escapeHtml = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const renderer = new Marked({ renderer: { html(token) { return escapeHtml(token.text); } } });
+const attribute = (s: string) => escapeHtml(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+function imagePlaceholder(target: string, alt: string, wiki = false) {
+  const remote=/^(?:https?:)?\/\//i.test(target);
+  return `<span class="content-image-placeholder" data-source="${attribute(target)}" data-wiki="${wiki}" role="img" aria-label="${attribute(alt || target)}">${escapeHtml(remote ? `［遠端圖片：${alt || target}（未自動載入）］` : `［圖片：${alt || target}（載入中）］`)}</span>`;
+}
+const renderer = new Marked({ renderer: {
+  html(token) { return escapeHtml(token.text); },
+  image(token) { return imagePlaceholder(token.href,token.text); }
+}, extensions:[{
+  name:"workspaceWiki", level:"inline",
+  start(source) { const at=source.search(/!?\[\[(?!@)/); return at<0 ? undefined : at; },
+  tokenizer(source) {
+    const match=/^(!?)\[\[(?!@)([^\]\r\n]+)\]\]/.exec(source); if(!match)return;
+    const split=match[2].indexOf("|"), target=(split<0?match[2]:match[2].slice(0,split)).trim();
+    if(!target || target.startsWith("@"))return;
+    return {type:"workspaceWiki",raw:match[0],target,label:split<0?target:match[2].slice(split+1),image:match[1]==="!"};
+  },
+  renderer(token) { return token.image ? imagePlaceholder(token.target,token.label,true)
+    : `<a href="#" data-local-target="${attribute(token.target)}" data-wiki="true">${escapeHtml(token.label)}</a>`; }
+}] });
 function html(source: string) { return DOMPurify.sanitize(renderer.parse(source, { async: false }) as string); }
+// Already-evaluated field content is Markdown only. Do not mount an editor or parse Grasp again.
+export function renderSafeMarkdown(source: string): string { return html(source); }
+let imageEpoch=0;
+const imageCache=new Map<string,string>();
+const imagePending=new Map<string,Promise<string|null>>();
+let imageCacheSize=0;
+let activeImages=0;
+const imageJobs:(()=>void)[]=[];
+function invalidateImages() { imageEpoch++; imageCache.clear(); imagePending.clear(); imageCacheSize=0; }
+function scheduleImage(work:()=>Promise<string|null>):Promise<string|null> {
+  if(imageJobs.length>=64)return Promise.resolve(null);
+  return new Promise(resolve=>{
+    const run=()=>{activeImages++;void work().then(resolve,()=>resolve(null)).finally(()=>{activeImages--;imageJobs.shift()?.();});};
+    if(activeImages<2)run();else imageJobs.push(run);
+  });
+}
+function rememberImage(key: string, value: string) {
+  if(value.length>4*1024*1024)return;
+  while(imageCache.size>=24 || imageCacheSize+value.length>4*1024*1024) {
+    const oldest=imageCache.keys().next().value; if(oldest===undefined)break;
+    imageCacheSize-=imageCache.get(oldest)!.length; imageCache.delete(oldest);
+  }
+  imageCache.set(key,value); imageCacheSize+=value.length;
+}
+async function resolveImage(origin: string,target: string,wiki: boolean,epoch: number): Promise<string|null> {
+  const key=JSON.stringify([origin,target,wiki]);
+  const cached=imageCache.get(key); if(cached)return cached;
+  const pending=imagePending.get(key); if(pending)return pending;
+  const request=scheduleImage(async()=>{
+    if(epoch!==imageEpoch)return null;
+    const value=await dotnet.invokeMethodAsync("OnResolveImage",origin,target,wiki);
+    const result=typeof value==="string" && /^data:image\/(?:png|jpeg|gif|webp|bmp);base64,[A-Za-z0-9+/=]+$/.test(value) && value.length<=12*1024*1024 ? value : null;
+    if(result && epoch===imageEpoch)rememberImage(key,result); return result;
+  }).finally(()=>{if(epoch===imageEpoch)imagePending.delete(key);});
+  imagePending.set(key,request); return request;
+}
+function bindContent(element: HTMLElement,origin: string) {
+  element.querySelectorAll<HTMLAnchorElement>("a").forEach(anchor=>{
+    if(anchor.dataset.contentBound)return; anchor.dataset.contentBound="true";
+    anchor.addEventListener("click",event=>{
+      event.preventDefault(); event.stopPropagation();
+      const target=anchor.dataset.localTarget??anchor.getAttribute("href")??"";
+      if(/^https?:\/\//i.test(target))void dotnet.invokeMethodAsync("OnExternalLink",target);
+      else void dotnet.invokeMethodAsync("OnLocalLink",origin,target,anchor.dataset.wiki==="true");
+    });
+  });
+  const placeholders=Array.from(element.querySelectorAll<HTMLElement>(".content-image-placeholder[data-source]"));
+  const epoch=imageEpoch,capturedNote=noteId;
+  // Limit one rendered chunk and use two workers; excess images remain explicit placeholders.
+  const queue=placeholders.filter(placeholder=>{
+    if(placeholder.dataset.contentBound)return false; placeholder.dataset.contentBound="true";
+    if(/^(?:[A-Za-z][A-Za-z0-9+.-]*:|\/\/)/.test(placeholder.dataset.source??"")) {
+      placeholder.textContent=`［圖片：${placeholder.getAttribute("aria-label")}（外部來源未載入）］`; return false;
+    }
+    return true;
+  });
+  queue.slice(64).forEach(p=>{p.textContent=`［圖片：${p.getAttribute("aria-label")}（本次顯示上限）］`;});
+  const visible=queue.slice(0,64);
+  async function worker() {
+    while(visible.length && epoch===imageEpoch && capturedNote===noteId) {
+      const placeholder=visible.shift()!;
+      const value=await resolveImage(origin,placeholder.dataset.source??"",placeholder.dataset.wiki==="true",epoch);
+      if(epoch!==imageEpoch || capturedNote!==noteId || !placeholder.isConnected)continue;
+      if(!value) {placeholder.textContent=`［圖片：${placeholder.getAttribute("aria-label")}（找不到或格式不支援）］`;continue;}
+      const image=document.createElement("img"); image.alt=placeholder.getAttribute("aria-label")??"";
+      image.style.maxWidth="100%"; image.style.height="auto"; image.loading="lazy"; image.src=value;
+      image.addEventListener("load",()=>view?.requestMeasure(),{once:true});
+      placeholder.replaceWith(image);
+    }
+  }
+  // Widget DOM is connected by CodeMirror after toDOM returns.
+  queueMicrotask(()=>{void worker();void worker();});
+}
 function normalize(source: string) { return source.replace(/\r\n|\r/g, "\n"); }
 function rawOffset(source: string, offset: number) {
   let i = 0, n = 0;
@@ -38,15 +132,24 @@ function makeReference(reference: Reference): HTMLElement {
   const content = document.createElement("span"); content.className = "reference-content";
   content.innerHTML = html(reference.cachedValue || "（空值）");
   element.append(content);
+  bindContent(content,reference.originNoteId??noteId);
   element.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); void dotnet.invokeMethodAsync("OnReferenceClicked", reference.name); });
-  element.addEventListener("keydown", event => { if(event.key === "Enter") { event.preventDefault(); void dotnet.invokeMethodAsync("OnReferenceClicked", reference.name); } });
+  element.addEventListener("keydown", event => { if(event.key === "Enter" && event.target===element) { event.preventDefault(); void dotnet.invokeMethodAsync("OnReferenceClicked", reference.name); } });
   return element;
 }
 class ReferenceWidget extends WidgetType {
+  readonly epoch=imageEpoch;
   constructor(readonly reference: Reference) { super(); }
-  eq(other: ReferenceWidget) { return other.reference.name === this.reference.name && other.reference.cachedValue === this.reference.cachedValue; }
+  eq(other: ReferenceWidget) { return other.epoch===this.epoch && other.reference.name === this.reference.name && other.reference.cachedValue === this.reference.cachedValue && other.reference.originNoteId===this.reference.originNoteId; }
   toDOM() { return makeReference(this.reference); }
   ignoreEvent() { return true; }
+}
+class ContentWidget extends WidgetType {
+  readonly epoch=imageEpoch;
+  constructor(readonly source: string,readonly origin: string) { super(); }
+  eq(other: ContentWidget) {return other.epoch===this.epoch && other.source===this.source && other.origin===this.origin;}
+  toDOM() {const element=document.createElement("span");element.className="content-preview";element.innerHTML=html(this.source);element.querySelectorAll("p").forEach(p=>{p.style.display="inline";p.style.margin="0";});bindContent(element,this.origin);return element;}
+  ignoreEvent() {return true;}
 }
 // Backend ranges use raw UTF-16 offsets; editor state always uses normalized EOLs.
 function editorReferences(source: string, references: Reference[]) {
@@ -54,16 +157,42 @@ function editorReferences(source: string, references: Reference[]) {
     .map(r => { const start = normalizedOffset(source, r.start);
       return {...r, start, length:normalizedOffset(source, r.start+r.length)-start}; });
 }
-function decorations(state: EditorState, references: Reference[]) {
+function editorRegions(source:string,regions:Region[]) {
+  return regions.filter(r=>r.start>=0&&r.start+r.length<=source.length).map(r=>({...r,start:normalizedOffset(source,r.start),length:normalizedOffset(source,r.start+r.length)-normalizedOffset(source,r.start)}));
+}
+function decorations(state: EditorState, references: Reference[],regions:Region[]) {
   if (!live) return Decoration.none;
   const cursor = state.selection.main;
   const referenceRanges = references
     .map(r => ({ reference: r, from:r.start, to:r.start+r.length }))
     .filter(r => r.from < r.to && !(cursor.from <= r.to && cursor.to >= r.from));
   const ranges = referenceRanges.map(r => Decoration.replace({widget: new ReferenceWidget(r.reference)}).range(r.from, r.to));
+  const contentRanges:{from:number;to:number}[]=[];
+  const excluded:{from:number;to:number}[]=regions.map(r=>({from:r.start,to:r.start+r.length}));
+  syntaxTree(state).iterate({enter(node){if(/^(FencedCode|CodeBlock|InlineCode|HTMLBlock|HTMLTag)$/.test(node.name)){excluded.push({from:node.from,to:node.to});return false;}}});
+  const overlaps=(from:number,to:number,list:{from:number;to:number}[])=>list.some(r=>from<r.to&&to>r.from);
+  const source=state.doc.toString(),wiki=/!?\[\[(?!@)[^\]\r\n]+\]\]/g;
+  const escapedAt=(position:number)=>{let count=0;for(let at=position-1;at>=0&&source[at]==="\\";at--)count++;return count%2!==0;};
+  let match:RegExpExecArray|null;
+  while((match=wiki.exec(source))) {
+    const from=match.index,to=from+match[0].length;
+    if(escapedAt(from))continue;
+    if(cursor.from<=to&&cursor.to>=from || overlaps(from,to,excluded) || references.some(r=>from<r.start+r.length&&to>r.start))continue;
+    contentRanges.push({from,to});ranges.push(Decoration.replace({widget:new ContentWidget(match[0],noteId)}).range(from,to));
+  }
   syntaxTree(state).iterate({ enter(node) {
     if(cursor.from <= node.to && cursor.to >= node.from) return;
     if(referenceRanges.some(r => r.from < node.to && r.to > node.from)) return;
+    if(overlaps(node.from,node.to,excluded) || overlaps(node.from,node.to,contentRanges))return;
+    if(node.name==="Link" || node.name==="Image" || node.name==="Autolink") {
+      if(escapedAt(node.from))return false;
+      const snippet=source.slice(node.from,node.to);
+      // Lezer also labels unresolved reference-style brackets as Link. Do not
+      // turn a source slice into a fresh wiki token after losing its escape/context.
+      if(!/<(?:a\b|span\b[^>]*class="content-image-placeholder")/.test(html(snippet)))return false;
+      contentRanges.push({from:node.from,to:node.to});
+      ranges.push(Decoration.replace({widget:new ContentWidget(snippet,noteId)}).range(node.from,node.to));return false;
+    }
     if(/^ATXHeading[1-6]$/.test(node.name)) ranges.push(Decoration.line({class:"cm-live-heading cm-live-"+node.name}).range(state.doc.lineAt(node.from).from));
     if(node.name === "StrongEmphasis") ranges.push(Decoration.mark({class:"cm-live-strong"}).range(node.from,node.to));
     if(node.name === "Emphasis") ranges.push(Decoration.mark({class:"cm-live-emphasis"}).range(node.from,node.to));
@@ -74,10 +203,12 @@ function decorations(state: EditorState, references: Reference[]) {
   return Decoration.set(ranges, true);
 }
 const referenceField = StateField.define({
-  create: state => { const references=editorReferences(raw,refs); return {references, decorations:decorations(state,references)}; },
+  create: state => { const references=editorReferences(raw,refs),regions=editorRegions(raw,graspRegions); return {references,regions, decorations:decorations(state,references,regions)}; },
   update(value, transaction) {
-    let references=value.references;
+    let references=value.references,regions=value.regions;
     if(transaction.docChanged) {
+      invalidateImages();
+      regions=regions.map(region=>{const start=transaction.changes.mapPos(region.start,-1),end=transaction.changes.mapPos(region.start+region.length,1);return {...region,start,length:end-start};}).filter(r=>r.length>0);
       references=references.flatMap(reference => {
         const end=reference.start+reference.length;
         let touched=false;
@@ -94,7 +225,8 @@ const referenceField = StateField.define({
     // Authoritative results are already normalized against their exact source.
     // Apply after mapping so a committed patch and its ranges arrive atomically.
     for(const effect of transaction.effects) if(effect.is(setReferences)) references=effect.value;
-    return {references,decorations:decorations(transaction.state,references)};
+    for(const effect of transaction.effects) if(effect.is(setRegions)) regions=effect.value;
+    return {references,regions,decorations:decorations(transaction.state,references,regions)};
   },
   provide: field => EditorView.decorations.from(field,value=>value.decorations)
 });
@@ -187,9 +319,10 @@ export function mount(elementId: string, receiver: DotNet) {
   view?.destroy();
   view = new EditorView({state:EditorState.create({doc:"",extensions:extensions()}),parent:document.getElementById(elementId)!});
 }
-export async function setDocument(id: string, source: string, localRevision: number, references: Reference[], livePreview: boolean, _regions: Region[] = []) {
+export async function setDocument(id: string, source: string, localRevision: number, references: Reference[], livePreview: boolean, regions: Region[] = []) {
   clearTimeout(timer); await queueSend();
-  quiet = true; noteId = id; raw = source; revision = localRevision; pending = []; refs=references; live=livePreview; compositionActive=false;
+  invalidateImages();
+  quiet = true; noteId = id; raw = source; revision = localRevision; pending = []; refs=references;graspRegions=regions; live=livePreview; compositionActive=false;
   view!.setState(EditorState.create({doc:normalize(source),extensions:extensions()}));
   view!.scrollDOM.scrollTop = 0;
   view!.scrollDOM.scrollLeft = 0;
@@ -203,10 +336,12 @@ export function freeze(value: boolean) {
 }
 export function updateReferences(expectedSource: string, references: Reference[]) {
   if(raw !== expectedSource || compositionActive || view?.composing) return false;
+  invalidateImages();
   view?.dispatch({effects:setReferences.of(editorReferences(expectedSource,references))}); return true;
 }
-export function applyCommitted(expectedSource: string, source: string, references: Reference[], _regions: Region[] = []) {
+export function applyCommitted(expectedSource: string, source: string, references: Reference[], regions: Region[] = []) {
   if(!view || raw !== expectedSource || compositionActive || view.composing || pending.length) return false;
+  invalidateImages();
   const before = view.state.doc.toString(), after = normalize(source);
   let from=0; while(from<before.length && from<after.length && before[from]===after[from]) from++;
   let oldTo=before.length,newTo=after.length;
@@ -214,7 +349,7 @@ export function applyCommitted(expectedSource: string, source: string, reference
   if(from>0 && /[\uD800-\uDBFF]/.test(before[from-1])) from--;
   quiet=true;
   view.dispatch({changes:before!==after ? {from,to:oldTo,insert:after.slice(from,newTo)} : undefined,
-    effects:setReferences.of(editorReferences(source,references)),annotations:Transaction.addToHistory.of(false)});
+    effects:[setReferences.of(editorReferences(source,references)),setRegions.of(editorRegions(source,regions))],annotations:Transaction.addToHistory.of(false)});
   raw=source; quiet=false;
   return true;
 }
@@ -234,6 +369,7 @@ export function insertText(text: string) {
 }
 export function renderReading(elementId: string, source: string, references: Reference[], regions: Region[] = []) {
   const target=document.getElementById(elementId); if(!target)return;
+  invalidateImages(); view?.dispatch({});
   const nonce=crypto.randomUUID();
   let represented=source;
   const blocks=regions.filter(r=>r.isComplete && r.start>=0 && r.length>0 && r.start+r.length<=source.length);
@@ -275,8 +411,13 @@ export function renderReading(elementId: string, source: string, references: Ref
     }
     if(part.childNodes.length)fragment.append(part); paragraph.replaceWith(fragment);
   });
-  target.querySelectorAll("a").forEach(a=>a.addEventListener("click",event=>{
-    event.preventDefault(); void dotnet.invokeMethodAsync("OnExternalLink",a.getAttribute("href")??"");
-  }));
+  bindContent(target,noteId);
 }
-export async function dispose() { clearTimeout(timer); await queueSend(); view?.destroy(); view=undefined; }
+export function scrollToContentAnchor(anchor: string) {
+  const name=anchor.replace(/^#/,"");
+  const target=document.getElementById("note-reading")??document.getElementById("reading");
+  if(!target || !name)return false;
+  const heading=Array.from(target.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")).find(h=>h.id===name || h.textContent?.trim()===name || h.textContent?.trim().toLowerCase().replace(/\s+/g,"-")===name.toLowerCase());
+  if(!heading)return false;heading.scrollIntoView({block:"start"});return true;
+}
+export async function dispose() { clearTimeout(timer); await queueSend(); invalidateImages();view?.destroy(); view=undefined; }

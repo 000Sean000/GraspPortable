@@ -1,4 +1,5 @@
 using GraspPortable.Core.ValueEngine;
+using GraspPortable.Core.Records;
 
 namespace GraspPortable.Core.Knowledge;
 
@@ -13,7 +14,7 @@ public sealed partial class KnowledgeService
     {
         var notes = basis.Notes.ToDictionary(p => p.Key, p => p.Value);
         notes[draft.NoteId] = notes[draft.NoteId] with { Title = NormalizeTitle(draft.Title),
-            SavedSource = new(draft.Source, "invalid", diagnostics.Length == 0 ? [new("source-unaccepted", message, new(0, 0))] : diagnostics) };
+            SavedSource = new(draft.Source, "invalid", diagnostics.Length == 0 ? [new("source-unaccepted", message, new(0, 0))] : diagnostics, notes[draft.NoteId].CurrentRecords) };
         var prepared = await PrepareAsync(basis, notes, basis.Languages, basis.PolicyRevision, null, token);
         if(prepared.Error is { } error) return Reject(operationId, fingerprint, "invalid", error, draft.NoteId);
         return await PublishAsync(basis, prepared.State!, operationId, fingerprint, draft.NoteId, draft, token, successStatus: "source-saved");
@@ -45,7 +46,7 @@ public sealed partial class KnowledgeService
         var guards = new Dictionary<string, Draft?>(StringComparer.Ordinal);
         foreach(var (id, reason) in unavailableReasons ?? new Dictionary<string,string>())
             if(notes.TryGetValue(id, out var unavailable)) notes[id] = unavailable with {
-                SavedSource = new(unavailable.CurrentSource, "unavailable", [new("source-unavailable", reason, new(0,0))]) };
+                SavedSource = new(unavailable.CurrentSource, "unavailable", [new("source-unavailable", reason, new(0,0))], unavailable.CurrentRecords) };
         foreach(var (id, expected) in deletedExpectedHashes ?? new Dictionary<string,string>())
         {
             if(!notes.TryGetValue(id, out var missing) || missing.CurrentSourceHash != expected)
@@ -53,7 +54,7 @@ public sealed partial class KnowledgeService
             guards[id] = GetDraft(id);
             if(guards[id] is null) notes.Remove(id);
             else notes[id] = missing with { SavedSource = new(missing.CurrentSource, "missing",
-                [new("source-deleted-with-draft", "檔案已在外部刪除，保留最後原文及 App 草稿等待處理。", new(0,0))]) };
+                [new("source-deleted-with-draft", "檔案已在外部刪除，保留最後原文及 App 草稿等待處理。", new(0,0))], missing.CurrentRecords) };
         }
         var retainedAfterDeletions = notes.ToDictionary(p => p.Key, p => p.Value);
         var identities = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -67,9 +68,9 @@ public sealed partial class KnowledgeService
                 return Reject(operationId, hash, "conflict", "原文基底已更新，請重新觀測。", change.NoteId);
             guards[change.NoteId] = GetDraft(change.NoteId);
             var old = existing ?? new Note(change.NoteId, NormalizeTitle(change.Title), "", 0, GraspParser.Parse("", basis.Languages), []);
-            var parsed = GraspParser.Parse(change.Source, basis.Languages, token);
+            var parsed = RecordNoteSyntax.Parse(change.Source, change.Records, basis.Languages, token);
             var localRenames = new Dictionary<string, string>(StringComparer.Ordinal);
-            notes[change.NoteId] = old with { Title = NormalizeTitle(change.Title), Source = change.Source, Syntax = parsed, SavedSource = null };
+            notes[change.NoteId] = old with { Title = NormalizeTitle(change.Title), Source = change.Source, Syntax = parsed, SavedSource = null, Records = change.Records };
             if(guards[change.NoteId] is not null)
             { Retain(change, old, "conflict", [new("source-draft-conflict", "外部原文與 App 草稿並存；請核對後合併。", new(0, 0))]); continue; }
             if(!parsed.IsValid)
@@ -80,7 +81,7 @@ public sealed partial class KnowledgeService
                 if(detected is null)
                 { Retain(change, old, "conflict", [new("source-identity", "無法可靠對應改名身分，保留來源等待核對。", new(0, 0))]); continue; }
                 localRenames = detected;
-                var edits = ExternalReferenceEdits.Classify(old.Source, change.Source, basis.Languages, token);
+                var edits = RecordReferenceEdits.Classify(old, change.Source, change.Records, basis.Languages, token);
                 // A document without previous carriers cannot contain a shared
                 // edit of one. Newly inserted references are ordinary source.
                 if(old.Syntax.References.Count > 0 && edits.Status is ExternalReferenceEditStatus.NeedsReview or ExternalReferenceEditStatus.Ambiguous)
@@ -117,7 +118,7 @@ public sealed partial class KnowledgeService
             var definition = basis.Definitions.Values.FirstOrDefault(d => d.Name == name);
             var owner = definition is null ? null : basis.Notes[definition.NoteId];
             if(owner is not null) guards.TryAdd(owner.Id, GetDraft(owner.Id));
-            var conflict = definition is null || !definition.IsLiteral || owner!.IsSourceStale || guards[owner.Id] is not null
+            var conflict = definition is null || !SharedWritable(basis,definition) || owner!.IsSourceStale || guards[owner.Id] is not null
                 || changes.Any(c => c.NoteId == owner!.Id && c.Source != owner.CurrentSource)
                 || intents.Any(i => notes[i.NoteId].IsSourceStale)
                 || intents.Select(i => i.Proposal.ProposedValue).Distinct(StringComparer.Ordinal).Count() != 1
@@ -139,9 +140,9 @@ public sealed partial class KnowledgeService
         else foreach(var (name, intents) in proposals)
         {
             var target = notes[sharedTargets[name]];
-            var literal = target.Syntax.Definitions.Single(d => d.Name == name);
-            var source = ReferenceCodec.ApplyPatches(target.Source, [new(literal.ExpressionSpan, LiteralCodec.Serialize(intents[0].Proposal.ProposedValue))]);
-            notes[target.Id] = target with { Source = source, Syntax = GraspParser.Parse(source, basis.Languages), SavedSource = null };
+            var definition=basis.Definitions.Values.Single(d=>d.Name==name);
+            var source = ReplaceSharedSource(target,definition,intents[0].Proposal.ProposedValue);
+            notes[target.Id] = target with { Source = source, Syntax = RecordNoteSyntax.Parse(source, target.Records, basis.Languages), SavedSource = null };
         }
 
         // Isolate name collisions to their new/edited owners. An invalid note
@@ -183,8 +184,8 @@ public sealed partial class KnowledgeService
                 .Concat(note.Syntax.Definitions.SelectMany(d => d.Parts).Where(p => p.Kind == PartKind.Identifier && renames.ContainsKey(p.Text)).Select(p => new SourcePatch(p.Span, renames[p.Text]))).ToArray();
             if(patches.Length == 0) continue;
             guards.TryAdd(note.Id, GetDraft(note.Id));
-            var source = ReferenceCodec.ApplyPatches(note.Source, patches);
-            notes[note.Id] = note with { Source = source, Syntax = GraspParser.Parse(source, basis.Languages) };
+            var source = RecordNoteSyntax.ApplyPatches(note.Source, note.Records, patches);
+            notes[note.Id] = note with { Source = source, Syntax = RecordNoteSyntax.Parse(source, note.Records, basis.Languages) };
         }
         var prepared = await PrepareAsync(basis, notes, basis.Languages, basis.PolicyRevision, renames, token, identities);
         if(prepared.Error is { } error)
@@ -204,6 +205,6 @@ public sealed partial class KnowledgeService
             null, token, draftGuards: guards, successStatus: "source-observed");
 
         void Retain(ExternalNoteChange change, Note prior, string status, ParseDiagnostic[] diagnostics)
-        { notes[change.NoteId] = prior with { Title = NormalizeTitle(change.Title), SavedSource = new(change.Source, status, diagnostics) }; }
+        { notes[change.NoteId] = prior with { Title = NormalizeTitle(change.Title), SavedSource = new(change.Source, status, diagnostics, change.Records) }; }
     }
 }

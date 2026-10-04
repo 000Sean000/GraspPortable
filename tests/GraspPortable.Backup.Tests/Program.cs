@@ -6,6 +6,8 @@ using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Backups;
 using GraspPortable.Host.Workspace.FileOperations;
 
+try
+{
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 var testRoot = Path.Combine(repositoryRoot, "workspaces", "backup-" + Guid.NewGuid().ToString("N"));
 var workspace = Path.Combine(testRoot, "Source");
@@ -142,3 +144,9 @@ File.AppendAllText(manifestPath, " ");
 Refuses(() => backups.Restore(next.GenerationPath!, retryDestination, operationId: restoreOperation), "same generation path with a different manifest payload is rejected");
 File.WriteAllBytes(manifestPath, manifestBytes);
 Console.WriteLine($"PASS: {count} backup assertions. Workspace: {testRoot}");
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

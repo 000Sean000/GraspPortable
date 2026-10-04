@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Engineering Entry
-version: 1.10.0
+version: 1.11.0
 updated: 2026-10-04
 scope: strategy-architecture-and-decision-routing
 ---
@@ -14,6 +14,7 @@ scope: strategy-architecture-and-decision-routing
 | 現有試用入口 | [First UI／S2](FirstUI-Quickstart.md) | Markdown workspace 啟動、舊資料遷移、測試資料與限制 |
 | S1 實際驗證 | [S1 Validation](S1-Validation.md) | 已執行工程／部分 Windows GUI 與未測範圍 |
 | S2 實際驗證 | [S2 Validation](S2-Validation.md) | Markdown／檔案樹／右鍵工程及有限原生操作；區分已發行與後續 link codec |
+| S3／S4 驗證 | [S3／S4 Validation](S3-S4-Validation.md) | 分組、Records、真 Markdown 提交量測及尚待原生驗收 |
 | 開發方法 | [Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) | Goal、決策權、有界測試、subagent、全局檢視、Git／額度 |
 | 架構規劃方法 | [Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) | Owner、ports、淺目錄、四維與接續 |
 | 模型決策 | [Architecture Model v1.1.0](Decisions/Architecture-Model-v1.1.0.md) | Explicit Architecture 適配與跨檔邊界 |

@@ -5,6 +5,8 @@ using GraspPortable.Core.ValueEngine;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
 
+try
+{
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../workspaces/FileActionsTests-" + Guid.NewGuid().ToString("N")));
 Directory.CreateDirectory(root);
 var passed = 0; var failed = 0;
@@ -19,6 +21,8 @@ async Task Observe(MarkdownWorkspaceRepository repository, KnowledgeService know
 {
     var scan = repository.Scan(knowledge.Current);
     True(scan.Issues.Count == 0, string.Join("; ", scan.Issues.Select(i => i.Message)));
+    if (scan.Changes.Count == 0 && scan.MissingNoteIds.Count == 0 && scan.States.Count > 0)
+        repository.RefreshSourceRegistry(knowledge.Current, scan.States);
     if (scan.Changes.Count > 0)
     {
         var op = Op(); using var lease = repository.BeginObservation(op, scan.States.Where(s => s.Exists).ToArray());
@@ -269,3 +273,9 @@ await Check("UTF16 source keeps encoding and exact body", async () =>
 
 Console.WriteLine($"File actions: {passed} passed, {failed} failed.");
 Environment.ExitCode = failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

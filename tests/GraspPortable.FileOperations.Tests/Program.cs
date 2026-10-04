@@ -2,6 +2,8 @@ using System.Text;
 using System.Diagnostics;
 using GraspPortable.Host.Workspace.FileOperations;
 
+try
+{
 var checks = 0;
 var tempRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "grasp-file-ops-" + Guid.NewGuid().ToString("N")));
 Directory.CreateDirectory(tempRoot);
@@ -204,3 +206,9 @@ void BatchScaling()
     Check(changes.All(c => Read(root, c.RelativePath) == "after"), "100-file batch has exact intended outputs");
     Console.WriteLine($"File batch ({count} files): prepare={prepareMs:F1} ms, apply={applyMs:F1} ms; local observation, not a hardware guarantee.");
 }
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;

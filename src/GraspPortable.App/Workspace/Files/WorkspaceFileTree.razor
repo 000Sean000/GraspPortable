@@ -92,6 +92,12 @@
             <div class="menu-separator" role="separator"></div>
             <button role="menuitem" @onclick='() => MenuActionAsync("rename")'>重新命名…</button>
             <button role="menuitem" @onclick='() => MenuActionAsync("move")'>移動到…</button>
+            @if(!target.IsDirectory && target.NoteId is not null){
+                <div class="menu-separator" role="separator"></div>
+                <button role="menuitem" @onclick='() => MenuActionAsync("group-merge")'>與其他筆記合併檔案…</button>
+                <button role="menuitem" @onclick='() => MenuActionAsync("group-split")'>拆分檔案中的筆記…</button>
+                <button role="menuitem" @onclick='() => MenuActionAsync("record-import")'>從 Markdown 表格建立資料表…</button>
+            }
         }
         <div class="menu-separator" role="separator"></div>
         <button role="menuitem" @onclick='() => MenuActionAsync("copy-relative-path")'>複製相對路徑</button>

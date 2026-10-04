@@ -82,6 +82,25 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
     public IReadOnlyList<Draft> LoadDrafts() { using var db = Open(); return ReadAll<Draft>(db, "drafts"); }
     public IReadOnlyList<MarkdownFileState> LoadSourceFiles()
     { if(!markdownSources) return []; using var db = Open(); return ReadAll<MarkdownFileState>(db, "source_files"); }
+    /// <summary>Derived physical observation only: does not consume drafts, advance knowledge, or manufacture a user receipt.</summary>
+    public void RefreshSourceRegistry(Snapshot expectedSnapshot, IReadOnlyList<MarkdownFileState> sourceFiles)
+    {
+        if (!markdownSources) throw new InvalidOperationException("Source registry requires schema 2.");
+        using var db = Open(); using var transaction = db.BeginTransaction();
+        using var guard = db.CreateCommand(); guard.Transaction = transaction;
+        guard.CommandText = "SELECT value FROM meta WHERE key='workspaceId'";
+        if (guard.ExecuteScalar() as string != expectedSnapshot.WorkspaceId) throw new IOException("Workspace identity changed during source observation.");
+        guard.CommandText = "SELECT value FROM meta WHERE key='revision'";
+        if (guard.ExecuteScalar() as string != expectedSnapshot.Revision.ToString()) throw new IOException("Knowledge revision changed during source observation.");
+        using var command = db.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "DELETE FROM source_files"; command.ExecuteNonQuery();
+        foreach (var source in sourceFiles)
+        {
+            command.Parameters.Clear(); command.CommandText = "INSERT INTO source_files(id,body) VALUES($id,$body)";
+            command.Parameters.AddWithValue("$id", source.DocumentId); command.Parameters.AddWithValue("$body", JsonSerializer.Serialize(source)); command.ExecuteNonQuery();
+        }
+        transaction.Commit();
+    }
     public Receipt? FindReceipt(string operationId)
     {
         using var db = Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "SELECT body FROM receipts WHERE operation_id=$id"; cmd.Parameters.AddWithValue("$id", operationId);

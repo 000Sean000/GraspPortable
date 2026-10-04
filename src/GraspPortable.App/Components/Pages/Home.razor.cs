@@ -62,6 +62,7 @@ public partial class Home
         editor=await JS.InvokeAsync<IJSObjectReference>("import","./editor.js");
         await editor!.InvokeVoidAsync("mount","note-editor",receiver);
         await GuardAsync(async () => { await Backend.OpenAsync(Backend.WorkspacePath); await LoadWorkspaceAsync(); });
+        if(Backend.Connected)await StartPerformanceAsync();
         if(!Backend.Connected) { _workspacePath=Backend.WorkspacePath; _dialog="workspace"; StateHasChanged(); }
     }
     private void BackendChanged() { if(!_disposed) _ = InvokeAsync(StateHasChanged); }
@@ -98,6 +99,7 @@ public partial class Home
     }
     private async Task LoadWorkspaceAsync()
     {
+        _recordsVisible=false;
         _contextGeneration++;
         searchCancellation?.Cancel();
         _search=""; _insertName=""; _selectedDefinition=null; _references=[]; _diagnostics=[];
@@ -144,6 +146,7 @@ public partial class Home
     private async Task SelectNoteAsync(string id)
     {
         if(_switching || id==_note?.Id) return;
+        var measure=await BeginPerformanceAsync(IsDirty?"noteSwitchWithSave":_performanceSeenNotes.Contains(id)?"noteSwitchWarm":"noteSwitchFirst");
         _switching=true; StateHasChanged();
         await editor!.InvokeVoidAsync("freeze",true);
         try { await GuardAsync(async () =>
@@ -151,7 +154,7 @@ public partial class Home
             if(!await SaveCurrentAsync()) return;
             await LoadNoteAsync(id);
         }); }
-        finally { _switching=false; await editor!.InvokeVoidAsync("freeze",false); StateHasChanged(); }
+        finally { _switching=false; await editor!.InvokeVoidAsync("freeze",false); StateHasChanged(); await EndPerformanceAsync(measure,_note?.Id==id);if(_note?.Id==id)_performanceSeenNotes.Add(id); }
     }
     // The caller owns switching / saving. Workspace changes already hold that guard.
     private async Task LoadNoteAsync(string id)
@@ -189,8 +192,8 @@ public partial class Home
     [JSInvokable] public async Task OnExternalLink(string url)
     {
         if(Uri.TryCreate(url,UriKind.Absolute,out var uri) && (uri.Scheme=="https" || uri.Scheme=="http"))
-            await Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(uri);
-        else await InvokeAsync(()=>{_notice="首版只開啟 http／https 外部連結；Grasp 引用請使用定義導航。";StateHasChanged();});
+            await InvokeAsync(()=>GuardAsync(async ()=>{await Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(uri);}));
+        else if(_note is not null) await OnLocalLink(_note.Id,url);
     }
     private void TitleChanged(ChangeEventArgs args) { _title=args.Value?.ToString()??""; _contentVersion++; _saveStatus="未保存的草稿"; ScheduleSave(); }
     private void ScheduleSave()
@@ -232,13 +235,16 @@ public partial class Home
             _saveStatus="草稿已保存 · 計算中"; StateHasChanged();
             await Backend.RefreshWorkspaceAsync(); _knowledgeRevision=Backend.Workspace!.Revision;
             var command=new CommitNoteRequest(Guid.NewGuid().ToString("N"),_sessionId,_draftRevision,_noteRevision,_knowledgeRevision);
+            var measure=await BeginPerformanceAsync("commitRequestToRenderedNote");
             var result=await Backend.CommandAsync("api/notes/"+id+"/commit",command,command.OperationId);
             if(result.Status=="confirmation-required")
             {
                 _confirmationNoteId=id; _confirmationSource=source; _confirmationVersion=version; _confirmationGeneration=_contextGeneration;
                 _confirmationRequest=command; _confirmationResult=result; _dialog="rename"; _saveStatus="草稿已保存 · 等待名稱變更確認"; return false;
             }
-            return await HandleCommitAsync(result,id,source,version);
+            var accepted=await HandleCommitAsync(result,id,source,version);
+            await EndPerformanceAsync(measure,accepted&&result.Status=="committed");
+            return accepted;
         }
         finally { _saving=false; writes.Release(); StateHasChanged(); }
     }
@@ -468,6 +474,7 @@ public partial class Home
             try{if(editor is not null)await editor!.InvokeVoidAsync("freeze",true); StateHasChanged(); safe=await SaveCurrentAsync();if(!safe)_error="尚有未確認的操作，請先處理提示後再關閉。";}
             catch(Exception error){_error="無法確認草稿已保存，因此保留視窗："+error.Message;}
             finally {if(!safe && editor is not null)await editor!.InvokeVoidAsync("freeze",false);}
+            if(safe)await SavePerformanceAsync();
             StateHasChanged();
         });
         return safe;
@@ -484,6 +491,7 @@ public partial class Home
         _disposed=true;debounce?.Cancel();searchCancellation?.Cancel();
         Backend.Changed-=BackendChanged;Backend.RevisionReceived-=RevisionReceived;Backend.BeforeClose=null;
         if(editor is not null){try{await editor!.InvokeVoidAsync("dispose");await editor.DisposeAsync();}catch(JSDisconnectedException){}}
+        if(_performance is not null)await _performance.DisposeAsync();
         receiver?.Dispose();debounce?.Dispose();searchCancellation?.Dispose();
     }
     public record EditorDelta(int From,int To,string Insert);

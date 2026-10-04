@@ -49,7 +49,7 @@ public sealed class WorkspaceFileActions
             var registry = repository.LoadSourceFiles();
             var movedFiles = inventory.Where(i => !i.Directory).ToArray();
             var notes = registry.Where(f => Under(f.RelativePath, source) && source.Length > 0).ToArray();
-            CheckNotes(notes.Select(n => n.NoteId));
+            CheckNotes(notes.SelectMany(n => n.NoteIds));
             foreach (var file in notes) if (!file.Exists) throw new IOException("來源包含缺失筆記，不能搬移：" + file.RelativePath);
             var mutations = new List<FileMutation>(); var changes = new List<FileActionChange>();
             var warnings = new List<string>();
@@ -57,7 +57,7 @@ public sealed class WorkspaceFileActions
                 : FileLinks.Plan(paths.Root, registry, source, target, sourceDirectory, basis.Languages);
             if (links.Warnings.Length > 0) return new(id, basis.Revision, [], links.Warnings, false);
             var patchOwners = registry.Where(f => links.Rewrites.ContainsKey(f.RelativePath)).ToArray();
-            CheckNotes(patchOwners.Select(f => f.NoteId));
+            CheckNotes(patchOwners.SelectMany(f => f.NoteIds));
             foreach (var item in movedFiles)
             {
                 var next = sourceDirectory ? target + item.Path[source.Length..] : target;
@@ -101,7 +101,7 @@ public sealed class WorkspaceFileActions
             if (sourceDirectory || request.Action == "new-folder") changes.Insert(0, new(source, target, "create-directory"));
             var guards = registry.Where(f => f.Exists).Select(f => new FileGuard(f.RelativePath, f.ByteHash)).ToArray();
             var plan = new ActionPlan(1, id, basis.WorkspaceId, basis.Revision, request.Action, source, target,
-                sourceDirectory, inventory, createDirectories, notes.Concat(patchOwners).Select(n => n.NoteId).Distinct().ToArray(),
+                sourceDirectory, inventory, createDirectories, notes.Concat(patchOwners).SelectMany(n => n.NoteIds).Distinct().ToArray(),
                 guards, mutations.ToArray(), changes.ToArray(), warnings.ToArray());
             WriteImmutable(PreviewPath(id), JsonSerializer.SerializeToUtf8Bytes(plan, Json));
             return new(id, basis.Revision, plan.Changes, plan.Warnings, true);

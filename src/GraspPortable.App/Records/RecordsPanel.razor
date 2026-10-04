@@ -1,0 +1,120 @@
+@namespace GraspPortable.App.Records
+@using GraspPortable.Contracts
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@implements IAsyncDisposable
+
+<section class="records-panel" aria-label="資料表">
+    <header class="records-toolbar">
+        <div class="records-title"><span class="records-icon">▦</span><div><small>WORKSPACE RECORDS</small><h1>@(_data?.Title ?? "資料表")</h1></div></div>
+        <div class="records-actions"><button @onclick="RefreshAsync" disabled="@_loading" title="重新讀取">↻</button><button class="primary" @onclick="ShowCreate">＋ 資料表</button></div>
+    </header>
+    @if (_error is not null) { <div class="records-message error" role="alert"><span>@_error</span><button @onclick="() => _error = null" aria-label="關閉錯誤">×</button></div> }
+    @if (_notice is not null) { <div class="records-message" role="status"><span>@_notice</span><button @onclick="() => _notice = null" aria-label="關閉訊息">×</button></div> }
+    <div class="records-controls">
+        <label class="picker-label">資料表<select aria-label="選擇資料表" value="@_selected" @onchange="ChooseCollectionAsync"><option value="">選擇資料表</option>@foreach (var item in _collections) { <option value="@item.Id">@item.Title · @item.RecordCount 筆</option> }</select></label>
+        @if (_data is not null)
+        {
+            <label class="picker-label">視圖<select aria-label="選擇視圖" value="@(_view?.Id ?? "")" @onchange="ChooseView"><option value="">全部資料</option>@foreach (var view in _data.Views) { <option value="@view.Id">@view.Name</option> }</select></label>
+            <button @onclick="() => ShowView(false)">視圖設定</button><button @onclick="() => ShowView(true)">＋ 視圖</button>
+            <input class="search" aria-label="搜尋紀錄" placeholder="搜尋標題、Key 或內容…" @bind="_search" @bind:event="oninput" @bind:after="() => _page = 0" />
+            <button @onclick="OpenSourceAsync">開啟原文 ↗</button>
+        }
+    </div>
+    @if (_data is null)
+    {
+        <div class="records-empty"><span>▦</span><h2>@(_loading ? "正在讀取資料表…" : "把長文整理成可以瀏覽的資料表")</h2><p>欄位內容仍保存在 Markdown；表格與卡片提供另一種閱讀方式。</p><button class="primary" @onclick="ShowCreate">建立資料表</button></div>
+    }
+    else
+    {
+        @if (SourceBlocked) { <div class="records-message warning">來源目前有草稿或未接受的變更（@_data.SourceStatus）。內容保持可讀；請先開啟原文處理，再修改資料表。</div> }
+        @if (_data.Diagnostics.Length > 0) { <details class="records-diagnostics"><summary>來源有 @_data.Diagnostics.Length 項診斷</summary>@foreach (var diagnostic in _data.Diagnostics) { <p><strong>@diagnostic.Code</strong> @diagnostic.Message</p> }</details> }
+        <div class="records-table-actions"><span>@FilteredRows().Length / @_data.Rows.Length 筆 · @VisibleFields.Length 個顯示欄位</span><div><button @onclick="() => ShowField()" disabled="@SourceBlocked">＋ 欄位</button><button class="primary" @onclick="() => ShowRow()" disabled="@SourceBlocked">＋ 紀錄</button></div></div>
+        <div class="records-scroll" tabindex="0" aria-label="可水平及垂直捲動的資料表">
+            <table class="records-grid"><colgroup><col style="width:220px" />@foreach (var field in VisibleFields) { <col style="width:220px" /> }</colgroup>
+                <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in VisibleFields) { <th @key="field.Id" style="@ColumnStyle(columnIndex++)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
+                <tbody>@{ var displayRows = DisplayRows(); }@for (var rowIndex = 0; rowIndex < displayRows.Length; rowIndex++)
+                {
+                    var row = displayRows[rowIndex]; var position = rowIndex;
+                    <tr @key="row.Id" class="@(position < FrozenRows ? "frozen-row" : "")">
+                        <th scope="row" class="record-title-cell" style="@(RowStyle(position))"><button class="record-title-button" @onclick="() => ShowCard(row)"><strong>@row.DisplayName</strong><small>@row.Key</small><span>↗</span></button></th>
+                        @{ var fieldIndex = 0; }
+                        @foreach (var field in VisibleFields)
+                        {
+                            var cell = row.Cells.FirstOrDefault(c => c.FieldId == field.Id); var col = fieldIndex++;
+                            <td @key="field.Id" style="@(ColumnStyle(col) + RowStyle(position) + (position < FrozenRows && col < FrozenColumns ? "z-index:5;" : ""))"><button class="record-cell @(cell?.IsNull != false ? "null-cell" : "") @(HasCellProblem(cell) ? "cell-diagnostic" : "")" @onclick="() => ShowCell(row, field)" title="點選展開完整內容"><span>@Preview(cell)</span>@if (HasCellProblem(cell)) { <small title="@cell?.Status">⚠</small> }</button></td>
+                        }
+                    </tr>
+                }</tbody>
+            </table>
+            @if (displayRows.Length == 0) { <div class="table-empty">沒有符合搜尋或篩選條件的紀錄。</div> }
+        </div>
+        <footer class="records-footer"><span>每頁最多 50 筆 · 固定標題列與紀錄欄 @if (FrozenRows > 0 || FrozenColumns > 0) { <span> · 另凍結 @FrozenRows 筆 / @FrozenColumns 欄</span> }</span><div><button disabled="@(_page == 0)" @onclick="() => _page--">上一頁</button><span>@(_page + 1) / @PageCount</span><button disabled="@(_page + 1 >= PageCount)" @onclick="() => _page++">下一頁</button></div></footer>
+    }
+</section>
+
+@if (_dialog is not null)
+{
+    <div class="records-backdrop" id="@_modalId" tabindex="-1"><section class="records-dialog @(_dialog is "card" or "cell" or "view" ? "wide" : "")" role="dialog" aria-modal="true" aria-label="資料表操作">
+        <header><div><small>@(_dialog == "card" ? "RECORD" : _dialog == "cell" ? "FIELD CONTENT" : "RECORDS")</small><h2>@(_dialog switch { "create" => "建立資料表", "row" => _row is null ? "新增紀錄" : "紀錄名稱", "field" => _field is null ? "新增欄位" : "欄位設定", "cell" => (_row?.DisplayName + " / " + _field?.DisplayName), "view" => "視圖設定", _ => _card?.DisplayName })</h2></div><button type="button" @onclick="() => CloseDialog()" aria-label="關閉">×</button></header>
+        @if (_dialogWarning is not null) { <div class="records-message warning" role="alert">@_dialogWarning</div> }
+        @if (_pendingLink is not null) { <div class="records-message"><button @onclick="OpenPendingLinkAsync">開啟目標筆記（不定位標題）</button></div> }
+        @if (_error is not null) { <div class="records-message error" role="alert">@_error</div> }
+        @if (_dialog == "card" && _card is not null && _data is not null)
+        {
+            <div class="record-card"><div class="card-title"><code>@_card.Key</code><button @onclick="() => ShowRow(_card)">修改名稱 / Key</button></div>
+                @foreach (var field in _data.Fields)
+                {
+                    var cell = _card.Cells.FirstOrDefault(c => c.FieldId == field.Id);
+                    <article @key="field.Id"><header><h3>@field.DisplayName <small>@KindName(field.Kind)</small></h3><button @onclick="() => ShowCell(_card, field)">編輯</button></header>@if (field.Kind == "Markdown" && cell is { IsNull: false, ComputedMarkdown: { } computed }) { <RecordsMarkdown Markdown="@computed" OriginNoteId="@_data.NoteId" WorkspaceKey="@WorkspaceKey" Revision="@_data.Revision" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(cell)</div> }<details><summary>原文</summary><pre>@(cell?.RawSource ?? "")</pre></details>@if (cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }</article>
+                }
+            </div><footer class="dialog-actions"><button @onclick="OpenSourceAsync">開啟完整 Markdown 原文 ↗</button><button class="primary" @onclick="() => CloseDialog()">完成</button></footer>
+        }
+        else
+        {
+            <form @onsubmit="() => SaveAsync()" @onsubmit:preventDefault>
+                <fieldset disabled="@InputsLocked">
+                    @if (_dialog is "create" or "row")
+                    {
+                        <label>顯示名稱<input @ref="_firstInput" @bind="_label" @bind:event="oninput" required /></label><label>@(_dialog == "create" ? "第一筆紀錄的 Key" : "紀錄 Key")<input @bind="_key" @bind:event="oninput" required pattern="[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*" /></label><p class="hint">Key 用於欄位引用，例如 <code>Record1.Description</code>；顯示名稱可使用中文。</p>
+                    }
+                    else if (_dialog == "field")
+                    {
+                        <div class="two-columns"><label>顯示名稱<input @ref="_firstInput" @bind="_label" @bind:event="oninput" required /></label><label>欄位 Key<input @bind="_key" @bind:event="oninput" required pattern="[A-Za-z_][A-Za-z0-9_]*" /></label></div><label>型別<select @bind="_kind">@foreach (var type in Kinds) { <option value="@type.Kind">@type.Name</option> }</select></label>
+                        @if (_field is not null) { <p class="hint">改名保留欄位 ID 並核對相依引用。變更型別會重新驗證原文，不會自動改寫舊值。</p> }
+                        @if (_kind is "SingleSelect" or "MultiSelect")
+                        { <div class="option-list"><h3>選項</h3>@foreach (var option in _options) { <div class="option-row" @key="option.Id"><input aria-label="選項名稱" @bind="option.Label" @bind:event="oninput" required /><small title="@option.Id">@option.Id[..8]</small><button type="button" @onclick="() => _options.Remove(option)">移除</button></div> }<button type="button" @onclick="() => _options.Add(new())">＋ 選項</button><p class="hint">調整名称保留選項 ID；移除選項後，原有引用可能需要修正。</p></div> }
+                    }
+                    else if (_dialog == "cell")
+                    {
+                        <div class="cell-meta"><span>@KindName(_kind)</span><code>@($"{_row?.Key}.{_field?.Key}")</code><label class="check"><input type="checkbox" @bind="_null" />空值（null）</label></div>
+                        @if (_kind != "Markdown") { <label class="check"><input type="checkbox" @bind="_sourceMode" />直接編輯原始 Markdown（含引用或尚未有效的值）</label> }
+                        <div class="cell-editor-grid"><section>
+                            @if (_sourceMode || _kind == "Markdown") { <label>原文<textarea @ref="_firstInput" class="source-input" @bind="_raw" @bind:event="oninput" disabled="@_null" spellcheck="false"></textarea></label> }
+                            else if (_kind == "Number") { <label>數字<input @ref="_firstInput" @bind="_number" @bind:event="oninput" disabled="@_null" inputmode="decimal" placeholder="例如 12.50 或 1.2e3" /></label> }
+                            else if (_kind == "Boolean") { <label>值<select @ref="_firstInput" @bind="_boolean" disabled="@_null"><option value="true">true</option><option value="false">false</option></select></label> }
+                            else if (_kind == "Date") { <label>日期<input @ref="_firstInput" type="date" value="@_date" @onchange='e => _date = e.Value?.ToString() ?? ""' disabled="@_null" /></label> }
+                            else if (_kind == "Tag") { <label>標籤，每行一個<textarea @ref="_firstInput" @bind="_tags" @bind:event="oninput" disabled="@_null" rows="8"></textarea></label> }
+                            else if (_kind is "SingleSelect" or "MultiSelect")
+                            { <div class="choice-list" aria-label="選項">@foreach (var option in _field?.Options ?? []) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(option.Id)" @onchange='e => ToggleId(option.Id, e.Value is true, _kind == "SingleSelect")' disabled="@_null" />@option.DisplayName</label> }@if (_field?.Options?.Length is null or 0) { <p>尚無選項，請先在欄位設定中建立。</p> }</div> }
+                            else if (_kind is "SingleRelation" or "MultiRelation")
+                            { <div class="choice-list" aria-label="跨資料表紀錄關聯">@foreach (var choice in _data?.RelationChoices ?? []) { <label class="check"><input type="checkbox" checked="@_selectedIds.Contains(choice.Id)" @onchange='e => ToggleId(choice.Id, e.Value is true, _kind == "SingleRelation")' disabled="@_null" /><span>@choice.DisplayName <small>@choice.Key · @(_collections.FirstOrDefault(c => c.Id == choice.CollectionId)?.Title ?? choice.CollectionId)</small></span></label> }</div> }
+                            <p class="hint">空值、空字串、0 與 false 分開保存。完整原文與段落不會因表格摘要截斷。</p>
+                        </section><aside><h3>目前計算結果 · @_cell?.Status</h3>@if (_kind == "Markdown" && _cell is { IsNull: false, ComputedMarkdown: { } computed }) { <RecordsMarkdown Markdown="@computed" OriginNoteId="@(_data?.NoteId ?? "")" WorkspaceKey="@WorkspaceKey" Revision="@(_data?.Revision ?? _editRevision)" OnNavigate="NavigateContentAsync" /> } else { <div class="full-value">@Preview(_cell)</div> }@if (_cell?.Diagnostics.Length > 0) { @foreach (var diagnostic in _cell.Diagnostics) { <p class="inline-diagnostic">@diagnostic.Message</p> } }@if (_conflict) { <h3>重新讀取的目前原文</h3><pre>@LatestCellText</pre> }<p class="hint">預覽是已讀取的結果；保存後重新計算。</p></aside></div>
+                    }
+                    else if (_dialog == "view")
+                    {
+                        <div class="two-columns"><label>視圖名稱<input @ref="_firstInput" @bind="_viewName" required /></label><label>保存的搜尋條件<input @bind="_viewSearch" /></label></div>
+                        <div class="two-columns"><label>額外凍結前幾筆資料（0–10）<input type="number" min="0" max="10" @bind="_frozenRows" /></label><label>額外凍結前幾個欄位<input type="number" min="0" max="@_columns.Count(c => c.Visible)" @bind="_frozenColumns" /></label></div><p class="hint">標題列和紀錄名稱欄永遠固定；每頁最多顯示 50 筆，包含固定資料。</p>
+                        <h3>顯示欄位與順序</h3><div class="columns-list">@for (var index = 0; index < _columns.Count; index++) { var column = _columns[index]; var position = index;<div class="column-edit" @key="column.Id"><label class="check"><input type="checkbox" @bind="column.Visible" />@column.Label</label><button type="button" disabled="@(position == 0)" @onclick="() => MoveColumn(position, -1)" aria-label="向上移動欄位">↑</button><button type="button" disabled="@(position + 1 == _columns.Count)" @onclick="() => MoveColumn(position, 1)" aria-label="向下移動欄位">↓</button></div> }</div>
+                        <h3>排序</h3>@foreach (var sort in _sorts) { <div class="rule-row"><select aria-label="排序欄位" @bind="sort.FieldId">@foreach (var field in _data?.Fields ?? []) { <option value="@field.Id">@field.DisplayName</option> }</select><select aria-label="排序方向" @bind="sort.Descending"><option value="false">升冪</option><option value="true">降冪</option></select><button type="button" @onclick="() => _sorts.Remove(sort)">移除</button></div> }<button type="button" @onclick='() => _sorts.Add(new() { FieldId = _data?.Fields.FirstOrDefault()?.Id ?? "" })' disabled="@(_data?.Fields.Length == 0)">＋ 排序條件</button>
+                        <h3>篩選（所有條件都符合）</h3>@foreach (var filter in _filters) { <div class="rule-row"><select aria-label="篩選欄位" @bind="filter.FieldId">@foreach (var field in _data?.Fields ?? []) { <option value="@field.Id">@field.DisplayName</option> }</select><select aria-label="篩選運算" @bind="filter.Operator"><option value="contains">包含</option><option value="equals">等於</option><option value="is-null">是空值</option><option value="not-null">不是空值</option></select>@if (filter.Operator is "contains" or "equals") { <input aria-label="篩選值" @bind="filter.Value" /> }<button type="button" @onclick="() => _filters.Remove(filter)">移除</button></div> }<button type="button" @onclick='() => _filters.Add(new() { FieldId = _data?.Fields.FirstOrDefault()?.Id ?? "" })' disabled="@(_data?.Fields.Length == 0)">＋ 篩選條件</button>
+                    }
+                </fieldset>
+                @if (_conflict) { <div class="conflict-actions">@if (_dialog != "cell") { <details open><summary>目前保存的資料</summary><pre>@LatestMetadataText</pre></details> }<p>這份輸入仍以 revision @_editRevision 為基底；請比較目前內容並自行合併。</p><button type="button" @onclick="ReviewLatestAsync">重新讀取，不替換輸入</button><button type="button" @onclick="AcceptLatestBase" disabled="@(SourceBlocked || _unknownOutcome)">已核對，保留我的輸入並使用目前版本</button></div> }
+                @if (_confirmDiscard) { <div class="records-message warning">尚有未保存輸入。<button type="button" @onclick="() => CloseDialog(true)">放棄這份輸入</button><button type="button" @onclick="() => _confirmDiscard = false">繼續編輯</button></div> }
+                <footer class="dialog-actions"><span class="hint">基底 revision @_editRevision</span><div><button type="button" @onclick="() => CloseDialog()" disabled="@_busy">取消</button>@if (_needsConfirmation) { <button type="button" class="primary" @onclick="() => SaveAsync(true)" disabled="@_busy">確認改名與相依更新</button> }else { <button type="submit" class="primary" disabled="@(_busy || _conflict || _dialogWorkspace != WorkspaceKey)">@(_busy ? "保存中…" : _unknownOutcome ? "重試同一操作" : "保存")</button> }</div></footer>
+            </form>
+        }
+    </section></div>
+}

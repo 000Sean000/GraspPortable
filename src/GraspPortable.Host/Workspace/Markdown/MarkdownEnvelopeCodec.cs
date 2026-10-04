@@ -7,8 +7,8 @@ using YamlDotNet.RepresentationModel;
 
 namespace GraspPortable.Host.Workspace.Markdown;
 
-public sealed record MarkdownIdentityNote(string Id, string Title, IReadOnlyDictionary<string, string> Bindings);
-public sealed record MarkdownIdentityMetadata(int Schema, string DocumentId, IReadOnlyList<MarkdownIdentityNote> Notes);
+public sealed record MarkdownIdentityNote(string Id, string Title, IReadOnlyDictionary<string, string> Bindings, RecordsMetadata? Records = null);
+public sealed record MarkdownIdentityMetadata(int Schema, string DocumentId, IReadOnlyList<MarkdownIdentityNote> Notes, string? Layout = null);
 public sealed record MarkdownEnvelopeIssue(string Code, string Message, int Start = 0, int Length = 0);
 public sealed record MarkdownEnvelope(string Source, string Body, int BodyStart, string NewLine,
     MarkdownIdentityMetadata? Metadata, IReadOnlyList<MarkdownEnvelopeIssue> Issues, bool HasFrontMatter, bool CanRewrite);
@@ -36,7 +36,10 @@ public static class MarkdownEnvelopeCodec
         var current = ReadInternal(envelope.Source);
         if (!current.Envelope.CanRewrite) return new(false, envelope.Source, current.Envelope.Issues);
         var validation = new List<MarkdownEnvelopeIssue>();
-        var supplied = BuildMetadata(metadata, null);
+        YamlMappingNode supplied;
+        try { supplied = BuildMetadata(metadata, null); }
+        catch (Exception error) when (error is ArgumentException or YamlException)
+        { return new(false, envelope.Source, [new("records-metadata", error.Message)]); }
         var normalized = ReadMetadata(supplied, validation, 0);
         if (validation.Count != 0 || normalized is null) return new(false, envelope.Source, validation.AsReadOnly());
         var node = BuildMetadata(normalized, current.Layout?.Grasp);
@@ -189,6 +192,9 @@ public static class MarkdownEnvelopeCodec
         var schemaText = Scalar(map, "schema");
         if (schemaText != "1") Issue("metadata-schema", "Only grasp schema 1 can be rewritten.", Get(map, "schema"));
         var documentId = Id(map, "documentId");
+        var layoutNode = Get(map, "layout");
+        var layout = (layoutNode as YamlScalarNode)?.Value;
+        if (layoutNode is not null && layout is not ("single" or "grouped")) Issue("metadata-layout", "Only single or grouped document layouts are supported.", layoutNode);
         var noteIds = new HashSet<string>(StringComparer.Ordinal);
         var bindingIds = new HashSet<string>(StringComparer.Ordinal);
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -212,9 +218,18 @@ public static class MarkdownEnvelopeCodec
                 if (!bindingIds.Add(canonical)) Issue("duplicate-binding-id", "A binding ID appears more than once.", binding.Value);
                 bindings.TryAdd(name, canonical);
             }
-            if (id is not null && title is not null) notes.Add(new(id, title, new ReadOnlyDictionary<string, string>(bindings)));
+            RecordsMetadata? records = null;
+            if (Get(note, "records") is { } recordsNode)
+            {
+                var parsed = RecordsMetadataCodec.Read(recordsNode, offset);
+                issues.AddRange(parsed.Issues); records = parsed.Metadata;
+            }
+            if (id is not null && title is not null) notes.Add(new(id, title, new ReadOnlyDictionary<string, string>(bindings), records));
         }
-        return issues.Count == before && documentId is not null ? new(1, documentId, notes.AsReadOnly()) : null;
+        // Empty metadata templates can be filled by Write; a stored document's
+        // nonempty membership is enforced by the workspace reader.
+        if (notes.Count > 1 && layout != "grouped") Issue("metadata-members", "Multiple notes require explicit grouped layout.");
+        return issues.Count == before && documentId is not null ? new(1, documentId, notes.AsReadOnly(), layout) : null;
     }
 
     private static bool TryId(string? value, out string canonical)
@@ -234,6 +249,12 @@ public static class MarkdownEnvelopeCodec
         var map = previous ?? new YamlMappingNode();
         Set(map, "schema", new YamlScalarNode(metadata.Schema.ToString(CultureInfo.InvariantCulture)));
         Set(map, "documentId", new YamlScalarNode(metadata.DocumentId));
+        if (metadata.Layout is not null) Set(map, "layout", new YamlScalarNode(metadata.Layout));
+        else
+        {
+            var layoutKey = map.Children.Keys.OfType<YamlScalarNode>().FirstOrDefault(k => k.Value == "layout");
+            if (layoutKey is not null) map.Children.Remove(layoutKey);
+        }
         var oldNotes = Get(map, "notes") as YamlSequenceNode;
         var notes = new YamlSequenceNode();
         foreach (var note in metadata.Notes)
@@ -246,6 +267,8 @@ public static class MarkdownEnvelopeCodec
             var bindings = new YamlMappingNode();
             foreach (var pair in note.Bindings) bindings.Add(new YamlScalarNode(pair.Key), new YamlScalarNode(pair.Value));
             Set(item, "bindings", bindings);
+            if (note.Records is not null) Set(item, "records", RecordsMetadataCodec.Write(note.Records, Get(item, "records") as YamlMappingNode));
+            else item.Children.Remove(new YamlScalarNode("records"));
             notes.Add(item);
         }
         Set(map, "notes", notes);

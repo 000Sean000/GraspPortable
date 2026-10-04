@@ -5,6 +5,8 @@ using GraspPortable.Host.Notifications;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
 
+try
+{
 var passed = 0;
 var failed = 0;
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../workspaces", "CoordinatorTests-" + Guid.NewGuid().ToString("N")));
@@ -179,3 +181,8 @@ await Check("real watcher updates and its own derived write reaches a stable rev
 
 Console.WriteLine($"Coordinator integration: {passed} passed, {failed} failed. Evidence: {root}");
 return failed == 0 ? 0 : 1;
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}

@@ -1,14 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 import { chromium } from 'playwright';
 
 test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rendering', async () => {
-  const source = await readFile(new URL('../../../../wwwroot/editor.js', import.meta.url));
+  // Compile source in memory: regression runs must not overwrite a concurrently published App bundle.
+  const bundle=await build({entryPoints:[fileURLToPath(new URL('../src/editor.ts',import.meta.url))],bundle:true,format:'esm',target:'es2022',write:false});
+  const source=bundle.outputFiles[0].text;
   const server = createServer((request, response) => {
     if(request.url === '/editor.js') { response.setHeader('content-type','text/javascript'); response.end(source); }
-    else { response.setHeader('content-type','text/html'); response.end('<html><body><input class="note-title"><div id="editor"></div><div id="reading"></div><script type="module">window.events=[];window.editor=await import("/editor.js");window.editor.mount("editor",{invokeMethodAsync:async (...args)=>window.events.push(args)});window.ready=true;</script></body></html>'); }
+    else { response.setHeader('content-type','text/html'); response.end('<html><body><input class="note-title"><div id="editor"></div><div id="reading"></div><script type="module">window.events=[];window.editor=await import("/editor.js");window.editor.mount("editor",{invokeMethodAsync:async (...args)=>{window.events.push(args);if(args[0]==="OnResolveImage")return window.imageResolver?.(...args.slice(1))??null;}});window.ready=true;</script></body></html>'); }
   });
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
   const browser=await chromium.launch({channel:'msedge',headless:true});
@@ -164,6 +167,58 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     await page.locator('.cm-content').dispatchEvent('compositionend',{data:''});
     await page.evaluate(()=>window.editor.renderReading('reading','<script>window.bad=true</script>',[]));
     assert.equal(await page.evaluate(()=>window.bad),undefined);
+
+    // All Markdown image URLs are inert before the trusted .NET resolver returns data.
+    const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=';
+    const requests=[];page.on('request',request=>requests.push(request.url()));
+    const localContent='![local](assets/photo.png) ![[assets/wiki.png]]\n\n[[Next#Heading|下一篇]] [Markdown](Other.md) [Web](https://example.invalid/)\n\n`[[Code]] ![[code.png]]`\n\n```md\n[[Fence]] ![[fence.png]]\n```\n\n![remote](https://example.invalid/remote.png)\n\n[[@Meaning|cached]]\n\n<img src="https://example.invalid/raw.png">';
+    await page.evaluate(async ({png,source})=>{window.imageResolver=async()=>png;window.events=[];await window.editor.setDocument('images',source,0,[],false);window.editor.renderReading('reading',source,[]);},{png,source:localContent});
+    await page.waitForFunction(()=>document.querySelectorAll('#reading img').length===2);
+    assert.equal(await page.locator('#reading a[data-wiki]').count(),1,'wiki in code/fence and Grasp references stays opaque');
+    assert.equal(await page.locator('#reading img').evaluateAll(images=>images.every(image=>image.src.startsWith('data:image/png;base64,'))),true);
+    assert.equal(requests.some(url=>/photo\.png|wiki\.png|remote\.png|raw\.png|code\.png|fence\.png/.test(url)),false,'no browser image fetch before or after resolving');
+    const imageCalls=await page.evaluate(()=>window.events.filter(e=>e[0]==='OnResolveImage'));
+    assert.deepEqual(imageCalls.map(e=>e.slice(1)),[['images','assets/photo.png',false],['images','assets/wiki.png',true]]);
+    await page.locator('#reading a[data-wiki]').click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[1]==='images'&&e[2]==='Next#Heading'&&e[3]===true));
+    await page.locator('#reading a').filter({hasText:'Markdown'}).click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[2]==='Other.md'&&e[3]===false));
+    await page.locator('#reading a').filter({hasText:'Web'}).click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnExternalLink'&&e[1]==='https://example.invalid/'));
+
+    const referenceCarrier='[cache](:ref:Shared)';
+    await page.evaluate(({png,source})=>{window.events=[];window.imageResolver=async()=>png;window.editor.renderReading('reading',source,[{name:'Shared',cachedValue:'![origin](shared.png) [[Other|來源連結]]',originNoteId:'source-note',start:0,length:source.length}]);},{png,source:referenceCarrier});
+    await page.waitForFunction(()=>document.querySelectorAll('#reading .managed-reference img').length===1);
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnResolveImage'&&e[1]==='source-note'&&e[2]==='shared.png'));
+    await page.locator('#reading .managed-reference a').click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[1]==='source-note'));
+    assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'),false,'nested link does not activate definition navigation');
+
+    await page.evaluate(async()=>{window.events=[];window.imageResolver=()=>new Promise(resolve=>window.finishOldImage=resolve);await window.editor.setDocument('old-images','![old](old.png)',0,[],false);window.editor.renderReading('reading','![old](old.png)',[]);});
+    await page.waitForFunction(()=>typeof window.finishOldImage==='function');
+    await page.evaluate(async png=>{await window.editor.setDocument('new-images','new note',0,[],false);window.editor.renderReading('reading','new note',[]);window.finishOldImage(png);},png);
+    await page.waitForTimeout(30);
+    assert.equal(await page.locator('#reading img').count(),0,'old image cannot appear in a different note');
+    await page.evaluate(({png})=>{window.imageResolver=async()=>png;window.events=[];window.editor.renderReading('reading','![fresh](same.png)',[]);},{png});
+    await page.waitForFunction(()=>document.querySelectorAll('#reading img').length===1);
+    await page.evaluate(()=>window.editor.renderReading('reading','changed source ![fresh](same.png)',[]));
+    await page.waitForFunction(()=>window.events.filter(e=>e[0]==='OnResolveImage'&&e[2]==='same.png').length===2);
+    assert.equal(await page.locator('#reading img').count(),1,'same-note render refreshes image data');
+
+    const liveContent='![preview](preview.png)\n\n[[Local|本機連結]]\n\n`[[Code]]`\n\n```md\n![[fence.png]]\n```\n\nend';
+    await page.evaluate(async ({png,source})=>{window.events=[];window.imageResolver=async()=>png;await window.editor.setDocument('live-links',source,0,[],true);window.editor.focusAt(source.length);},{png,source:liveContent});
+    await page.waitForFunction(()=>document.querySelectorAll('#editor .content-preview img').length===1);
+    assert.equal(await page.locator('#editor .content-preview a[data-wiki]').count(),1,'live preview only decorates eligible ordinary Markdown');
+    assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnResolveImage'&&e[2]==='fence.png'),false);
+    await page.locator('#editor .content-preview a').click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[1]==='live-links'&&e[2]==='Local'));
+    const opaqueRegion='@code{\n@Example = {![not-previewed](secret.png) [[Literal]]}\n}';
+    const guardedContent=opaqueRegion+'\n\n\\[[Escaped]]\n\nend';
+    await page.evaluate(async source=>{window.events=[];await window.editor.setDocument('guarded-images',source,0,[],true,[{start:0,length:source.indexOf('\n\n'),isComplete:true}]);window.editor.focusAt(source.length);},guardedContent);
+    assert.equal(await page.locator('#editor .content-preview').count(),0,'Grasp literal regions and escaped wiki syntax remain source');
+    await page.evaluate(()=>{window.imageResolver=async()=> 'https://example.invalid/unsafe.png';window.editor.renderReading('reading','![unsafe](local.png)',[]);});
+    await page.waitForFunction(()=>document.querySelector('#reading .content-image-placeholder')?.textContent.includes('不支援'));
+    assert.equal(await page.locator('#reading img').count(),0,'resolver cannot inject a remote URL as image data');
     await page.evaluate(()=>window.editor.dispose());
     assert.deepEqual(errors,[]);
   } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -1,6 +1,8 @@
 using GraspPortable.Core.Knowledge;
 using GraspPortable.Host.Workspace;
 
+try
+{
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 var workspace = Path.Combine(repositoryRoot, "workspaces", "sources-" + Guid.NewGuid().ToString("N"));
 var count = 0;
@@ -170,6 +172,13 @@ service.Dispose();
 Console.WriteLine($"PASS: {count} source consistency assertions. Workspace: {workspace}");
 
 // Test-only capability wrapper; the concrete SQLite repository remains unchanged.
+}
+catch (Exception error)
+{
+    return GraspPortable.TestSupport.ConsoleTestFailure.Report(error);
+}
+return 0;
+
 sealed class SavedSourceAuthorityRepository(IWorkspaceRepository inner) : IWorkspaceRepository
 {
     public bool UsesSavedSourceAuthority => true;
