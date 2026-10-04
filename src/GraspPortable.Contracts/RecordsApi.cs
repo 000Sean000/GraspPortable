@@ -7,7 +7,8 @@ public record RecordChoiceDto(string Id, string Key, string DisplayName, string 
 public record RecordTypedValueDto(string Kind, bool IsNull, string? Text = null, string? Coefficient = null, int? Scale = null,
     bool? Boolean = null, string? Date = null, string[]? Ids = null, string[]? Tags = null);
 public record RecordCellDto(string FieldId, string RawSource, string? ComputedMarkdown, bool IsNull, string Status,
-    bool CanEditShared, RecordTypedValueDto? TypedValue, DiagnosticDto[] Diagnostics);
+    bool CanEditShared, RecordTypedValueDto? TypedValue, DiagnosticDto[] Diagnostics,
+    ReferenceDto[]? References = null, RegionDto[]? Regions = null);
 public record RecordRowDto(string Id, string Key, string DisplayName, RecordCellDto[] Cells);
 public record RecordSortDto(string FieldId, bool Descending = false);
 public record RecordFilterDto(string FieldId, string Operator, string Value = "");

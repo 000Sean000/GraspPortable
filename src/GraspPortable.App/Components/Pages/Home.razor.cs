@@ -188,7 +188,7 @@ public partial class Home
     [JSInvokable] public Task OnEditorBlurred() => SaveButtonAsync();
     [JSInvokable] public Task OnCompositionEnded() => SaveButtonAsync();
     [JSInvokable] public Task OnSaveRequested() => SaveButtonAsync();
-    [JSInvokable] public Task OnReferenceClicked(string name) => InvokeAsync(()=>InspectDefinitionAsync(name));
+    [JSInvokable] public Task OnReferenceClicked(string name) => InvokeAsync(()=>NavigateToDefinitionAsync(name));
     [JSInvokable] public async Task OnExternalLink(string url)
     {
         if(Uri.TryCreate(url,UriKind.Absolute,out var uri) && (uri.Scheme=="https" || uri.Scheme=="http"))
@@ -366,11 +366,22 @@ public partial class Home
         if(_selectedDefinition is null) {_notice="找不到 "+name+" 的定義。請查看診斷。";return;}
         _showInspector=true; _references=await Backend.GetAsync<ReferenceDto[]>("api/definitions/"+_selectedDefinition.Id+"/references");
     });
+    private async Task NavigateToDefinitionAsync(string name) => await GuardAsync(async () =>
+    {
+        if (_switching) return;
+        var generation = _contextGeneration;
+        var definitions = await Backend.GetAsync<DefinitionDto[]>("api/definitions");
+        if (generation != _contextGeneration) return;
+        _selectedDefinition = definitions.FirstOrDefault(d => d.Name == name);
+        if (_selectedDefinition is null) { _notice = "找不到 " + name + " 的定義。請查看診斷。"; return; }
+        await LocateDefinitionAsync();
+    });
     private async Task LocateDefinitionAsync() => await GuardAsync(async () =>
     {
         if(_selectedDefinition is not { } selected)return;
         await SelectNoteAsync(selected.NoteId);
         if(_note?.Id!=selected.NoteId)return;
+        _recordsVisible=false;
         var current=_note.Definitions.FirstOrDefault(d=>d.Id==selected.Id);
         if(current is null){_notice="這個定義已變更，請重新選擇。";return;}
         _selectedDefinition=current;

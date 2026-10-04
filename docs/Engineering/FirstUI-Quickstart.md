@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.3.0
+version: 1.3.1
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -103,6 +103,6 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 
 ## 開發接續
 
-以 [Implementation Plan](Implementation-Plan-v1.0.0-rc.8.md) 為階段邊界。parser／ValueEngine 在 Core；交易與 ID 規則在 Core/Knowledge；SQLite、API 與通知在 Host；CodeMirror／Razor 與 Host client 在 App；wire types 在 Contracts。
+以 [Implementation Plan](Implementation-Plan-v1.0.0-rc.9.md) 為階段邊界。parser／ValueEngine 在 Core；交易與 ID 規則在 Core/Knowledge；SQLite、API 與通知在 Host；CodeMirror／Razor 與 Host client 在 App；wire types 在 Contracts。
 
 工程測試依責任分成小型 console runners，使用 `dotnet run --project tests/<project> -c Release`；它們會以失敗 exit code 結束，不依賴測試平台服務。依當次風險選 Core／SQLite／Host、Markdown／Coordinator、檔案操作／恢復等相關 runner，不要求每次全量重跑。Editor 使用其 package.json 內的 typecheck／fixture 指令。

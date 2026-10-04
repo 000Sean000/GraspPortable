@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.3.0
+version: 1.3.1
 updated: 2026-10-04
 status: engineering-and-native-gui-partially-verified
 ---
@@ -62,4 +62,4 @@ Content resolver 44 assertions、editor regression／TypeScript、App／Host 發
 - S1 剩餘政策 GUI、DPI、端到端流暢度；本次沒有新的性能數字。跨檔 journal／完整 snapshot 的成本尚未證明符合成長門檻。
 - S3 分組、checkpoint 排程／介面與 restore UI；S4 長文屬性／Records／凍結表格。
 
-下一個版本沿 [Implementation Plan rc.8](Implementation-Plan-v1.0.0-rc.8.md) 繼續，不因這份 checkpoint 停止 Goal，也不標記 S1／S2／S3 或 Goal 全部完成。
+下一個版本沿 [Implementation Plan rc.9](Implementation-Plan-v1.0.0-rc.9.md) 繼續，不因這份 checkpoint 停止 Goal，也不標記 S1／S2／S3 或 Goal 全部完成。

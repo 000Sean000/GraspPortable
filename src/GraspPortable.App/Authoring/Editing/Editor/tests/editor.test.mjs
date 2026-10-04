@@ -45,6 +45,37 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     assert.match(await page.locator('#reading').innerText(),/前文/);assert.match(await page.locator('#reading').innerText(),/後文/);
     await page.locator('#reading .managed-reference').click();
     assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'&&e[1]==='Description'));
+    await page.evaluate(()=>{window.events=[];});
+    await page.locator('#editor .managed-reference').click();
+    assert.equal(await page.locator('#editor .managed-reference').count(),1,'clicking the preview does not first expose its raw source');
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'&&e[1]==='Description'));
+    await page.locator('#reading .managed-reference').press('Enter');
+    assert.equal((await page.evaluate(()=>window.events)).filter(e=>e[0]==='OnReferenceClicked').length,2,'reference keyboard activation is a single navigation');
+    await page.evaluate(position=>window.editor.focusAt(position),reference.start+1);
+    assert.equal(await page.locator('#editor .managed-reference').count(),0,'active reference remains editable source');
+    await page.evaluate(()=>window.editor.focusAt(0));
+    assert.equal(await page.locator('#editor .managed-reference').count(),1);
+
+    const pure=await page.evaluate(({carrier,reference})=>{
+      const before=window.events.length;
+      const container=document.createElement('div');
+      container.innerHTML=window.editor.renderManagedMarkdown(carrier,[{...reference,originNoteId:'definition-source'}]);
+      const wrapper=container.querySelector('[data-grasp-definition]');
+      return {eventCount:window.events.length-before,paragraphs:wrapper.querySelectorAll('p').length,origin:wrapper.dataset.originNoteId,name:wrapper.dataset.graspDefinition,role:wrapper.getAttribute('role'),text:container.textContent};
+    },{carrier,reference});
+    assert.deepEqual({...pure,text:undefined},{eventCount:0,paragraphs:2,origin:'definition-source',name:'Description',role:'link',text:undefined});
+    assert.ok(!pure.text.includes(':ref:'),'serialized shared renderer hides carrier syntax and retains both paragraphs');
+    const opaqueCache=await page.evaluate(()=>{
+      const source='[old](:ref:A)',target=document.createElement('div');
+      target.innerHTML=window.editor.renderManagedMarkdown(source,[{name:'A',cachedValue:'[nested](:ref:B)\n\n[[@B|raw]]',start:0,length:source.length}]);
+      const fenced=document.createElement('div');fenced.innerHTML=window.editor.renderManagedMarkdown('```json\n[old](:ref:A)\n```');
+      return {names:Array.from(target.querySelectorAll('[data-grasp-definition]')).map(e=>e.dataset.graspDefinition),text:target.textContent,fenced:fenced.querySelectorAll('[data-grasp-definition]').length};
+    });
+    assert.deepEqual(opaqueCache.names,['A'],'cached source never recursively acquires Grasp semantics');
+    assert.match(opaqueCache.text,/\[\[@B\|raw\]\]/);assert.equal(opaqueCache.fenced,0);
+    const metadata=await page.evaluate(()=>window.editor.renderManagedMarkdown('[Target](Target.md) <!-- grasp:record 11111111111111111111111111111111 -->\n\n`<!-- grasp:record 11111111111111111111111111111111 -->`\n\n<script>bad()</script>'));
+    assert.equal((metadata.match(/grasp:record/g)??[]).length,1,'only the exact inert comment is hidden; code examples remain visible');
+    assert.ok(!metadata.includes('<script>'));
 
     // Keep untouched reference widgets across ordinary edits. Raw offsets include
     // CRLF and an astral character; CodeMirror positions use normalized UTF-16.
@@ -194,6 +225,27 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[1]==='source-note'));
     assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'),false,'nested link does not activate definition navigation');
 
+    const missingRef={name:'MissingSource',cachedValue:'![lost](shared.png) [[Other|失去來源的連結]] [網站](https://example.invalid/)\n\n可點選引用查看缺失定義。',originNoteId:null,start:3,length:referenceCarrier.length};
+    const missingCarrier='前文 '+referenceCarrier+' 後文';
+    const missing=await page.evaluate(async({source,reference})=>{
+      window.events=[];await window.editor.setDocument('missing-origin',source,0,[reference],true);
+      window.editor.focusAt(source.length);window.editor.renderReading('reading',source,[reference]);
+      const detached=document.createElement('div');detached.innerHTML=window.editor.renderManagedMarkdown(source,[reference]);
+      return {origin:detached.querySelector('[data-origin-note-id]').dataset.originNoteId};
+    },{source:missingCarrier,reference:missingRef});
+    assert.equal(missing.origin,'','explicit null remains an unknown-origin marker in shared HTML');
+    for(const surface of ['#editor','#reading']) {
+      const link=page.locator(surface+' .managed-reference a[data-wiki]');
+      assert.equal(await link.getAttribute('aria-disabled'),'true');
+      await link.dispatchEvent('click');
+      assert.match(await page.locator(surface+' .content-image-placeholder').innerText(),/來源筆記不存在/);
+    }
+    assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnResolveImage'||e[0]==='OnLocalLink'),false,'unknown cache origins never resolve relative to the reader');
+    await page.locator('#reading .managed-reference a').filter({hasText:'網站'}).click();
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnExternalLink'),'absolute web links remain available');
+    await page.locator('#editor .managed-reference').press('Enter');
+    assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnReferenceClicked'&&e[1]==='MissingSource'),'outer reference can still navigate to missing-definition feedback');
+
     await page.evaluate(async()=>{window.events=[];window.imageResolver=()=>new Promise(resolve=>window.finishOldImage=resolve);await window.editor.setDocument('old-images','![old](old.png)',0,[],false);window.editor.renderReading('reading','![old](old.png)',[]);});
     await page.waitForFunction(()=>typeof window.finishOldImage==='function');
     await page.evaluate(async png=>{await window.editor.setDocument('new-images','new note',0,[],false);window.editor.renderReading('reading','new note',[]);window.finishOldImage(png);},png);
@@ -212,6 +264,14 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     assert.equal((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnResolveImage'&&e[2]==='fence.png'),false);
     await page.locator('#editor .content-preview a').click();
     assert.ok((await page.evaluate(()=>window.events)).some(e=>e[0]==='OnLocalLink'&&e[1]==='live-links'&&e[2]==='Local'));
+    assert.equal(await page.locator('#editor .content-preview .workspace-wiki-link').innerText(),'本機連結','wiki alias hides syntax and remains after pointer activation');
+    await page.evaluate(position=>window.editor.focusAt(position),liveContent.indexOf('[[Local')+3);
+    assert.equal(await page.locator('#editor .content-preview a').count(),0,'active wiki displays editable syntax');
+    assert.match(await page.locator('#editor .cm-content').innerText(),/\[\[Local\|本機連結\]\]/);
+    await page.evaluate(position=>window.editor.focusAt(position),liveContent.length);
+    await page.locator('#editor .content-preview a').press('Enter');
+    assert.equal((await page.evaluate(()=>window.events)).filter(e=>e[0]==='OnLocalLink'&&e[2]==='Local').length,2,'wiki Enter activates one navigation');
+    assert.equal((await page.evaluate(()=>window.editor.snapshot())).source,liveContent,'preview navigation does not edit source');
     const opaqueRegion='@code{\n@Example = {![not-previewed](secret.png) [[Literal]]}\n}';
     const guardedContent=opaqueRegion+'\n\n\\[[Escaped]]\n\nend';
     await page.evaluate(async source=>{window.events=[];await window.editor.setDocument('guarded-images',source,0,[],true,[{start:0,length:source.indexOf('\n\n'),isComplete:true}]);window.editor.focusAt(source.length);},guardedContent);

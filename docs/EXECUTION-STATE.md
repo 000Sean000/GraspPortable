@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.20.0
+version: 1.22.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -9,17 +9,33 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 最新平台觀測（2026-10-04，使用者手動恢復後）：`get_goal` 已確認 Goal 為 **active**，未完成。中斷期間曾為 usageLimited；GoalSupport 於 04:53:17（Asia/Taipei）兌換一次 reset，04:56:18 確認 ordinary usage recovered，當時 usage API 為 usedPercent 0、ordinaryUsageAllowed true、重置券剩 1。額度恢復時 Goal 仍為 usageLimited；使用者手動 resume 才恢復 active。監測程式沒有 resume 功能，不能宣稱 reset 已完成無人介入續跑。
 
-最新 Host／App publish 已成功；本段已取得 15×8 table import、view 保存、雙向凍結與排序中編輯的有限原生證據，S3／S4 完整驗收仍未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。主代理已恢復前台驗證，是否釋放前台由該次測試結束訊息確認。
+上一已發行工作段取得 15×8／81×5 table import、view 保存、雙向凍結與排序中編輯的有限原生證據；新增 Wiki／Grasp 共用呈現與直接導航已有 reader／table／record card／完整 field、dirty guard、返回 collection 與一般 Wiki Enter 的有限原生證據；S3／S4 完整驗收仍未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。本段 App／Host 已正常退出，程序皆不存在，前台已釋放。
 
-2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.8](Engineering/Implementation-Plan-v1.0.0-rc.8.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
+2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.9](Engineering/Implementation-Plan-v1.0.0-rc.9.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
 
 這次授權取代「S1 後停下／不自動 S2」「未授權 commit／push」舊停點。自行完成 coherent segment 的必要驗證、commit／push 至 `origin/rewrite/dotnet` 並核對；不 force push，不提交私人資料／credentials／驗收 workspace。每階段續作，只有 S4 全部完成條件成立才能標 Goal complete；使用者接受仍另記。
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：S4 真實樣本與共享來源修正
+## 最新工作段：Wiki／Grasp 共用呈現與直接導航
 
-最新已推送 checkpoint 為 `f3eb9ea89134b79c7ab143aec085d5d4f9e1dd2d`（分組、Records、原生資料表與受控測試入口）；本機 HEAD／origin tracking ref 核對相同。其後凍結／carrier 修正仍為未提交差異，主代理已審查 diff 並成功 publish；最新 publish 已含 import 初始 collection 選取與 Records performance hooks，TS build／架構檢查通過；新 import 導航尚待原生重驗。不能宣稱本段已推送。App／Host 已正常退出、程序清單為空，前台已釋放。
+進入本段時已核對的遠端 checkpoint 為 `62780134a29ab49f8d7a25de973e2f9b0e0041c6`。以下工作已實作、本機 publish 並通過有限必要原生流程；提交主題為 `fix: preserve wiki and reference navigation across record views`，實際 commit／push 結果以 Git 與交付核對為準。全 Goal 維持 `IN_PROGRESS`，未宣稱全部階段完成。
+
+使用者新決策已歸檔 [Seed rc.13](Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md)、[Plan rc.9](Engineering/Implementation-Plan-v1.0.0-rc.9.md)及[Architecture rc.6](Engineering/GraspPortable-Architecture-v1.0.0-rc.6.md)：Live Preview 非編輯區隱藏 Wiki／Grasp syntax，以醒目連結呈現；單擊／聚焦 Enter 直接跳 target，Grasp 開 definition 所屬 file 並定位 block，不僅開 inspector。Cell／完整 field／record card 保留同樣渲染與跳轉，不能 flatten 純字。
+
+Active source editing 仍露原 syntax，IME／dirty draft 保護不變。Host 投影 field 原始 source 上的 local reference metadata／來源版本，UI 共用 renderer，不把 disabled Grasp fence 轉成 managed link，不在求值 cache 再解析 Grasp；不擴張公式或同步。
+
+主代理擁有 Host／Contracts／Home 與整合，editor_fix 擁有 editor／共用 renderer，ui_review 擁有 Records UI，docs_sync 歸檔必要文件。Links fixture 經公開服務準備至 revision 15，既有九篇筆記／檔案／草稿不變；fixture 準備不是 GUI 證據。
+
+前輪原生 reader／table／card：Wiki alias 隱 syntax／highlight 後開 Source；多段 pure ref 到 `@LiveLinks.Message` 第 10 行並選中 identifier；table 短 pure ref 到 `@LiveLinks.Short` 第 15 行、Wiki 標題到可見 target heading；card 兩式短／多段 refs 保留空行／粗體／highlight，managed wiki 到 Message 第 10 行。
+
+最新 publish（Host 11:47:31／App 11:47:38）包含 missing-origin 與 return-collection 修正。11:48–11:55 原生完整 Longform 預覽兩式多段／粗體／空行正確；加入未保存「 草稿保護驗收」後點 reference，dirty guard 阻止導航並保留文字。Ctrl+Z 恢復原文後，managed wiki 導向 Source 的 Message 定義，selected_text 為 `LiveLinks.Message`；側欄返回資料表仍為同一連結驗收 collection。完整 Links 欄位 Tab 聚焦 Wiki 有 outline，Enter 成功開 Source Reading 的導航目標 heading。未提交 fixture，workspace 仍 revision 15；App／Host 正常關閉後皆不存在，前台已釋放。
+
+Editor build／test、RecordsService render 6 assertions 通過（UTF-16／origin／disabled／cache 非遞迴／update）。Missing-origin 保護已測試並 publish，但原生缺失來源案例及 Grasp Enter 尚未專項驗證，不以一般 Wiki Enter 代替。两輪探針為 `ui-20261004-034024.json`／`ui-20261004-034807.json`，有少量 Records query／switch 與一般 UI 樣本，仍不足 30 次代表操作；父層雙 rAF 不保證子 JS full paint，不宣稱完整可見延遲達標。完整有界證據及數字見 [S3／S4 Validation](Engineering/S3-S4-Validation.md)。
+
+## 先前工作段：S4 真實樣本與共享來源修正
+
+下列工作以 f3eb9ea 為基底，後續凍結／carrier／import 初始選取及 Records performance hooks 已由 checkpoint `62780134a29ab49f8d7a25de973e2f9b0e0041c6` 保存並推送。當時 App／Host 正常退出、前台已釋放；新 Wiki 工作及目前前台狀態以上方最新工作段與主代理通知為準。
 
 原生 App 使用 `workspaces/S4-Acceptance-1004`：從 Mentors 第 1 張 15×8 表格預覽並建立獨立縱向 collection（revision 2），原始筆記仍在檔案樹。建立「角色職責」view，Name 升序並額外凍結一列／一欄（revision 3），關閉重開後設定保留。發現凍結 Name 標題被捲動欄標題覆蓋，已修層級並重新 publish；最新原生雙向捲動確認 Name 標題、第一列及 record title 維持固定。
 
@@ -51,19 +67,20 @@ Records 性能 hooks 已加入並 publish，尚無新版 hooks 的有效代表�
 - S4 型別：Markdown／文字、數字、布林、date-only、單選、多選、tag、單／多關聯。Null／空字串／零／false 分開，無效外部值保留原文及診斷。
 - 欄位正文唯一來源；`RecordKey.FieldKey` 自動屬性提供計算後 Markdown，沿用名稱唯一性、相依、missing／cycle。Key 與中文顯示名分開，view 名不入 key，來源型別決定正確寫回位置。
 - 寬表採 H2／H3／H4 縱向，次選 nested list；轉換後 headings 無 H1、深度超限不壓平，保留轉換原文／mapping。表格可固定標題行列、凍結前列欄，focus 按 IDs，分頁／虛擬化。
-- 已接受 rc.3 syntax profile 由 [Syntax rc.5](Engineering/Binding-Syntax-Review-v1.0.0-rc.5.md) 維護，不重問既定語法；literal／reference cache／求值結果不遞迴解析。
+- 已接受 rc.3 syntax profile 由 [Syntax rc.6](Engineering/Binding-Syntax-Review-v1.0.0-rc.6.md) 維護，不重問既定語法；literal／reference cache／求值結果不遞迴解析。
+- Wiki／Grasp 在非編輯區採可讀連結及單擊／Enter 直接導航，Grasp 定位定義 file／block；Records 各呈現面保持同等操作。Active source／IME／draft 與原始 source parsing 邊界保留。
 - 暫定效能門檻及有界測試維持，不因「仍可操作」降低要求。普通工程選擇自行決定；同一問題兩輪無改善或驗證成本失衡時回頭檢視全局。
 
 ## 目前進度
 
 | 階段 | 實作 | 必要驗證 | 使用者接受 |
 | --- | --- | --- | --- |
-| P0 | Implemented：最新已推送 checkpoint 為 f3eb9ea；本段修正尚未提交 | 原 P0 的 16 份現行文件／79 個本機 links、版本與 diff whitespace 核對通過；本段不沿用為新增文件驗證 | 最新計畫已明確接受 |
+| P0 | Implemented：以 62780134 續作；Wiki／Grasp UI 契約已歸檔並實作 | 本段 18 份文件／99 個本機檔案連結及 diff whitespace 核對通過；Grasp `:ref:` 範例不視為檔案路徑 | 最新計畫已明確接受 |
 | S0 既有啟動主幹 | Implemented | 先前 build／publish／App＋Host 啟動及工程驗證 | 不等於 S1 UX 接受 |
 | S1 | PARTIAL：Reading 保留定義排版、delimiter 配對／同步與基本原生 IME 已驗 | Core 162、Host HTTP 34、editor 回歸、架構檢查、Host／App Release 發行通過；IME／dirty 競態、policy GUI、DPI、量化端到端仍待驗 | 尚未宣告接受 |
 | S2 | PARTIAL：Markdown adapter／coordinator、protocol 3、實際檔案樹／右鍵、來源處理、圖片／link 及舊 DB 複製遷移已實作 | 工程及 Windows GUI 部分通過；實際 Obsidian 交替、衝突 UI、完整附件／link 流程與 GUI 效能尚待驗；來源層量測見 S3／S4 Validation | 範圍已接受，成品未接受 |
 | S3 | IN_PROGRESS：backup／restore、排程、實體檔案合併／拆分及其 API／UI／恢復已整合 | backup primitive 39 assertions／manager 9 groups；分組工程測試與真 link／backup 整合通過；備份選單已原生重驗；合併／拆分其餘原生操作待驗 | 同上 |
-| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；九型別／關聯、完整卡片／carrier、import 初始選取修正與 GUI 量測待驗，工程範圍見 S3／S4 Validation | 同上 |
+| S4a–c | IN_PROGRESS：Records codec／Knowledge／Host、九型別、長文卡片／關聯、凍結／分頁／視圖 UI 及 table import 已整合並本機發行 | 15×8 import、view／凍結保存、雙向固定與排序編輯已有限原生驗證；Aura 81×5 import／兩頁切換已原生驗證；Wiki／Grasp 各呈現面與部分鍵盤／dirty guard 已驗；九型別／關聯、其餘卡片／carrier、import 初始選取與足量 GUI 量測待驗，詳见 S3／S4 Validation | 同上 |
 
 本表依 2026-10-04 本段 checkpoint 更新，主代理每完成實作段再接續。任何功能完成／測試 pass 需實際證據；文件升版不代表程式已切換資料權威。
 
@@ -113,7 +130,7 @@ Computer Use 舊 runtime 阻塞先前已解除並取得上述操作證據；目�
 
 Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPortableWorkspace`。Repository：其下 `GraspPortable/`，origin `https://github.com/000Sean000/GraspPortable.git`，branch `rewrite/dotnet`。P0 文件整合讀取 HEAD `f4830e757007401489e169e989ad500ae69b9119`；已有八個文件／App／editor 未提交修改，保留有效成果。動態狀態以 Git 為準，未 reset／搬移 repository。
 
-歷史 checkpoint `522482affeb4979ac8a6e39b77a6a426f5b89725`、`afcf4ab1d2f1d07259e006d60dc9461f4336683f` 已 push。最新已推送為 `f3eb9ea89134b79c7ab143aec085d5d4f9e1dd2d`；其後本段凍結／排序互動及 carrier 修正仍待 commit／push 核對。
+歷史 checkpoint `522482affeb4979ac8a6e39b77a6a426f5b89725`、`afcf4ab1d2f1d07259e006d60dc9461f4336683f`、`62780134a29ab49f8d7a25de973e2f9b0e0041c6` 已核對 push；62780134 包含前段凍結／排序互動及 carrier 修正。其後 Wiki／Grasp UI 的本機發行、驗證及提交主題見最新工作段；續作先核對實際 HEAD／origin／工作目錄，不依本段基底猜測最新 hash。
 
 根目錄 `AGENTS.md` 保存 Workspace／repository 角色、搜尋限定及主動協作，不在本 repository 追蹤。Legacy1 不盤點、不搜索、不修改；舊清理待辦無須接續。
 
@@ -123,6 +140,8 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## 額度與工具觀測
 
+2026-10-04 本段結束前，官方 usage API 回傳 weekly usedPercent 27（剩餘 73%）、ordinaryUsageAllowed true；窗口 10,080 分鐘，reset Unix 1791685406，剩餘重置券 1，未再兌換。這是帳戶共用額度，不是本段的精確費用；工作段基底為 62780134，成果及提交主題見上方。
+
 2026-10-04 本輪起始帳戶共享七日窗口 usedPercent 約 37%，有兩張重置券；那是當時未消耗快照，不是本任務精確成本。04:53:17 已兌換一次，04:56:18 額度恢復但 Goal 未自動恢復；使用者手動 resume 後確認 active。後續狀態由主代理按工具觀測追加。
 
 2026-10-04 01:45（Asia/Taipei），主代理審查後成功啟動本次 Goal 的 12 小時隱藏額度監測；觀測 poll 為 `no_confirmed_exhaustion`，未使用重置券。GoalSupport 工具位於 repository 外，交付時另列，不視為已由產品 Git 追蹤。
@@ -131,4 +150,4 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-使用最新 publish 原生重驗 import 初始 collection 選取修正，再完成 carrier 修正的原生確認、九型別／關聯與剩餘長文卡片；已有 15×8 import、view 保存及凍結／排序編輯證據只需隨受影響修正針對性回歸。补 S3 合併／拆分其餘流程、S2 Obsidian 交替／衝突 UI，以及 S1 IME／dirty 競態、allowlist、DPI。Records hooks 已發布但有效代表量測尚缺；以 opt-in `-MeasurePerformance` 取得至少 30 次代表操作及約五分鐘原生互動，記錄發行來源、workspace、結果與缺口；未量測不報 pass，來源層數字不能替代。本段前台已釋放，下次操作前另行提醒；完成 coherent segment 後再 commit／push 並核對 SHA，未滿足全部完成條件不宣布 Goal complete。
+先完成本段文件及差異核對，依授權 commit／push 並核對 SHA；Wiki／Grasp 的 reader、cell、完整欄位、card、來源定位、field dirty guard、一般 Wiki Enter 與返回 collection 已有有限必要證據，不重跑完整流程。後續補 Grasp Enter／缺失來源的具體原生案例，再續驗 import 初始選取、carrier 修正、九型別／關聯及剩餘長文卡片。補 S3 合併／拆分其餘流程、S2 Obsidian 交替／衝突 UI，以及 S1 IME／dirty 競態、allowlist、DPI。Opt-in Records／UI 探針已有有限樣本，仍須取得至少 30 次代表操作及約五分鐘原生互動的完整證據；區分父元件更新與 child renderer ready，不拿來源層數字替代可見端到端延遲。只重測受影響項目，測試成本失衡即回頭檢視全局。本段前台已釋放，下次操作前另行提醒；未滿足全部完成條件不宣布 Goal complete。

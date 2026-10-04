@@ -8,8 +8,8 @@ import { Marked } from "marked";
 import DOMPurify from "dompurify";
 import { literalAction } from "./graspEditing";
 
-type Reference = { name: string; cachedValue: string; start: number; length: number; originNoteId?: string | null };
-type Region = { start: number; length: number; isComplete: boolean };
+export type Reference = { name: string; cachedValue: string; start: number; length: number; originNoteId?: string | null };
+export type Region = { start: number; length: number; isComplete: boolean };
 type Delta = { from: number; to: number; insert: string };
 type DotNet = { invokeMethodAsync(name: string, ...args: unknown[]): Promise<unknown> };
 let view: EditorView | undefined, dotnet: DotNet, noteId = "", raw = "", revision = 0;
@@ -27,7 +27,12 @@ function imagePlaceholder(target: string, alt: string, wiki = false) {
   return `<span class="content-image-placeholder" data-source="${attribute(target)}" data-wiki="${wiki}" role="img" aria-label="${attribute(alt || target)}">${escapeHtml(remote ? `［遠端圖片：${alt || target}（未自動載入）］` : `［圖片：${alt || target}（載入中）］`)}</span>`;
 }
 const renderer = new Marked({ renderer: {
-  html(token) { return escapeHtml(token.text); },
+  html(token) {
+    // Only the exact inert identity comment is presentation metadata. Fenced
+    // examples stay code; all other raw HTML remains visible escaped text.
+    if(/^<!-- grasp:(?:option|record) (?!0{32} -->)[0-9a-f]{32} -->$/.test(token.text))return "";
+    return escapeHtml(token.text);
+  },
   image(token) { return imagePlaceholder(token.href,token.text); }
 }, extensions:[{
   name:"workspaceWiki", level:"inline",
@@ -39,7 +44,7 @@ const renderer = new Marked({ renderer: {
     return {type:"workspaceWiki",raw:match[0],target,label:split<0?target:match[2].slice(split+1),image:match[1]==="!"};
   },
   renderer(token) { return token.image ? imagePlaceholder(token.target,token.label,true)
-    : `<a href="#" data-local-target="${attribute(token.target)}" data-wiki="true">${escapeHtml(token.label)}</a>`; }
+    : `<a class="workspace-wiki-link" href="#" data-local-target="${attribute(token.target)}" data-wiki="true">${escapeHtml(token.label)}</a>`; }
 }] });
 function html(source: string) { return DOMPurify.sanitize(renderer.parse(source, { async: false }) as string); }
 // Already-evaluated field content is Markdown only. Do not mount an editor or parse Grasp again.
@@ -81,11 +86,18 @@ async function resolveImage(origin: string,target: string,wiki: boolean,epoch: n
 function bindContent(element: HTMLElement,origin: string) {
   element.querySelectorAll<HTMLAnchorElement>("a").forEach(anchor=>{
     if(anchor.dataset.contentBound)return; anchor.dataset.contentBound="true";
+    preservePreviewSelection(anchor);
+    const target=anchor.dataset.localTarget??anchor.getAttribute("href")??"";
+    const missingOrigin=contentOrigin(anchor,origin)==="" && !/^https?:\/\//i.test(target);
+    if(missingOrigin) {
+      anchor.setAttribute("aria-disabled","true"); anchor.title="來源筆記不存在，無法解析相對連結。";
+      anchor.classList.add("content-origin-missing");
+    }
     anchor.addEventListener("click",event=>{
       event.preventDefault(); event.stopPropagation();
-      const target=anchor.dataset.localTarget??anchor.getAttribute("href")??"";
+      if(missingOrigin)return;
       if(/^https?:\/\//i.test(target))void dotnet.invokeMethodAsync("OnExternalLink",target);
-      else void dotnet.invokeMethodAsync("OnLocalLink",origin,target,anchor.dataset.wiki==="true");
+      else void dotnet.invokeMethodAsync("OnLocalLink",contentOrigin(anchor,origin),target,anchor.dataset.wiki==="true");
     });
   });
   const placeholders=Array.from(element.querySelectorAll<HTMLElement>(".content-image-placeholder[data-source]"));
@@ -93,6 +105,9 @@ function bindContent(element: HTMLElement,origin: string) {
   // Limit one rendered chunk and use two workers; excess images remain explicit placeholders.
   const queue=placeholders.filter(placeholder=>{
     if(placeholder.dataset.contentBound)return false; placeholder.dataset.contentBound="true";
+    if(contentOrigin(placeholder,origin)==="") {
+      placeholder.textContent=`［圖片：${placeholder.getAttribute("aria-label")}（來源筆記不存在，無法解析）］`; return false;
+    }
     if(/^(?:[A-Za-z][A-Za-z0-9+.-]*:|\/\/)/.test(placeholder.dataset.source??"")) {
       placeholder.textContent=`［圖片：${placeholder.getAttribute("aria-label")}（外部來源未載入）］`; return false;
     }
@@ -103,7 +118,7 @@ function bindContent(element: HTMLElement,origin: string) {
   async function worker() {
     while(visible.length && epoch===imageEpoch && capturedNote===noteId) {
       const placeholder=visible.shift()!;
-      const value=await resolveImage(origin,placeholder.dataset.source??"",placeholder.dataset.wiki==="true",epoch);
+      const value=await resolveImage(contentOrigin(placeholder,origin),placeholder.dataset.source??"",placeholder.dataset.wiki==="true",epoch);
       if(epoch!==imageEpoch || capturedNote!==noteId || !placeholder.isConnected)continue;
       if(!value) {placeholder.textContent=`［圖片：${placeholder.getAttribute("aria-label")}（找不到或格式不支援）］`;continue;}
       const image=document.createElement("img"); image.alt=placeholder.getAttribute("aria-label")??"";
@@ -115,6 +130,17 @@ function bindContent(element: HTMLElement,origin: string) {
   // Widget DOM is connected by CodeMirror after toDOM returns.
   queueMicrotask(()=>{void worker();void worker();});
 }
+function contentOrigin(element: HTMLElement,fallback:string) {
+  return element.closest<HTMLElement>("[data-origin-note-id]")?.dataset.originNoteId??fallback;
+}
+function preservePreviewSelection(element: HTMLElement) {
+  // Default contenteditable mouse selection would expose the raw source before
+  // click, removing the link that was just pressed. Keyboard/source editing is
+  // still available by moving the editor selection into the source range.
+  element.addEventListener("mousedown",event=>{
+    if(event.button===0 && element.closest(".cm-editor"))event.preventDefault();
+  });
+}
 function normalize(source: string) { return source.replace(/\r\n|\r/g, "\n"); }
 function rawOffset(source: string, offset: number) {
   let i = 0, n = 0;
@@ -123,19 +149,32 @@ function rawOffset(source: string, offset: number) {
 }
 function normalizedOffset(source: string, offset: number) { return normalize(source.slice(0, offset)).length; }
 function newline() { return raw.match(/\r\n|\r|\n/)?.[0] ?? "\n"; }
-function makeReference(reference: Reference): HTMLElement {
-  const element = document.createElement("span");
-  element.className = "managed-reference" + (reference.cachedValue.includes("\n") ? " multiline" : "");
-  element.dataset.identifier = reference.name;
-  element.title = reference.name + " · 點選查看定義";
-  element.tabIndex = 0;
+function referenceMarkup(reference: Reference): HTMLElement {
   const content = document.createElement("span"); content.className = "reference-content";
   content.innerHTML = html(reference.cachedValue || "（空值）");
+  // Single-paragraph values are inline; long Markdown keeps its real blocks.
+  if(content.children.length===1 && content.firstElementChild?.tagName==="P")content.firstElementChild.replaceWith(...content.firstElementChild.childNodes);
+  const block=reference.cachedValue.includes("\n") || !!content.querySelector("p,pre,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,table,hr");
+  const element = document.createElement(block ? "div" : "span");
+  element.className = "managed-reference" + (block ? " multiline" : "");
+  element.dataset.identifier = reference.name;
+  element.dataset.graspDefinition = reference.name;
+  // Explicit null is an unresolved origin, never the note displaying the cache.
+  // Undefined retains compatibility with callers predating origin metadata.
+  if(reference.originNoteId!==undefined)element.dataset.originNoteId=reference.originNoteId??"";
+  element.setAttribute("role","link");
+  element.title = reference.name + " · 點選查看定義";
+  element.tabIndex = 0;
   element.append(content);
-  bindContent(content,reference.originNoteId??noteId);
-  element.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); void dotnet.invokeMethodAsync("OnReferenceClicked", reference.name); });
-  element.addEventListener("keydown", event => { if(event.key === "Enter" && event.target===element) { event.preventDefault(); void dotnet.invokeMethodAsync("OnReferenceClicked", reference.name); } });
   return element;
+}
+function bindReference(element: HTMLElement) {
+  preservePreviewSelection(element);
+  element.addEventListener("click", event => { if((event.target as Element).closest("a"))return; event.preventDefault(); event.stopPropagation(); void dotnet.invokeMethodAsync("OnReferenceClicked", element.dataset.graspDefinition); });
+  element.addEventListener("keydown", event => { if(event.key === "Enter" && event.target===element) { event.preventDefault(); event.stopPropagation(); void dotnet.invokeMethodAsync("OnReferenceClicked", element.dataset.graspDefinition); } });
+}
+function makeReference(reference: Reference): HTMLElement {
+  const element=referenceMarkup(reference);bindReference(element);bindContent(element,reference.originNoteId??noteId);return element;
 }
 class ReferenceWidget extends WidgetType {
   readonly epoch=imageEpoch;
@@ -367,9 +406,10 @@ export function insertText(text: string) {
   if(!view || locked) return;
   view.dispatch(view.state.replaceSelection(text)); view.focus();
 }
-export function renderReading(elementId: string, source: string, references: Reference[], regions: Region[] = []) {
-  const target=document.getElementById(elementId); if(!target)return;
-  invalidateImages(); view?.dispatch({});
+// Ranges must belong to this exact raw source. Cached Markdown is rendered once
+// and is never passed back through Grasp syntax recognition or this function.
+export function renderManagedMarkdown(source: string, references: Reference[] = [], regions: Region[] = []): string {
+  const target=document.createElement("div");
   const nonce=crypto.randomUUID();
   let represented=source;
   const blocks=regions.filter(r=>r.isComplete && r.start>=0 && r.length>0 && r.start+r.length<=source.length);
@@ -393,7 +433,7 @@ export function renderReading(elementId: string, source: string, references: Ref
           pre.className="grasp-definition-region"; code.textContent=regionSource;
           pre.style.whiteSpace="pre-wrap"; pre.style.overflowWrap="anywhere"; pre.append(code); fragment.append(pre);
         }
-      } else fragment.append(makeReference(ordered[Number(match[2])]));
+      } else fragment.append(referenceMarkup(ordered[Number(match[2])]));
       last=match.index+match[0].length;
     }
     if(last) {fragment.append(document.createTextNode(node.data.slice(last)));node.replaceWith(fragment);}
@@ -401,16 +441,25 @@ export function renderReading(elementId: string, source: string, references: Ref
   // Marked initially sees each opaque marker as paragraph text. Split that
   // paragraph around block regions rather than leaving invalid pre-inside-p DOM.
   target.querySelectorAll("p").forEach(paragraph=>{
-    if(!Array.from(paragraph.children).some(child=>child.matches("pre.grasp-definition-region")))return;
+    if(!Array.from(paragraph.children).some(child=>child.matches("pre.grasp-definition-region,div.managed-reference")))return;
     const fragment=document.createDocumentFragment(); let part=document.createElement("p");
     for(const child of Array.from(paragraph.childNodes)) {
-      if(child instanceof HTMLElement && child.matches("pre.grasp-definition-region")) {
+      if(child instanceof HTMLElement && child.matches("pre.grasp-definition-region,div.managed-reference")) {
         if(part.childNodes.length)fragment.append(part);
         fragment.append(child); part=document.createElement("p");
       } else part.append(child);
     }
     if(part.childNodes.length)fragment.append(part); paragraph.replaceWith(fragment);
   });
+  // HTML tokenization normalizes literal CRLF. An entity retains the exact raw
+  // definition text across the shared renderer's serialize/insert boundary.
+  return target.innerHTML.replace(/\r/g,"&#13;");
+}
+export function renderReading(elementId: string, source: string, references: Reference[], regions: Region[] = []) {
+  const target=document.getElementById(elementId); if(!target)return;
+  invalidateImages(); view?.dispatch({});
+  target.innerHTML=renderManagedMarkdown(source,references,regions);
+  target.querySelectorAll<HTMLElement>(".managed-reference[data-grasp-definition]").forEach(bindReference);
   bindContent(target,noteId);
 }
 export function scrollToContentAnchor(anchor: string) {

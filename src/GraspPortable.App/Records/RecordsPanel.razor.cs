@@ -21,11 +21,14 @@ public partial class RecordsPanel : IAsyncDisposable
     [Parameter] public string WorkspaceKey { get; set; } = "";
     [Parameter] public long Revision { get; set; }
     [Parameter] public EventCallback<string> OnOpenSource { get; set; }
+    [Parameter] public EventCallback<RecordsContentNavigation> OnNavigate { get; set; }
+    [Parameter] public EventCallback<string> SelectedCollectionChanged { get; set; }
     private CollectionSummaryDto[] _collections = [];
     private CollectionDto? _data;
     private RecordViewDto? _view;
     private string _selected = "", _workspace = "", _search = "";
     private string _appliedInitialCollectionId = "";
+    private string? _reportedCollectionId;
     private long _observedRevision = -1, _loadEpoch;
     private CancellationTokenSource? _load;
     private bool _busy, _loading, _disposed;
@@ -65,6 +68,7 @@ public partial class RecordsPanel : IAsyncDisposable
         {
             _workspace = WorkspaceKey; _selected = ""; _data = null; _view = null; _collections = []; _page = 0; _search = "";
             _appliedInitialCollectionId = "";
+            _reportedCollectionId = null;
             if (_dialog is not null) _dialogWarning = "工作區已切換；這份輸入仍保留，請先複製或取消，不能送到另一個工作區。";
         }
         if (Collection is not null && Collection.Id != _selected) _selected = Collection.Id;
@@ -96,7 +100,7 @@ public partial class RecordsPanel : IAsyncDisposable
     {
         if (!Backend.Connected || _disposed) return;
         _load?.Cancel(); _load?.Dispose(); _load = new();
-        var token = _load.Token; var epoch = ++_loadEpoch;
+        var token = _load.Token; var epoch = ++_loadEpoch; var workspace = WorkspaceKey;
         var performance = 0; var performanceQueued = false;
         _loading = true;
         try
@@ -105,7 +109,7 @@ public partial class RecordsPanel : IAsyncDisposable
             var list = await Backend.GetAsync<CollectionSummaryDto[]>("api/records", token);
             var id = list.Any(c => c.Id == _selected) ? _selected : list.FirstOrDefault()?.Id ?? "";
             var data = id.Length == 0 ? null : await Backend.GetAsync<CollectionDto>("api/records/" + id, token);
-            if (epoch != _loadEpoch || token.IsCancellationRequested || _disposed) return;
+            if (epoch != _loadEpoch || token.IsCancellationRequested || _disposed || workspace != WorkspaceKey) return;
             var previousId = _data?.Id; _collections = list; _selected = id; _data = data;
             if (data is not null && (_view is null || previousId != data.Id))
             { _view = data.Views.FirstOrDefault() ?? DefaultView(data); _search = _view.Search; _page = 0; }
@@ -120,6 +124,14 @@ public partial class RecordsPanel : IAsyncDisposable
             ClampPage();
             _recordsAppliedLoadEpoch = epoch;
             QueueRecordPerformance(performance, epoch); performanceQueued = true;
+            if (SelectedCollectionChanged.HasDelegate && _reportedCollectionId != id)
+            {
+                _reportedCollectionId = id;
+                // Parent echoes the remembered selection as InitialCollectionId. Consume
+                // that echo now so it does not reset the current view or query again.
+                _appliedInitialCollectionId = id;
+                await SelectedCollectionChanged.InvokeAsync(id);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { if (epoch == _loadEpoch) _error = error.Message; }
@@ -399,12 +411,22 @@ public partial class RecordsPanel : IAsyncDisposable
         "view" => _data?.Views.FirstOrDefault(v => v.Id == _viewId),
         _ => _data }, new JsonSerializerOptions { WriteIndented = true });
     private static bool HasCellProblem(RecordCellDto? cell) => cell is not null && (!string.Equals(cell.Status, "Valid", StringComparison.OrdinalIgnoreCase) || cell.Diagnostics.Length > 0);
+    private static bool RenderManagedCell(RecordFieldSchemaDto field, RecordCellDto? cell) => cell is { IsNull: false };
     private Task OpenSourceAsync() => _data is null ? Task.CompletedTask : OnOpenSource.InvokeAsync(_data.NoteId);
     private async Task NavigateContentAsync(RecordsContentNavigation navigation)
     {
         if (_busy || _unknownOutcome) { _dialogWarning = "請先確認目前保存操作的結果，再開啟連結。"; return; }
         try
         {
+            if (navigation.NoteId is not null || navigation.DefinitionName is not null)
+            {
+                if (DialogChanged) { _dialogWarning = "這份輸入尚未保存。請先保存或取消編輯，再點選連結；輸入保持不變。"; return; }
+                if (OnNavigate.HasDelegate)
+                {
+                    CloseDialog(true); await OnNavigate.InvokeAsync(navigation); return;
+                }
+                if (navigation.DefinitionName is not null) { _notice = "定義導航尚未連接。"; return; }
+            }
             if (navigation.Url is { } url && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
                 await Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(uri);
             else if (navigation.RelativePath is { } path && navigation.NoteId is null)

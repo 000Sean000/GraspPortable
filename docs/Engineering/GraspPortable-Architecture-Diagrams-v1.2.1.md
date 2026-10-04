@@ -1,15 +1,15 @@
 ---
 title: GraspPortable — Architecture Diagrams
-version: 1.2.0
+version: 1.2.1
 updated: 2026-10-04
 status: accepted-design-diagrams
 scope: code-runtime-markdown-recovery-and-records
-supersedes: GraspPortable-Architecture-Diagrams-v1.1.0.md
+supersedes: GraspPortable-Architecture-Diagrams-v1.2.0.md
 ---
 
 ## 圖解用途
 
-對應 [Architecture rc.5](GraspPortable-Architecture-v1.0.0-rc.5.md)、[Plan rc.8](Implementation-Plan-v1.0.0-rc.8.md) 與 [模型決策](Decisions/Architecture-Model-v1.1.0.md)。圖是接受的設計，不是完成證據；動態進度見 [EXECUTION-STATE](../EXECUTION-STATE.md)。Markdown 為已保存原文，SQLite 兼管投影、版本基底及不可丟棄的草稿／journal。
+對應 [Architecture rc.6](GraspPortable-Architecture-v1.0.0-rc.6.md)、[Plan rc.9](Implementation-Plan-v1.0.0-rc.9.md) 與 [模型決策](Decisions/Architecture-Model-v1.1.1.md)。圖是接受的設計，不是完成證據；動態進度見 [EXECUTION-STATE](../EXECUTION-STATE.md)。Markdown 為已保存原文，SQLite 兼管投影、版本基底及不可丟棄的草稿／journal。
 
 ## 1. 四個 Projects 的編譯依賴
 

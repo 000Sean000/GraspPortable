@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Architecture Model Decision
-version: 1.1.0
+version: 1.1.1
 updated: 2026-10-04
 status: selected-under-delegated-architecture-authority
 scope: product-adapted-explicit-architecture
-supersedes: Architecture-Model-v1.0.2.md
+supersedes: Architecture-Model-v1.1.0.md
 ---
 
 ## 決定與目的
@@ -13,9 +13,9 @@ supersedes: Architecture-Model-v1.0.2.md
 
 使用者於 2026-10-03 授權：若無必須由使用者裁定的問題，直接將模型調整為適合本產品的方案。本文件記錄此授權下的工程決定；不表示具體實作、性能或使用者操作驗收已完成。
 
-[產品架構](../GraspPortable-Architecture-v1.0.0-rc.5.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.2.0.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 維持通用規劃方法。
+[產品架構](../GraspPortable-Architecture-v1.0.0-rc.6.md) 描述功能配置及執行設計；[技術選擇](Technology-Selection-v1.2.1.md) 記錄實際 stack；[方法指引](../graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 維持通用規劃方法。
 
-本專案使用 [自己的架構圖](../GraspPortable-Architecture-Diagrams-v1.2.0.md) 表達下列取捨；原文圖保留作概念來源。
+本專案使用 [自己的架構圖](../GraspPortable-Architecture-Diagrams-v1.2.1.md) 表達下列取捨；原文圖保留作概念來源。
 
 ## 相對原模型的取捨
 

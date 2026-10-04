@@ -83,7 +83,7 @@ DefinitionDto Definition(KnowledgeDefinition d) => new(d.Id, d.NoteId, d.Name, d
     d.FieldOrigin?.RecordId,d.FieldOrigin?.FieldId,d.IsLiteral || d.FieldOrigin is not null && knowledge.Current.Notes[d.NoteId].Syntax.Definitions
         .Single(x=>x.Name==d.Name).Parts.All(p=>p.Kind==GraspPortable.Core.ValueEngine.PartKind.Literal));
 ReferenceDto Reference(string noteId, GraspPortable.Core.ValueEngine.ParsedReference r) => new(noteId, r.Name, r.Kind.ToString(), r.CachedValue, r.Span.Start, r.Span.Length, r.ValueSpan.Start, r.ValueSpan.Length,
-    knowledge.Current.Definitions.Values.FirstOrDefault(d=>d.Name==r.Name)?.NoteId ?? noteId);
+    knowledge.Current.Definitions.Values.FirstOrDefault(d=>d.Name==r.Name)?.NoteId);
 ImpactDto Impact(Impact impact) => new(impact.Revision, impact.NoteIds, impact.Definitions, impact.References, impact.HasDirtyDraft, impact.Message);
 app.MapGet("/api/workspace", () => { var s = knowledge.Current; return new WorkspaceInfo(s.WorkspaceId, workspacePath, s.Revision, s.PolicyRevision, s.Languages, MigratedFrom: migratedFrom); });
 app.MapGet("/api/workspace/sources", () => coordinator.Status);

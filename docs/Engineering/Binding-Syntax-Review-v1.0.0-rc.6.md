@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Binding Syntax and Parsing Policy Review
-version: 1.0.0-rc.5
+version: 1.0.0-rc.6
 updated: 2026-10-04
 status: accepted-s1-syntax-profile
 scope: binding-syntax-markdown-policy-and-parser-replaceability
-supersedes: Binding-Syntax-Review-v1.0.0-rc.4.md
+supersedes: Binding-Syntax-Review-v1.0.0-rc.5.md
 ---
 
 ## 結論與決策狀態
@@ -13,7 +13,7 @@ supersedes: Binding-Syntax-Review-v1.0.0-rc.4.md
 
 已確認需用可設定的 code block 語言清單控制 Grasp parsing：未標語言及 grasp 啟用，json／grasp-demo 預設停用。Parser 要容易維護與替換 syntax。原先分號、允許點號兩側空白、強迫用多行隔開首尾 pipe 的建議均已撤回。
 
-使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；S1 已整體接受 rc.3 的精確邊界補充；rc.4 同步接受狀態及 reference／context 明確化；rc.5 更新現行路由與 Records 原文解析邊界，未更換 syntax profile。外層沿用使用者原提案 @code{ ... }；保留容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.8.md)。
+使用者已指定 **單層 {value} 起始，按內容的連續括弧增加 marker 層數**；內容優先原樣保存，JSON 可自然分行隔開邊界，首尾貼著 marker 的括弧才作局部 escape。此方向取代前版固定雙括弧與全面有限 escape；S1 已整體接受 rc.3 的精確邊界補充；rc.4 同步接受狀態及 reference／context 明確化；rc.5 更新 Records 原文解析邊界，rc.6 同步現行需求／計畫路由，均未更換 syntax profile。外層沿用使用者原提案 @code{ ... }；保留容器。以下程式區塊皆是文件示例，不是實作證據。其餘階段、部署與效能見[實作規劃](Implementation-Plan-v1.0.0-rc.9.md)。
 
 ## 1. 已接受的組合外觀
 

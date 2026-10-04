@@ -41,20 +41,7 @@ public partial class Home
         }
         if (result.NoteId is { } destination)
         {
-            await SelectNoteAsync(destination);
-            if (_note?.Id != destination) return; // Save / conflict guard may have stopped navigation.
-            if (!string.IsNullOrEmpty(result.Anchor))
-            {
-                if (result.Anchor.TrimStart('#').StartsWith('^'))
-                    _notice = "已開啟筆記；目前尚未支援 block anchor 定位。";
-                else if (editor is not null)
-                {
-                    // Heading navigation is visible in Reading, while selection remains guarded by normal saving.
-                    await ChangeModeAsync("reading");
-                    if (_mode == "reading" && !await editor.InvokeAsync<bool>("scrollToContentAnchor", result.Anchor))
-                        _notice = "已開啟筆記，但找不到指定標題：" + result.Anchor;
-                }
-            }
+            await OpenNoteLinkAsync(destination, result.Anchor);
         }
         else if (result.RelativePath is { } path)
         {
@@ -64,4 +51,20 @@ public partial class Home
         else _notice = result.Message ?? "這個連結目前無法開啟。";
         StateHasChanged();
     }));
+
+    private async Task OpenNoteLinkAsync(string destination, string? anchor)
+    {
+        await SelectNoteAsync(destination);
+        if (_note?.Id != destination) return; // Saving / draft conflict may stop navigation.
+        _recordsVisible = false;
+        if (string.IsNullOrEmpty(anchor)) return;
+        if (anchor.TrimStart('#').StartsWith('^'))
+            _notice = "已開啟筆記；目前尚未支援 block anchor 定位。";
+        else if (editor is not null)
+        {
+            await ChangeModeAsync("reading");
+            if (_mode == "reading" && !await editor.InvokeAsync<bool>("scrollToContentAnchor", anchor))
+                _notice = "已開啟筆記，但找不到指定標題：" + anchor;
+        }
+    }
 }

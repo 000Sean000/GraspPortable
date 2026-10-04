@@ -28,6 +28,7 @@ public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, Kno
     {
         var owner = Find(collectionId); var note = owner.Note; var descriptor = note.CurrentRecords!; var basis = knowledge.Current;
         var fields = VerticalRecordCodec.Parse(note.CurrentSource, descriptor);
+        var definitionsByName = basis.Definitions.Values.ToDictionary(d => d.Name, StringComparer.Ordinal);
         var choices = Owners().SelectMany(o => o.Note.CurrentRecords!.Records.Select(r => new RecordChoiceDto(r.Id, r.Key, r.DisplayName, o.Metadata.CollectionId))).ToArray();
         var recordIds = choices.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
         var diagnostics = fields.Diagnostics.Select(Diagnostic).Concat(note.Diagnostics.Select(d => new DiagnosticDto(d.Code, d.Message, d.Span.Start, d.Span.Length))).ToList();
@@ -41,8 +42,16 @@ public sealed class WorkspaceRecords(MarkdownWorkspaceRepository repository, Kno
             if (typed is { IsValid: false }) status = "Invalid";
             var writable = field is not null && !note.IsSourceStale && knowledge.GetDraft(note.Id) is null
                 && definition is not null && note.Syntax.Definitions.Single(d => d.Name == definition.Name).Parts.All(p => p.Kind == PartKind.Literal);
+            // Render metadata is derived only from accepted ORIGINAL field source. Its ranges
+            // are local to RawSource, including nested-list carriers' removed indentation.
+            var original = field is { IsNull: false } && !note.IsSourceStale
+                ? GraspParser.Parse(field.RawSource, basis.Languages) : null;
+            var references = original?.References.Select(r => new ReferenceDto(note.Id, r.Name, r.Kind.ToString(),
+                r.CachedValue, r.Span.Start, r.Span.Length, r.ValueSpan.Start, r.ValueSpan.Length,
+                definitionsByName.GetValueOrDefault(r.Name)?.NoteId)).ToArray() ?? [];
+            var regions = original?.Regions?.Select(r => new RegionDto(r.Span.Start, r.Span.Length, r.IsComplete)).ToArray() ?? [];
             return new RecordCellDto(schema.Id, field?.RawSource ?? "", definition?.Value, field?.IsNull ?? true, status, writable,
-                typed?.Value is { } value ? Typed(value) : null, typed?.Diagnostics.Select(Diagnostic).ToArray() ?? []);
+                typed?.Value is { } value ? Typed(value) : null, typed?.Diagnostics.Select(Diagnostic).ToArray() ?? [], references, regions);
         }).ToArray())).ToArray();
         return new(owner.Metadata.CollectionId, note.Id, owner.Metadata.Title, basis.Revision, note.Revision,
             note.SavedSource?.Status ?? "accepted", knowledge.GetDraft(note.Id) is not null, descriptor.Fields.Select(SchemaDto).ToArray(), rows, choices, views, diagnostics.ToArray());

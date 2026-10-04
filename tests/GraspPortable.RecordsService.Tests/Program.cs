@@ -1,6 +1,7 @@
 using GraspPortable.Contracts;
 using GraspPortable.Core.Knowledge;
 using GraspPortable.Core.Records;
+using GraspPortable.Core.ValueEngine;
 using GraspPortable.Host.Workspace;
 using GraspPortable.Host.Workspace.Markdown;
 
@@ -149,6 +150,34 @@ if (args.Length == 0 || args.Contains("carriers", StringComparer.Ordinal))
         && records.Read(b.NoteId!).Rows[0].DisplayName == "新角色名" && records.Read(a.NoteId!).Rows[0].Cells[0].RawSource == aRaw,
         "dirty relation owner rejects the whole display rename without partial metadata changes");
     Check(knowledge.GetDraft(current.Id)!.Source.EndsWith("local", StringComparison.Ordinal), "carrier refresh retains the exact dirty draft");
+}
+if (args.Length == 0 || args.Contains("render", StringComparer.Ordinal))
+{
+    using var repository = new MarkdownWorkspaceRepository(Path.Combine(root, "render"));
+    using var knowledge = new KnowledgeService(repository);
+    var records = new WorkspaceRecords(repository, knowledge);
+    const string value = "第一段😀\r\n\r\n[[Source|來源連結]] [demo](:ref:NeverParsed)";
+    var owner = await knowledge.CreateNoteAsync(Id(), "Source", "@code{ @Display = " + LiteralCodec.Serialize(value) + " }");
+    var created = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Render", "Render.Row", "一筆"));
+    var data = records.Read(created.NoteId!); var row = data.Rows.Single(); var field = data.Fields.Single();
+    var source = "😀前段\r\n#### 欄位內標題\r\n" + ReferenceCodec.Serialize(ReferenceKind.Pure, "Display", "")
+        + "\r\n" + ReferenceCodec.Serialize(ReferenceKind.Wiki, "Display", "")
+        + "\r\n```json\r\n[demo](:ref:Disabled)\r\n```\r\n@code{ @Local = {local} }";
+    var changed = await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, source));
+    Check(changed.Status == "committed", "render fixture commits original Markdown source and dependencies");
+    var cell = records.Read(created.NoteId!).Rows.Single().Cells.Single();
+    Check(cell.References is { Length: 2 } && cell.References.All(r => r.Name == "Display" && r.OriginNoteId == owner.NoteId && r.CachedValue == value),
+        "cell carries both semantic references and their true content origin");
+    Check(cell.References!.All(r => cell.RawSource.Substring(r.Start, r.Length) == ReferenceCodec.Serialize(Enum.Parse<ReferenceKind>(r.Kind), r.Name, r.CachedValue)),
+        "cell reference UTF-16 ranges address local raw source after carrier indentation removal");
+    Check(cell.Regions is { Length: 1 } && cell.RawSource.Substring(cell.Regions[0].Start, cell.Regions[0].Length).StartsWith("@code{"),
+        "original definition region retains its source boundaries for rendering");
+    Check(!knowledge.Current.Definitions.Values.Any(d => d.Name is "NeverParsed" or "Disabled") && cell.References!.All(r => r.Name != "NeverParsed"),
+        "disabled fences and evaluated reference-looking text do not acquire semantic metadata");
+    var display = knowledge.Current.Definitions.Values.Single(d => d.Name == "Display");
+    Check((await knowledge.ChangeLiteralAsync(Id(), display.Id, knowledge.Current.Revision, "更新\n\n值")).Status == "committed"
+        && records.Read(created.NoteId!).Rows.Single().Cells.Single().References!.All(r => r.CachedValue == "更新\n\n值"),
+        "subsequent source update refreshes cell render references without changing their targets");
 }
 Console.WriteLine($"PASS {assertions} Records service assertions. Workspace: {root}");
 }

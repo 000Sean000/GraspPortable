@@ -21,3 +21,10 @@ footer{font-size:12px;color:#526857;flex-shrink:0}
 
 .import-mapping{padding:10px 0;border-bottom:1px solid #e2e5dd}.import-mapping label{display:inline-flex;width:46%;margin-right:3%;font-size:12px}
 .toolbar .breadcrumb{min-width:0;flex:1}.toolbar-actions{flex-shrink:0;white-space:nowrap}@media(max-width:760px){.toolbar{flex-wrap:wrap}.toolbar .breadcrumb{flex-basis:100%}.toolbar-actions{flex-wrap:wrap;gap:8px}}
+/* Reading and Live Preview use the same visible link affordances. */
+.workspace-wiki-link,.managed-reference{background:#e8f1ff;color:#214f91;border-radius:3px;text-decoration:none;cursor:pointer}
+.workspace-wiki-link{padding:1px 3px;border-bottom:1px solid #9dbce7}
+.workspace-wiki-link:hover,.managed-reference:hover{background:#d7e7ff}
+.workspace-wiki-link:focus-visible,.managed-reference:focus-visible{outline:2px solid #316bbe;outline-offset:2px}
+.managed-reference.multiline{padding:6px 10px}
+.content-origin-missing{opacity:.65;cursor:not-allowed;text-decoration:line-through}

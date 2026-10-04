@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.4.0
+version: 1.5.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -9,9 +9,31 @@ status: implemented-parts-with-partial-native-evidence
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
 
-## 最新原生證據：S4-Acceptance-1004
+## 本段 Wiki／Grasp 參照原生驗證（有限必要流程通過）
 
-發行基底為已推送 `f3eb9ea89134b79c7ab143aec085d5d4f9e1dd2d`，凍結／carrier 修正由主代理審查 diff 並成功重新 publish，仍未 commit／push；最新 publish 已含 import 初始選取修正及 Records performance hooks（App 11:17:07／Host 11:05:58，2026-10-04 Asia/Taipei），TS build／架構檢查通過，新的 import 導航仍待原生重驗。以下使用真實 Windows App 與忽略的 `workspaces/S4-Acceptance-1004`；App／Host 已正常退出、程序清單為空，前台已釋放。
+2026-10-04（Asia/Taipei），主代理使用真實 Windows App 與 `workspaces/S4-Acceptance-1004`。Links fixture 經公開服務準備至 revision 15；既有九篇筆記、檔案及草稿維持不變。前輪探針 `ui-20261004-034024.json` 自 11:40 開始，記錄 reader／table／card 操作；最新 Host 11:47:31、App 11:47:38 的 publish 已含 missing-origin 保護及 return-collection 記憶修正，後輪 `ui-20261004-034807.json` 自 11:48 開始，至 11:55 正常關閉。這些是尚未 commit 工作段的本機發行，不冒充新的已推送 checkpoint。
+
+| 呈現位置／操作 | 已觀測結果 |
+| --- | --- |
+| Live Preview reader 的 Wiki alias | 括號／syntax 隱藏且有 link highlight；點擊成功開 Source |
+| Reader 的多段 pure reference | 點擊直接開 Source，定位 `@LiveLinks.Message` 第 10 行並選中 identifier |
+| Table Wiki 欄的短 pure reference | 點擊直接開 Source，定位 `@LiveLinks.Short` 第 15 行 |
+| Table Wiki 的來源標題連結 | 點擊開 Source，Reading 目標 heading 可見 |
+| Record card | 兩式短／多段 reference 保留空行、粗體及 highlight；點 managed wiki 多段值直接到 Source 的 Message 第 10 行 |
+| 完整 Longform 欄位 | 兩式多段 reference 的粗體、空行及預覽正確；加入未保存「 草稿保護驗收」後點 reference，dirty guard 阻止導航並保留文字 |
+| Longform 恢復原文與導航 | 原生 Ctrl+Z 恢復原文，再點 managed wiki（ref2）開 Source 的 `@LiveLinks.Message`，實際 selected_text 為 `LiveLinks.Message` |
+| 返回資料表 | 點側欄資料表後仍為原連結驗收 collection，return-collection 記憶有效 |
+| 完整 Links 欄位的鍵盤導航 | Tab 從 textarea 聚焦 Wiki，焦點 outline 可見；Enter 成功開 Source 的 Reading 導航目標 heading |
+
+後輪未提交 fixture 原文，workspace 仍為 revision 15；暫存驗收文字已由 Ctrl+Z 撤回。App／Host 正常關閉後程序皆不存在，前台已釋放。一般 Wiki 的 Enter 已測；Grasp reference 的 Enter 尚未專項原生測試。
+
+工程：editor build／test 通過；RecordsService render 6 assertions 通過，涵蓋 UTF-16／origin、disabled context、cache 不遞迴及更新。Missing-origin 回退 reader 的缺陷已修、測試且包含於最新 publish，但**未做原生缺失來源案例**；不因正常來源导航成功推定缺失來源保護已原生驗收。這批 UI 已實作且上述有限必要原生流程通過，S4／全 Goal 仍 IN_PROGRESS，使用者接受另記。
+
+Records 父層雙 rAF 只界定父元件的繪製機會，**不保證包含子 JS renderer 的完整 paint**；相關時間不得當成完整 card／cell 可見端到端延遲。驗證保持有界，後續只補具體缺口及受影響回歸，不重跑既有全套 parser／性能測試。
+
+## 已有原生證據：S4-Acceptance-1004（revision 2–6）
+
+以下原生結果的發行基底為 f3eb9ea；凍結／carrier 修正已由主代理審查，並隨 `62780134a29ab49f8d7a25de973e2f9b0e0041c6` commit／push。當時 publish 已含 import 初始選取修正及 Records performance hooks（App 11:17:07／Host 11:05:58，2026-10-04 Asia/Taipei），TS build／架構檢查通過，新的 import 導航仍待原生重驗。以下使用真實 Windows App 與忽略的 `workspaces/S4-Acceptance-1004`；App／Host 已正常退出、程序清單為空，前台已釋放。
 
 | 操作 | 實際結果 | 邊界 |
 | --- | --- | --- |
@@ -27,6 +49,8 @@ status: implemented-parts-with-partial-native-evidence
 凍結修正將 frozen field header 層級提高至 13，普通 header 為 12、record title 為 14；只修重疊順序，不改 Records 身分或排序契約。
 
 Aura import 後仍先顯示舊 collection 的缺陷，root 已以 `InitialCollectionId` 修正，已 publish，尚待原生重驗。本段還未完成九型別、跨筆關聯、完整圖片／link 卡片、Obsidian 交替、IME／dirty 競態或至少 30 次代表操作效能。Records performance hooks 已加入並 publish，尚未取得新版 hooks 的有效代表量測，不報 pass。
+
+本節保留較早 revision 2–6 的資料表證據；新增 Wiki／Grasp fixture 及最新原生操作見上節，不以先前狀態覆蓋本段結果。
 
 ## 工程證據
 
@@ -67,7 +91,7 @@ Release，SDK 10.0.401／runtime 10.0.12，Windows 10.0.26200 X64，目前 PC 32
 
 ## 原生量測與尚待驗證
 
-Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫入當時 workspace 的 `.grasp/measurements/ui-*.json`。只記時長與次數，不記正文／識別碼；最長十分鐘，foreground frame 排除初始五秒與失焦。兩次 rAF 是下一次繪製機會的保守近似，不是螢幕光子時間。Records hooks 已發布但有效代表量測仍待收集。
+Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫入當時 workspace 的 `.grasp/measurements/ui-*.json`。只記時長與次數，不記正文／識別碼；最長十分鐘，foreground frame 排除初始五秒與失焦。兩次 rAF 是下一次繪製機會的保守近似，不是螢幕光子時間。Records hooks 已取得下列有限樣本，足量代表操作及完整可見延遲仍待收集。
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
@@ -77,6 +101,8 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 主代理補驗時記錄發行 checkpoint／未提交來源、實際 workspace、資料規模、操作及通過／失敗／未驗項、探針路徑與結果、DPI／IME 模式、前台釋放狀態。尚無證據的欄位保持待驗。
 
+
+本段兩份報告在 `workspaces/S4-Acceptance-1004/.grasp/measurements/`（忽略，不提交）。最新 `ui-20261004-034807.json`：recordQuery 3 samples／p95 135.5 ms，collectionSwitch 1／78.9 ms，input 2／p95 5.3 ms，noteSwitchFirst 1／46.9 ms；frame 36,000／p95 4.3 ms／max 50 ms，scroll 95／p95 4.3 ms／max 16.7 ms。前輪 `ui-20261004-034024.json`：noteSwitchFirst 2／p95 88 ms、warm 2／p95 37.6 ms、recordQuery 6／p95 121.9 ms、collectionSwitch 3／p95 71 ms。樣本不足 30 次代表操作，Records 指標亦未包含 child renderer ready／完整 paint，**不構成完整端到端效能通過**；不為湊樣本擴張本段測試。
 
 當次 `ui-20261004-030650.json` elapsed 556.9 秒：input 1 sample／4.4 ms，noteSwitchFirst 1 sample／36.3 ms，scroll 169 samples／p95 8.4 ms／max 25 ms，frames 36,000 samples／p95 4.3 ms／max 37.5 ms，long tasks 8／max 65 ms；仍缺 30 次代表操作，不構成階段完成或新版 Records hooks 的完整量測。
 

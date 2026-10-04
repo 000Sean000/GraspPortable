@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Development Environment
-version: 1.0.7
+version: 1.0.8
 updated: 2026-10-04
 scope: current-workspace-and-local-toolchain
 ---
@@ -44,7 +44,7 @@ Legacy1 的完整封存狀態依本輪使用者告知；僅確認根目錄有該
 
 起始檢查時，Windows SDK 的常見 Include 路徑及 registry locator 未回傳安裝版本；本輪已用實際 .NET 10 MAUI project 完成 Windows Release build／publish（0 warnings／errors），並啟動原生視窗、WebView2 與獨立 Host。這確認本機建置／啟動路徑，沒有宣稱 GUI 操作或移機部署通過。
 
-規劃起始尚無 solution、project、`global.json` 或 npm package；本輪已進入 S0–S1 實作，這項歷史觀測不代表現在仍未建立程式。工具鏈與套件以實際 restore／build 相容後鎖定；進度與驗證結果見 EXECUTION-STATE，部署邊界見[實作規劃](Implementation-Plan-v1.0.0-rc.8.md)。
+規劃起始尚無 solution、project、`global.json` 或 npm package；本輪已進入 S0–S1 實作，這項歷史觀測不代表現在仍未建立程式。工具鏈與套件以實際 restore／build 相容後鎖定；進度與驗證結果見 EXECUTION-STATE，部署邊界見[實作規劃](Implementation-Plan-v1.0.0-rc.9.md)。
 
 ## 日常使用
 

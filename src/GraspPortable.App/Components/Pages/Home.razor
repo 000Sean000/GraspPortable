@@ -29,7 +29,7 @@
  @if(_notice is not null){<div class="notice info"><span>@_notice</span><button @onclick="() => _notice=null">×</button></div>}
  @if(_note is { SourceStatus: not "accepted" }){<div class="notice info"><span>@SavedStatus(_note)。共享值顯示上次結果及診斷。</span></div>}
  @if(_sourceStatus?.Issues.Length>0){<details class="source-issues"><summary>來源核對有 @_sourceStatus.Issues.Length 項需要處理@(_sourceStatus.WritesBlocked?" · 暫停寫入，請保留草稿並重開":"")</summary>@foreach(var issue in _sourceStatus.Issues){<p><strong>@issue.RelativePath</strong> @issue.Message</p>}</details>}
- @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" InitialCollectionId="@_recordsInitialCollectionId" OnOpenSource="OpenRecordSourceAsync" /></div>}
+ @if(_recordsVisible){<div class="records-workbench"><RecordsPanel WorkspaceKey="@Backend.WorkspacePath" Revision="@_knowledgeRevision" InitialCollectionId="@_recordsInitialCollectionId" SelectedCollectionChanged="RememberRecordCollection" OnOpenSource="OpenRecordSourceAsync" OnNavigate="NavigateRecordContentAsync" /></div>}
  <div class="document-layout @(_recordsVisible?"hidden":"")"><section class="document"><div class="document-heading">
  @if(_note is not null){
  @if(_note.FileMembers?.Length>0){<label class="file-members">檔案中的筆記<select value="@_note.Id" @onchange="async e=>{if(e.Value is string id) await SelectNoteAsync(id);}">@foreach(var member in _note.FileMembers){<option value="@member.Id">@member.Title</option>}</select></label>}

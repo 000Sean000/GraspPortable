@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Engineering Entry
-version: 1.11.0
+version: 1.12.0
 updated: 2026-10-04
 scope: strategy-architecture-and-decision-routing
 ---
@@ -17,12 +17,12 @@ scope: strategy-architecture-and-decision-routing
 | S3／S4 驗證 | [S3／S4 Validation](S3-S4-Validation.md) | 分組、Records、真 Markdown 提交量測及尚待原生驗收 |
 | 開發方法 | [Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) | Goal、決策權、有界測試、subagent、全局檢視、Git／額度 |
 | 架構規劃方法 | [Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) | Owner、ports、淺目錄、四維與接續 |
-| 模型決策 | [Architecture Model v1.1.0](Decisions/Architecture-Model-v1.1.0.md) | Explicit Architecture 適配與跨檔邊界 |
-| 產品架構 | [Architecture rc.5](GraspPortable-Architecture-v1.0.0-rc.5.md) | 四 Projects、Markdown authority、journal、Explorer／Records／Query |
-| 圖解 | [Diagrams v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) | 編譯／程序／可恢復提交／單一欄位來源 |
-| 技術結果 | [Technology v1.2.0](Decisions/Technology-Selection-v1.2.0.md) | .NET／MAUI／Razor／CodeMirror／Host／SQLite 與檔案責任 |
-| 已接受計畫 | [Implementation Plan rc.8](Implementation-Plan-v1.0.0-rc.8.md) | P0–S4、操作驗收、接面、效能、協作與停止位置 |
-| 已接受語法 | [Syntax Review rc.5](Binding-Syntax-Review-v1.0.0-rc.5.md) | rc.3 profile、reference／context、Records 原文解析邊界 |
+| 模型決策 | [Architecture Model v1.1.1](Decisions/Architecture-Model-v1.1.1.md) | Explicit Architecture 適配與跨檔邊界 |
+| 產品架構 | [Architecture rc.6](GraspPortable-Architecture-v1.0.0-rc.6.md) | 四 Projects、Markdown authority、journal、Explorer／Records／共用參照呈現與定位 |
+| 圖解 | [Diagrams v1.2.1](GraspPortable-Architecture-Diagrams-v1.2.1.md) | 編譯／程序／可恢復提交／單一欄位來源 |
+| 技術結果 | [Technology v1.2.1](Decisions/Technology-Selection-v1.2.1.md) | .NET／MAUI／Razor／CodeMirror／Host／SQLite 與檔案責任 |
+| 已接受計畫 | [Implementation Plan rc.9](Implementation-Plan-v1.0.0-rc.9.md) | P0–S4、連結直接導航／Records 一致呈現、操作驗收、接面、效能與協作 |
+| 已接受語法 | [Syntax Review rc.6](Binding-Syntax-Review-v1.0.0-rc.6.md) | rc.3 profile、reference／context、Records 原文解析邊界 |
 | 本機環境 | [Development Environment](Development-Environment.md) | Workspace／repository、工具及已觀測限制 |
 | 動態工作狀態 | [EXECUTION-STATE](../EXECUTION-STATE.md) | Goal、進度、證據、阻礙及下一步 |
 

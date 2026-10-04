@@ -1,17 +1,17 @@
 ---
 title: GraspPortable — Product Architecture
-version: 1.0.0-rc.5
+version: 1.0.0-rc.6
 updated: 2026-10-04
 status: accepted-architecture-baseline
 scope: markdown-workspace-records-runtime-and-recovery
-supersedes: GraspPortable-Architecture-v1.0.0-rc.4.md
+supersedes: GraspPortable-Architecture-v1.0.0-rc.5.md
 ---
 
 ## 架構基準
 
-本文件將 [Seed rc.12](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.12.md) 放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.1.0.md)。2026-10-04 接受的 P0–S4 計畫取代 DB 原文權威：**Markdown 保存原文，SQLite 支援索引、計算、版本、草稿及恢復日誌**。設計接受與實作／GUI／效能證據分開，後者由 [EXECUTION-STATE](../EXECUTION-STATE.md) 記錄。
+本文件將 [Seed rc.13](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md) 放入已選的 [Explicit Architecture 模型](Decisions/Architecture-Model-v1.1.1.md)。2026-10-04 接受的 P0–S4 計畫取代 DB 原文權威：**Markdown 保存原文，SQLite 支援索引、計算、版本、草稿及恢復日誌**。設計接受與實作／GUI／效能證據分開，後者由 [EXECUTION-STATE](../EXECUTION-STATE.md) 記錄。
 
-保留功能模組、內部分層與 Ports／Adapters。Windows App 管即時互動，獨立 Host 管規則、計算、來源協調與持久化；較慢工作使用有界排程。[圖解 v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) 分別表達 source dependency、程序及可恢復提交。
+保留功能模組、內部分層與 Ports／Adapters。Windows App 管即時互動，獨立 Host 管規則、計算、來源協調與持久化；較慢工作使用有界排程。[圖解 v1.2.1](GraspPortable-Architecture-Diagrams-v1.2.1.md) 分別表達 source dependency、程序及可恢復提交。
 
 ## 1. 四個 Projects 與功能責任
 
@@ -110,6 +110,14 @@ Definition 除手寫 literal／composition，新增 record field 來源與可寫
 
 表格固定欄位標題列與 record 標題欄，可設定凍結前幾列／欄並隨 view 保存。長文摘要配完整 editor；分頁／虛擬化控制 DOM。焦點及 pending edits 依 ID，不依 row index；過期查詢不改寫新畫面，凍結區不遮擋 editor、選單與鍵盤焦點。
 
+### 共用呈現與來源定位
+
+App 的 Authoring／Records UI 共用 Markdown renderer 及 Wiki／Grasp navigation 接面。Live Preview 非編輯區與 Reading 隱去語法標記，以 link 樣式呈現可讀值；單擊／聚焦 Enter 導航。普通 Wiki 開 target；managed reference 由 Host 的 identity／definition 接面取得所屬 file 與 definition block，App 開檔並定位，不僅開 inspector。
+
+Records cell、完整 field 與 card 保留同樣連結呈現和操作。Host／Contracts 投影原始 field source 及 local reference metadata（owner note、raw UTF-16 ranges、source revision），App 不依 resolved text 猜 source offset／definition identity。來源 metadata 與值呈現分開，cache／求值結果不再解析 Grasp，disabled fence 不被 renderer 升為 managed reference。Active source editing、IME／dirty 保護及過期結果拒絕沿用 Authoring。
+
+這是既有 App／Host 的 UI／查詢責任調整，不新增求值引擎、公式、同步或新的資料權威。
+
 ## 5. 分組、備份與還原
 
 分組策略明列成員、順序、路徑、定位及基底版本。Preview 驗證未知／重複／漏分配成員、路徑衝突、過期提案、metadata 及連結影響。Apply 實際合併／拆分檔案，同一 canonical ID 不換；合併檔 frontmatter 保存成員及原 metadata，可可靠辨識的連結更新，未知連結列限制。新檔與恢復材料驗證前不得移除舊檔。
@@ -124,7 +132,7 @@ Restore 在新 staging workspace 檢查完整性與格式，成功後才開啟�
 
 查詢分頁／取消；通知與畫面更新合併、按可見範圍處理；分批 I/O 及低優先 checkpoint 不阻塞輸入。大工作超過 200 ms 呈現 pending；限制資源時回報明確狀態，不靜默截斷值。`async`、不同 lane 或分程序本身不是流暢證據。
 
-量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.8](Implementation-Plan-v1.0.0-rc.8.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
+量測包含 input-visible、input-to-result、跨檔回寫、查詢、佇列等待、frame interval、記憶體及 I/O；完整預算由 [實作計畫 rc.9](Implementation-Plan-v1.0.0-rc.9.md) 維護。歷史 P0／M4 只提供成本 insight，不充作本版驗證。
 
 ## 7. 入口與未納入範圍
 

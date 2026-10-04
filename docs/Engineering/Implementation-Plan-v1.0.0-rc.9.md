@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Windows S1–S4 Goal Implementation Plan
-version: 1.0.0-rc.8
+version: 1.0.0-rc.9
 updated: 2026-10-04
 status: accepted-authorized-for-p0-through-s4
 scope: markdown-collaboration-recovery-records-and-bounded-verification
-supersedes: Implementation-Plan-v1.0.0-rc.7.md
+supersedes: Implementation-Plan-v1.0.0-rc.8.md
 ---
 
 ## 目標與完成條件
@@ -13,7 +13,7 @@ supersedes: Implementation-Plan-v1.0.0-rc.7.md
 
 只有功能、必要驗證、實際 Windows GUI、可啟動版本、驗收 workspace、操作說明、效能結果、文件同步及 commit／push 核對均完成，才能標記 Goal complete。實作、驗證及使用者接受分開；目前進度及 exact next step 只由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護，本文不是完成證據。
 
-[Seed rc.12](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.12.md) 保存 WHAT／WHY；[Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) 保存工程方法；[Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 保存目錄原則；[Architecture rc.5](GraspPortable-Architecture-v1.0.0-rc.5.md) 及 [圖解 v1.2.0](GraspPortable-Architecture-Diagrams-v1.2.0.md) 保存 HOW；[Syntax Review rc.5](Binding-Syntax-Review-v1.0.0-rc.5.md) 延續已接受 rc.3 syntax profile。
+[Seed rc.13](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md) 保存 WHAT／WHY；[Method rc.11](GraspPortable-Core-Development-Method-v1.0.0-rc.11.md) 保存工程方法；[Guide rc.9](graspportable-architecture-planning-guide-v1.0.0-rc.9.md) 保存目錄原則；[Architecture rc.6](GraspPortable-Architecture-v1.0.0-rc.6.md) 及 [圖解 v1.2.1](GraspPortable-Architecture-Diagrams-v1.2.1.md) 保存 HOW；[Syntax Review rc.6](Binding-Syntax-Review-v1.0.0-rc.6.md) 延續已接受 rc.3 syntax profile。
 
 S4 完成後停止等待使用者體驗。不自行擴展 mobile、同步、任意程式執行、rollup、通用公式、完整 Notion、共享語意 undo、專用 composition／rename UI 或乾淨電腦完整 Portable 認證。不承諾一晚完成，不降低驗收標準以結束 Goal。
 
@@ -37,8 +37,8 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 | --- | --- |
 | 文件／reconciliation | 文件 ID／path／hash／來源與共同基底版本；保存、語意接受、回寫及衝突分開回報 |
 | Workspace explorer／檔案操作 | 實際資料夾／檔案階層與搜尋；建立筆記／資料夾、改名／搬移的目標 path、IDs／expected versions、operation ID；複製路徑、開啟／reveal 的平台接面 |
-| Definition／write target | 手寫 literal／composition 與 record field 來源、raw UTF-16 range／版本、可寫位置，不混用 serializer |
-| Records／schema | collection、record／field／option IDs、key／display name、typed value／診斷、單／多關聯；欄位修改、schema 預覽／套用 |
+| Definition／write target | 手寫 literal／composition 與 record field 來源、所屬 note／file、definition block raw UTF-16 range／版本、可寫位置，不混用 serializer |
+| Records／schema | collection、record／field／option IDs、key／display name、typed value／診斷、單／多關聯；原始欄位 source 與其 local reference ranges／來源版本供共用 renderer 使用；欄位修改、schema 預覽／套用 |
 | Query／views | 分頁／總數或游標、record／field IDs、版本、搜尋／排序／篩選、欄序與凍結設定 |
 | 分組／轉換 | 基底版本、成員／path／metadata／連結影響、未知內容、轉換原文；preview 後可恢復 apply |
 | Backup／restore | generation、snapshot revision、manifest／hash、附件及草稿狀態、最後成功／落後／缺件、新 workspace restore |
@@ -74,6 +74,14 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 
 檔案樹是檔案配置，Records views 是資料檢視，S3 分組是內容合併／拆分，三者分開；本階段不是完整 VS Code 功能複製。
 
+### 1.6 共用連結呈現與直接導航
+
+Wiki Link 在 Live Preview 非編輯區及 Reading 隱藏括號／語法，顯示醒目可讀標籤；單擊或聚焦後 Enter 直接開 target。兩種 Grasp reference 同等呈現，操作後開定義所在 file 並定位 definition block，不停在 inspector。Active source editing 區露原 syntax，不攔截正常文字輸入／IME，不以導航覆蓋 dirty draft。
+
+筆記、資料表 cell、完整欄位及 record 卡片共用 Markdown／連結 rendering 與 navigation 接面；cell 摘要保留參照可操作性，不能 flatten 純字。Cell link 操作與開啟 field editor 明確分流，避免點 link 只觸發編輯。
+
+Host／Contracts 投影原始 field source 的 local Grasp reference ranges、來源 note／版本及定義定位資料；App renderer 消費既有語意 metadata，不能在 cached／resolved value 上另跑 Grasp parser。範圍綁定对应 source，禁止將求值後文字 offset 冒充原文位置。普通 Markdown／Wiki link 的可讀呈現可保留，disabled Grasp fence 不生成 managed link。Source／target 版本過期或 missing 時保留內容並顯示狀態，不跳錯 block。
+
 ## 2. 里程碑與可驗收成果
 
 【可體驗】是使用者可直接操作；【工程驗證】是必要完成條件。主要順序固定，暫時工具阻礙時可先做不依賴它的工作，但不能把未驗證階段標完成。
@@ -92,13 +100,13 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 
 建立三篇筆記；輸入中文、paste、Ctrl+Z；建立 literal、多段值、至少兩層 composition；插入兩式 managed reference，空行保留。修改來源立即連動，退出編輯不等 debounce。切 Source／Reading／Live Preview，active 區可編輯，其他一般段落可讀。
 
-由引用找定義、看 references、確認影響後改共享 literal；來源有 dirty draft 則回到草稿。原文 rename 維持 ID 並更新相依 token，同名／不明對應不部分套用。調整 fence allowlist 先看影響；json／grasp-demo 停用區不建立／回寫資料。留未完成語法，關閉 App／Host 後重開，草稿及 last-good 狀態可辨。
+在非編輯區確認 Wiki／兩種 Grasp reference 隱語法且為可讀連結，單擊／聚焦 Enter 直接導航；Grasp 到所屬 file 的 definition block。再看 references、確認影響後改共享 literal；來源有 dirty draft 則回到草稿。原文 rename 維持 ID 並更新相依 token，同名／不明對應不部分套用。調整 fence allowlist 先看影響；json／grasp-demo 停用區不建立／回寫資料。留未完成語法，關閉 App／Host 後重開，草稿及 last-good 狀態可辨。
 
 ### S2–S4 整合腳本
 
 1. 在獨立測試 Markdown workspace 展開實際檔案樹、搜尋，從右鍵新增筆記／資料夾、改名／搬移、複製路徑及開啟／reveal；核對 Explorer 的真實位置與引用。再由 Grasp／Obsidian 交替改正文、定義及引用值，外部移檔／改名後觀察更新；關閉 Grasp 後修改再重開，辨識有效變動與衝突。
 2. 預覽三篇合併／拆分，檢查連結與 metadata；在 Obsidian 閱讀修改合併檔，回 Grasp 保有成員身分。
-3. 建立角色及 Aura collections，編輯所有型別，打開長文角色卡，選單／多筆關聯，引用 `Characters.Triensa.Description` 觀察传遞更新。
+3. 建立角色及 Aura collections，編輯所有型別，打開長文角色卡，選單／多筆關聯，引用 `Characters.Triensa.Description` 觀察传遞更新；在 cell／完整欄位／卡片確認 Wiki 與 Grasp 參照保持相同呈現和直接跳轉。
 4. 切職責／氣場 views、排序篩選、凍結行列，長文編輯不中斷；舊 Markdown table 轉縱向 source，確認無 H1、未知內容及原文可找回。
 5. 手動／排程 checkpoint，觀察最後成功／落後／缺件；還原新 workspace，核對 notes、records、relation、metadata、設定與草稿。
 
@@ -130,6 +138,8 @@ Markdown 為已保存原文權威；SQLite 為索引、計算、版本基底、�
 | chain 1,000／fan-out 10,000 | 計算與提交 ≤ 2 秒；>200 ms 有處理中，UI 可互動 |
 
 跨檔回寫納入端到端觀察，不以 SQLite 內部耗時代替。依真實樣本先完成代表流程，再按容量風險擴大一次有界檢查。舊 M（10,000 Notes／100 MiB、50,000 bindings、200,000 edges／occurrences）、G（較大基準三倍）、記憶體 M≤2 GB／G≤4 GB 是候選成長 workload；只有有助當前容量判斷時採用，不自動要求整套矩陣。未測規模與硬體明列，不宣稱已證明全部成長餘裕。
+
+本次連結修正以少量跨筆記與跨 cell／完整欄位／卡片案例驗單擊及 Enter、Wiki alias、Grasp definition block 定位、active source／dirty 保護，以及 disabled fence／cached value 不新建 managed links；只補受影響的 renderer／metadata 回歸，不擴大完整語法或性能矩陣。
 
 API／headless、程序存活及貼上中文不代替原生 GUI／IME。資料一致性失敗不得完成；UX／效能未達可供早期試用但標示未達，不下修門檻宣稱通過。
 

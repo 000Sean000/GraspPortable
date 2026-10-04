@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Requirements
-version: 1.0.0-rc.12
+version: 1.0.0-rc.13
 updated: 2026-10-04
 status: current-product-direction
 scope: product-intent-and-requirements
-supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.11.md
+supersedes: GraspPortable-Core-Requirements-v1.0.0-rc.12.md
 ---
 
 ## Interface｜目標、需求與重要界線
@@ -52,7 +52,7 @@ Source、Live Preview、Reading View 分別服務完整原文編輯、同區編�
 
 ### 2.2 寫作、導航與可讀性
 
-中文 IME、選取、複製貼上、undo／redo、游標及長文輸入應保持自然。非編輯位置的 code fences、links、tables 應有相應閱讀效果；正文中的連結應可直接導航。
+中文 IME、選取、複製貼上、undo／redo、游標及長文輸入應保持自然。非編輯位置的 code fences、links、tables 應有相應閱讀效果。Wiki Link 在 Live Preview 非編輯區隱藏括號及語法標記，以醒目的連結樣式顯示可讀標籤；單擊或鍵盤聚焦後按 Enter 直接跳到目標筆記。Reading 同樣提供可讀連結與直接導航。正在編輯的 source 區域顯示原 syntax，既有 IME／draft 保護保留。
 
 S2 側邊欄參照 Obsidian／VS Code，顯示 workspace **實際的資料夾與檔案樹**，可展開／收合及搜尋，保留父層與兄弟項脈絡。這不是 Records view 的虛擬群組；資料夾搬移也不等於 S3 內容合併／拆分。前後導覽仍保留於長期導航方向。側邊欄有清楚的捲動與空間分工；放大字體、125%／150% zoom 或縮窄視窗後，主要操作仍可讀、可用。
 
@@ -98,7 +98,7 @@ Value 在 alias；target 保留 `@`，用於確實需要實體筆記 target 及�
 
 引用保存展開結果；binding 保存 literal fragments 與 dependencies。完整重建須恢復兩者，展開文字不能取代 composition definition。
 
-使用者可由引用找 definition、查看 references、理解 missing／stale／cycle。快取值須能追溯至所對應的資料版本；解析失敗不能以空字串假裝成功。
+兩種 Grasp reference 與 Wiki Link 採一致的非編輯呈現：隱藏語法、醒目標示可讀值；單擊或聚焦後 Enter 直接開啟定義所屬檔案並定位 definition block，不以僅開 inspector 取代導航。使用者仍可查看 references、理解 missing／stale／cycle；缺失目標不跳到無關位置。快取值須能追溯所對應資料版本；解析失敗不能以空字串假裝成功。
 
 ### 3.4 共享修改與一致性
 
@@ -124,7 +124,7 @@ Binding 不要求集中於專屬 section。外層 `@code{ ... }` 區域已接受
 
 ### 4.2 已選的 Binding 表達方向
 
-已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，已整體接受相應的精確 lexical 邊界；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.5.md)維護。
+已接受以文字為主的 literal、identifier 取值與 `+` 串接；只有定義左側加 @，不用分號。使用者已選下列单層起始與 marker 疊層方向，已整體接受相應的精確 lexical 邊界；完整 grammar 由 [Binding Syntax Review](../Engineering/Binding-Syntax-Review-v1.0.0-rc.6.md)維護。
 
 ~~~grasp-demo
 @code{
@@ -171,7 +171,7 @@ Value Sync 須支援 Excel 類型的高互動依賴關係，包括深層相依�
 
 支援文字／Markdown、數字、布林、日期、單選、多選、tag、單筆關聯及多筆關聯。日期先為 date-only，數字不靜默截斷，空值、空字串、零及 false 分開。多選選項由欄位管理，tag 可跨資料表搜尋。外部無效型別保留原值及診斷。關聯依 record ID 維持，正文保有可讀連結，缺失目標明示；本階段不包含 rollup、通用公式或任意關聯鏈求值。
 
-使用者可新增／編輯列及欄位、搜尋、排序、篩選、調整欄位顯示／順序及保存多個 views。長文 cell 先顯示摘要，點開後編輯完整 Markdown；角色卡可容納多段文字、圖片、清單、wikilink 及 Grasp 語法。
+使用者可新增／編輯列及欄位、搜尋、排序、篩選、調整欄位顯示／順序及保存多個 views。長文 cell 先顯示摘要，點開後編輯完整 Markdown；角色卡可容納多段文字、圖片、清單、wikilink 及 Grasp 語法。資料表 cell、完整欄位與 record 卡片保留與筆記相同的 Wiki／Grasp 參照呈現及單擊／Enter 跳轉；摘要不能把可操作參照攤平成普通文字。編輯時仍露出原 syntax，不能為渲染或導航重寫來源。
 
 ### 5.2 單一 Markdown 值與自動屬性
 
@@ -179,7 +179,7 @@ Value Sync 須支援 Excel 類型的高互動依賴關係，包括深層相依�
 
 自動屬性採 `RecordKey.FieldKey`，例如 `Characters.Triensa.Description`。Key 沿用 ASCII case-sensitive 規則，中文顯示名稱另存；表格／view 名稱不參與識別。可靠改 key 延續身分並更新引用，移檔、分組及換 view 不改 key。同 workspace 的自動屬性與手寫 binding 共用名稱唯一性。
 
-引用欄位取得計算後的 Markdown。欄位內原始 source 的 Grasp 引用參與相依更新，並遵守停用 parsing 區、missing／cycle 及版本規則；求值結果、literal 及 reference cache 不再遞迴解析。修改欄位或共享值回到原 Markdown 區域，不把正文誤序列化為 literal。
+引用欄位取得計算後的 Markdown。欄位內原始 source 的 Grasp 引用參與相依更新，並遵守停用 parsing 區、missing／cycle 及版本規則；求值結果、literal 及 reference cache 不再遞迴解析。停用 Grasp 的 fence 仍是展示文字，不能只因 UI 渲染而變成 managed reference；可讀呈現不授予新語意。修改欄位或共享值回到原 Markdown 區域，不把正文誤序列化為 literal。
 
 ### 5.3 可讀的縱向保存與表格還原
 
