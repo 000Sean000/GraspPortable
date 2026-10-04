@@ -1,9 +1,9 @@
 # GraspPortable project-scoped subagent defaults.
-# version: 1.0.0
-# updated: 2026-10-04
+# version: 1.0.1
+# updated: 2026-10-05
 # Root model/effort remain controlled by the original thread.
 # Project config requires a trusted project and a matching session cwd.
-# See ../docs/ROUTING-TRIAL-STATE.md before the first trial.
+# See ../docs/AgentOps/Model-Routing/Runtime-State.md for local readiness.
 
 [agents]
 enabled = true

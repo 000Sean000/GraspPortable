@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.12
-updated: 2026-10-04
+version: 1.0.0-rc.13
+updated: 2026-10-05
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.11.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.12.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -172,9 +172,9 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 ### 主動 subagent 協作
 
-每個自然工作段開始，主代理依 [Model Routing Policy](Model-Routing-Policy-v1.0.0-rc.1.md) 評估適任能力、Context Affinity（已掌握且仍有效的上下文）與完整交接成本；有實際收益才委派，不等待使用者逐次指定，也不為填滿名額拆工。
+Agent 選模與交接的執行設定由 repository [AGENTS.md](../../AGENTS.md) 路由至 AgentOps 的現行模型路由入口；本文件維護產品成果、ownership 與必要驗證。
 
-Root 保留範圍、共同契約、資料所有權、交易邊界、跨模組整合與最終驗收。模型／effort、子代理預設與獨立審查條件由上述單一政策指定；目前生效核對及試行進度另見 [Routing Trial State](../ROUTING-TRIAL-STATE.md)。這是本專案已授權的選模路由，不是額度耗盡時自動降級的替代方案。
+每個自然工作段開始，主代理評估獨立收益與完整交接成本；有實際收益才委派，不等待使用者逐次指定，也不為填滿名額拆工。Root 保留範圍、共同契約、資料所有權、交易邊界、跨模組整合與最終驗收。
 
 每次交棒附目標、ownership、契約／反例、完成判準、範圍及停止條件。共享工作目錄採不重疊責任，Contracts、DI、migration 與活躍 GUI 維持單一 owner。原 agent 適任且已有有效 context 時優先延續；主代理已定位的小修正直接完成。
 

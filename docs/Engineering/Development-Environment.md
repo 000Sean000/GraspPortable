@@ -1,7 +1,7 @@
 ---
 title: GraspPortable — Development Environment
-version: 1.0.9
-updated: 2026-10-04
+version: 1.0.10
+updated: 2026-10-05
 scope: current-workspace-and-local-toolchain
 ---
 
@@ -65,6 +65,6 @@ rg -n '要查的內容' GraspPortable/docs/Engineering
 
 ## 後續接手
 
-先核對 Workspace 的 AGENTS.md，並讀本 repository 的 [AGENTS.md](../../AGENTS.md) 與[工作狀態](../EXECUTION-STATE.md)，再沿[Engineering 入口](README.md)取得現行計畫。原 thread 從 Workspace 啟動時，repo 下的 config 載入與子模型實際設定另依 [Routing Trial State](../ROUTING-TRIAL-STATE.md) 核對。使用者於 2026-10-04 已授權以同一 Goal 持續完成 P0–S4、自行 commit／push；不在 S1 停止。現有 DB-based FirstUI 與目標 Markdown 工作資料夾契約分開，依實際完成證據更新交付。
+先核對 Workspace 的 AGENTS.md，並讀本 repository 的 [AGENTS.md](../../AGENTS.md) 與[工作狀態](../EXECUTION-STATE.md)，再沿[Engineering 入口](README.md)取得現行計畫。原 thread 從 Workspace 啟動時，repo 下的 config 載入與子模型實際設定另依 [Runtime State](../AgentOps/Model-Routing/Runtime-State.md) 核對。使用者於 2026-10-04 已授權以同一 Goal 持續完成 P0–S4、自行 commit／push；不在 S1 停止。現有 DB-based FirstUI 與目標 Markdown 工作資料夾契約分開，依實際完成證據更新交付。
 
 指定實驗資料來源為 Workspace "TestData/MainVault-Source" 的 Obsidian Vault（使用者本輪明確授權）。使用者確認此來源已是測試副本，可按需求取用適量資料；工程預設在獨立忽略 workspace 實驗，保留比較基線。依具體缺口擴樣，不過度測試多餘資料；私人內容不 commit，Legacy1 搜尋仍排除。

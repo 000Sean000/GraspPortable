@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Windows S1–S4 Goal Implementation Plan
-version: 1.0.0-rc.10
-updated: 2026-10-04
+version: 1.0.0-rc.11
+updated: 2026-10-05
 status: accepted-authorized-for-p0-through-s4
 scope: markdown-collaboration-recovery-records-and-bounded-verification
-supersedes: Implementation-Plan-v1.0.0-rc.9.md
+supersedes: Implementation-Plan-v1.0.0-rc.10.md
 ---
 
 ## 目標與完成條件
@@ -13,7 +13,7 @@ supersedes: Implementation-Plan-v1.0.0-rc.9.md
 
 只有功能、必要驗證、實際 Windows GUI、可啟動版本、驗收 workspace、操作說明、效能結果、文件同步及 commit／push 核對均完成，才能標記 Goal complete。實作、驗證及使用者接受分開；目前進度及 exact next step 只由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護，本文不是完成證據。
 
-[Seed rc.13](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md) 保存 WHAT／WHY；[Engineering 入口](README.md) 指定現行工程方法、目錄原則與 Agent 模型路由；[Architecture rc.6](GraspPortable-Architecture-v1.0.0-rc.6.md) 及 [圖解 v1.2.1](GraspPortable-Architecture-Diagrams-v1.2.1.md) 保存 HOW；[Syntax Review rc.6](Binding-Syntax-Review-v1.0.0-rc.6.md) 延續已接受 rc.3 syntax profile。
+[Seed rc.13](../Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md) 保存 WHAT／WHY；[Engineering 入口](README.md) 指定現行工程方法與目錄原則；[Architecture rc.6](GraspPortable-Architecture-v1.0.0-rc.6.md) 及 [圖解 v1.2.1](GraspPortable-Architecture-Diagrams-v1.2.1.md) 保存 HOW；[Syntax Review rc.6](Binding-Syntax-Review-v1.0.0-rc.6.md) 延續已接受 rc.3 syntax profile。
 
 S4 完成後停止等待使用者體驗。不自行擴展 mobile、同步、任意程式執行、rollup、通用公式、完整 Notion、共享語意 undo、專用 composition／rename UI 或乾淨電腦完整 Portable 認證。不承諾一晚完成，不降低驗收標準以結束 Goal。
 
@@ -149,7 +149,9 @@ API／headless、程序存活及貼上中文不代替原生 GUI／IME。資料�
 
 正式執行建立或恢復原 P0–S4 Goal，每回合從 EXECUTION-STATE、Git 差異及測試證據續作，避免重做探索。已存在的 thread／Goal 優先延續；使用者的最新暫停／恢復指示保持有效，配置提交不自行恢復 Goal。普通工程及可逆 UX 自行處理，已定案語法／權威不重問。
 
-主代理持有範圍、共同契約、資料權威、journal／transaction、整合及驗收。模型／effort、topology、Context Affinity 與交接規則依 [Model Routing Policy](Model-Routing-Policy-v1.0.0-rc.1.md)，實際生效與試行進度另見 [Routing Trial State](../ROUTING-TRIAL-STATE.md)。只有存在有界獨立收益才分派 editor／table UI、codec／field projection／fixtures 或 recovery 審查；遵守執行環境上限。每次委派明定目標、ownership、契約、範圍、驗收與停止條件，Contracts／migration／DI／共同文件單一 owner。實作與其必要 targeted tests 原則上由同一 owner 完成；Root 核對關鍵差異及整合接縫，不以 subagent 自述代替驗收，也不要求使用者逐包批准。
+Agent 選模與交接的執行設定由 repository [AGENTS.md](../../AGENTS.md) 路由至 AgentOps 的現行模型路由入口；本文件維護產品成果、ownership 與必要驗證。
+
+主代理持有範圍、共同契約、資料權威、journal／transaction、整合及驗收。只有存在有界獨立收益才分派 editor／table UI、codec／field projection／fixtures 或 recovery 審查；遵守執行環境上限。每次委派明定目標、ownership、契約、範圍、驗收與停止條件，Contracts／migration／DI／共同文件單一 owner。實作與其必要 targeted tests 原則上由同一 owner 完成；Root 核對關鍵差異及整合接縫，不以 subagent 自述代替驗收，也不要求使用者逐包批准。
 
 每里程碑、連續兩輪修正無改善或測試成本失衡時，短記下一個可體驗成果缺口、被推翻假設、主要風險及繼續／簡化／調整／延後理由。工具阻礙某項驗證時先做獨立工作，未測仍列未測；新的重大產品語意矛盾才提出具體決策，不為等待而停掉所有進度。
 

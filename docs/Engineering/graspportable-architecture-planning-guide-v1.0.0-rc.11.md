@@ -1,10 +1,10 @@
 ---
 title: "GraspPortable — 軟體架構與模組開發指令"
-version: 1.0.0-rc.10
-updated: 2026-10-04
+version: 1.0.0-rc.11
+updated: 2026-10-05
 audience: coding-agent
 scope: architecture-planning-and-module-development
-supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.9.md
+supersedes: graspportable-architecture-planning-guide-v1.0.0-rc.10.md
 ---
 
 ## 執行目標
@@ -100,7 +100,9 @@ MVVM 按需使用：CodeMirror 管高頻文字、selection、IME 與 local histo
 
 以完整、可驗證的成果安排工作段，允許涵蓋必要的多個檔案與模組。按 Importance 排序，再依 Environment 選擇可執行環境，依 Agent 安排推理能力。
 
-主代理負責架構、共同契約、資料所有權、跨模組整合與最終判斷。每個自然工作段依 [Model Routing Policy](Model-Routing-Policy-v1.0.0-rc.1.md) 主動評估能力、Context Affinity、獨立收益與完整交接成本；模型／effort 及 topology 由該政策單一維護。保持不重疊檔案責任、單一共用契約擁有者及明確驗收；短而連續的工作由適任原 owner 完成。整體協作及全局檢視沿 Engineering 入口的現行 Development Method；本機生效與試行進度另見 [Routing Trial State](../ROUTING-TRIAL-STATE.md)。
+Agent 選模與交接的執行設定由 repository [AGENTS.md](../../AGENTS.md) 路由至 AgentOps 的現行模型路由入口；本文件維護產品成果、ownership 與必要驗證。
+
+主代理負責架構、共同契約、資料所有權、跨模組整合與最終判斷。每個自然工作段評估獨立收益與完整交接成本。保持不重疊檔案責任、單一共用契約擁有者及明確驗收；短而連續的工作由適任原 owner 完成。整體協作及全局檢視沿 Engineering 入口的現行 Development Method。
 
 ### 3. 驗證與整合
 
