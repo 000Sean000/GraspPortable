@@ -91,6 +91,19 @@ var evaluated = DependencyEvaluator.Evaluate(projection.OriginalSyntax.Definitio
 Check(evaluated.Values[projection.PublicName].Status == EvaluationStatus.Cycle, "existing evaluator sees generated self-cycle without another engine");
 var computed = "@code{ @Injected = {not parsed} }";
 Check(RecordValueCodec.Parse(field, false, computed).Value is MarkdownRecordValue { Markdown: var text } && text == computed, "typed projection never reparses computed Markdown into Grasp definitions");
+var fencedRaw = "- Root\n  ```grasp\n  [old](:ref:Text)\n  ```\n\n  ```json\n  [code](:ref:Hidden)\n  ```\n";
+var fencedCarrier = VerticalRecordCodec.SerializeCarrier(locator, new(fencedRaw)).Source!;
+var fencedField = VerticalRecordCodec.Parse(fencedCarrier, descriptor).Fields.Single();
+var fencedProjection = FieldSourceProjection.Project(record, field, fencedField, ["", "grasp"]);
+var textDefinition = GraspParser.Parse("@code{ @Text = " + LiteralCodec.Serialize("**bold**\n\nparagraph") + " }", ["", "grasp"]).Definitions;
+var fencedDefinition = new Definition(fencedProjection.PublicName, fencedField.BodySpan, fencedField.CarrierSpan, fencedField.BodySpan,
+    fencedProjection.Parts, new(record.Id, field.Id));
+var fencedValue = DependencyEvaluator.Evaluate(textDefinition.Append(fencedDefinition)).Values[fencedProjection.PublicName].Value;
+Check(fencedProjection.OriginalSyntax.References.Count == 1 && fencedProjection.Parts.Single(p => p.Kind == PartKind.Identifier).ContinuationPrefix == "  "
+    && fencedValue == fencedRaw.Replace("[old](:ref:Text)", "**bold**\n  \n  paragraph", StringComparison.Ordinal),
+    "enabled nested fence keeps list continuation in projected value while disabled fence stays literal");
+Check(FieldSourceProjection.Project(record, field with { Kind = RecordFieldKind.Tag }, fencedField, ["", "grasp"]).Parts.All(p => p.ContinuationPrefix is null),
+    "non-Markdown fields never acquire presentation continuation transforms");
 
 var headings = "# 背景\r\n內容\r\n\r\n## 子節\r\n```json\r\n# literal\r\n```\r\n";
 var converted = HeadingConversion.Preview(headings);
@@ -100,7 +113,11 @@ Check(converted.OriginalSource == headings && converted.Mapping.All(m => m.Conve
 var deep = HeadingConversion.Preview("# Top\nintro\n\n### Middle\nbody\n\n###### Deep\nlast\n");
 Check(deep.Layout == FieldLayout.NestedList && deep.Mapping.Select(m => m.ListDepth).SequenceEqual(new[] { 0, 1, 2 })
     && deep.Mapping.Select(m => m.OriginalLevel).SequenceEqual(new[] { 1, 3, 6 })
-    && deep.ConvertedSource.Contains("    - **Deep**", StringComparison.Ordinal), "depth overflow preserves ancestor hierarchy and skipped levels in mapping without generating code indentation");
+    && deep.ConvertedSource.Contains("    - Deep", StringComparison.Ordinal), "depth overflow preserves ancestor hierarchy and skipped levels in mapping without generating code indentation");
+var inlineLinks = HeadingConversion.Preview("# [[Wiki|Alias]]\n## [target](Other.md)\n### *Emphasis*\n");
+Check(inlineLinks.ConvertedSource.Contains("- [[Wiki|Alias]]") && inlineLinks.ConvertedSource.Contains("- [target](Other.md)")
+    && inlineLinks.ConvertedSource.Contains("- *Emphasis*") && !HeadingConversion.Preview(inlineLinks.ConvertedSource).Mapping.Any(),
+    "nested conversion preserves heading inline links and does not reconvert an existing nested list");
 var setext = HeadingConversion.Preview("標題\n===\nbody\n");
 Check(setext.Mapping.Single().OriginalLevel == 1 && setext.ConvertedSource.StartsWith("##### 標題\n", StringComparison.Ordinal), "setext H1 conversion also produces no H1");
 Check(HeadingConversion.Preview("plain\n\n---\n").Mapping.Count == 0, "standalone thematic rule is not guessed as a heading");

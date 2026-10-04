@@ -91,6 +91,7 @@ public partial class RecordsPanel : IAsyncDisposable
         }
         var revisionChanged = Revision > _observedRevision;
         _observedRevision = Math.Max(_observedRevision, Revision);
+        InvalidateChangedFieldConversion();
         if (changed || requested || collectionChanged) await RefreshAsync();
         else if (_busy && _dialogWorkspace == WorkspaceKey)
         {
@@ -237,7 +238,7 @@ public partial class RecordsPanel : IAsyncDisposable
     private static string KindName(string kind) => Kinds.FirstOrDefault(k => k.Kind == kind).Name ?? kind;
     private string FieldName(string id) => _data?.Fields.FirstOrDefault(f => f.Id == id)?.DisplayName ?? id;
     private bool SourceBlocked => _data is { HasDraft: true } || _data is { SourceStatus: not "accepted" };
-    private bool InputsLocked => _busy || _unknownOutcome || _needsConfirmation || _dialogWorkspace != WorkspaceKey;
+    private bool InputsLocked => _busy || _unknownOutcome || _needsConfirmation || HasConversionPreview || _dialogWorkspace != WorkspaceKey;
     private string ColumnStyle(int index) => index < FrozenColumns ? $"position:sticky;left:{220 + index * 220}px;z-index:3;background:#fafbf6;" : "";
     private string RowStyle(int index) => index < FrozenRows ? $"position:sticky;top:{44 + index * 58}px;z-index:4;background:#f2f5ed;" : "";
 
@@ -247,6 +248,7 @@ public partial class RecordsPanel : IAsyncDisposable
         _recordNavigationGeneration++;
         _dialog = kind; _dialogWorkspace = WorkspaceKey; _editRevision = _data?.Revision ?? Math.Max(Revision, Backend.Workspace?.Revision ?? 0);
         _error = null; _dialogWarning = null; _confirmDiscard = false; _needsConfirmation = false; _conflict = false; _unknownOutcome = false; _pending = null;
+        InvalidateFieldConversion();
         _pendingLink = null;
         _focusFirst = kind is not "card"; _initialDialog = "";
     }
@@ -260,6 +262,7 @@ public partial class RecordsPanel : IAsyncDisposable
         if (!discard && DialogChanged) { _confirmDiscard = true; return; }
         CancelTagQuery();
         _dialog = null; _pending = null; _card = null; _confirmDiscard = false; _pendingLink = null;
+        InvalidateFieldConversion();
     }
     private void ShowCreate()
     { StartDialog("create"); _label = "新資料表"; _key = "Record1"; SnapshotDialog(); }
@@ -322,7 +325,11 @@ public partial class RecordsPanel : IAsyncDisposable
         _busy = true; _error = null;
         try
         {
-            if (_pending is null) _pending = BuildWrite();
+            if (_pending is null)
+            {
+                if(!await PrepareFieldConversionAsync())return;
+                _pending = BuildWrite();
+            }
             if (_pending is null) return;
             var write = _pending;
             var expectedCollectionId = _data?.Id;
@@ -358,12 +365,15 @@ public partial class RecordsPanel : IAsyncDisposable
             }
             else if (result.Status == "confirmation-required")
             { _needsConfirmation = true; _dialogWarning = result.Message ?? "改名會更新相依引用。確認後以相同操作 ID 套用。"; }
+            else if(result.Status is "unknown" or "pending")
+            { _unknownOutcome=true;_dialogWarning="操作結果尚未確認，請重試同一操作；原輸入、轉換確認和操作 ID 保持不變。"; }
             else
             {
                 _needsConfirmation = false; _conflict = result.Status is "conflict" or "source-changed" or "stale";
                 _dialogWarning = (result.Message ?? "保存未完成。") + " 這份輸入已保留，尚未覆蓋來源。";
                 if (result.Diagnostics?.Length > 0) _error = string.Join('\n', result.Diagnostics.Select(d => d.Message));
                 _pending = null;
+                InvalidateFieldConversion();
                 if (_conflict) await RefreshAsync();
             }
         }
@@ -405,7 +415,7 @@ public partial class RecordsPanel : IAsyncDisposable
         if (_dialog == "cell")
         {
             var typed = _sourceMode || _kind == "Markdown" ? null : TypedInput();
-            var request = new RecordFieldChangeRequest(id, _editRevision, typed is null && !_null ? _raw : "", _null, TypedValue: typed);
+            var request = new RecordFieldChangeRequest(id, _editRevision, typed is null && !_null ? _raw : "", _null, TypedValue: typed, ConversionToken:ConfirmedConversionToken);
             return new($"api/records/rows/{_row!.Id}/fields/{_field!.Id}", id, request, request with { ConfirmRename = true });
         }
         if (_dialog == "view")
@@ -445,6 +455,7 @@ public partial class RecordsPanel : IAsyncDisposable
     {
         if (_data is null || SourceBlocked || _unknownOutcome) return;
         _editRevision = _data.Revision; _pending = null; _conflict = false; _needsConfirmation = false;
+        InvalidateFieldConversion();
         _dialogWarning = "已明確選擇保留這份輸入，以下次保存取代目前值；保存時仍會檢查新衝突。";
     }
     private string LatestCellText => _data?.Rows.FirstOrDefault(r => r.Id == _row?.Id)?.Cells.FirstOrDefault(c => c.FieldId == _field?.Id) is { } cell ? cell.IsNull ? "∅ 空值" : cell.RawSource : "目前找不到這筆欄位";

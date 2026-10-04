@@ -13,6 +13,9 @@ namespace GraspPortable.App.Backend
         public long Revision = 11;
         public int Reads;
         public object? LastRequest;
+        public int PreviewReads;
+        public List<object> Writes { get; } = [];
+        public Func<PreviewRecordFieldConversionRequest,Task<RecordFieldConversionPreview>>? ConversionPreview;
         public List<string> TagUrls { get; } = [];
         public Func<string, CancellationToken, Task<RecordTagSearchDto>>? TagRead;
         public Func<Task<OperationResult>>? Command;
@@ -29,7 +32,18 @@ namespace GraspPortable.App.Backend
         public Task<OperationResult> CommandAsync(string url, object request, string operationId)
         {
             LastRequest = request;
+            Writes.Add(request);
             return Command?.Invoke() ?? Task.FromResult(new OperationResult(operationId, "committed", 11, "note"));
+        }
+        public async Task<T> SendAsync<T>(HttpMethod method,string url,object? body,CancellationToken token=default)
+        {
+            if(method!=HttpMethod.Post || !url.EndsWith("/conversion-preview") || body is not PreviewRecordFieldConversionRequest request)
+                throw new InvalidOperationException("Unexpected preview transport");
+            PreviewReads++;
+            object preview=ConversionPreview is null
+                ? new RecordFieldConversionPreview(request.ExpectedKnowledgeRevision,false,request.RawSource,"Heading",[],[],null,true)
+                : await ConversionPreview(request);
+            return (T)preview;
         }
         public static CollectionDto Data(long revision) => new("collection", "note", "Table", revision, revision, "accepted", false,
             [new("field", "Text", "Text", "Markdown")],
@@ -48,6 +62,13 @@ namespace GraspPortable.App.Records
             ShowCell(_data.Rows[0], _data.Fields[0]); _raw = "unsaved input";
         }
         public Task SaveForTest() => SaveAsync();
+        public Task ConfirmConversionForTest() => ConfirmFieldConversionAsync();
+        public Task ConfirmRenameForTest() => SaveAsync(true);
+        public bool HasConversionForTest => HasConversionPreview;
+        public bool HasPendingForTest => _pending is not null;
+        public void EditConversionForTest(string? source=null,bool? isNull=null)
+        { if(source is not null)_raw=source;if(isNull is not null)_null=isNull.Value;InvalidateFieldConversion(); }
+        public void ReturnFromConversionForTest()=>ReturnFromFieldConversion();
         public void OpenFieldForTest(bool existing) => ShowField(existing ? _data!.Fields[0] : null);
         public async Task Notify(long revision, string? workspace = null)
         { Revision = revision; if (workspace is not null) WorkspaceKey = workspace; await OnParametersSetAsync(); }

@@ -14,14 +14,15 @@ public static class GraspParser
         var diagnostics = new List<ParseDiagnostic>();
         var regions = new List<ParsedRegion>();
         var frontmatterEnd = FrontmatterEnd(source);
+        var indentedCodeLines = new HashSet<int>();
         cancellationToken.ThrowIfCancellationRequested();
-        foreach (var context in MarkdownContextScanner.Scan(source, enabledFenceLanguages, frontmatterEnd, cancellationToken))
+        foreach (var context in MarkdownContextScanner.Scan(source, enabledFenceLanguages, frontmatterEnd, cancellationToken, indentedCodeLines))
         {
             var at = Math.Max(context.Start, frontmatterEnd);
             while (at < context.End)
             {
                 if ((at & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
-                if (!context.IsFence && TrySkipMarkdown(source, ref at, context.End)) continue;
+                if (!context.IsFence && TrySkipMarkdown(source, ref at, context.End, indentedCodeLines)) continue;
                 if (source.AsSpan(at, context.End - at).StartsWith("@code{", StringComparison.Ordinal)
                     && (at == context.Start || !SyntaxCharacters.IsNamePart(source[at - 1])))
                 {
@@ -167,7 +168,37 @@ public static class GraspParser
         return source.Length;
     }
 
-    private static bool TrySkipMarkdown(string source, ref int at, int end)
+    /// <summary>
+    /// Uses the same lexical consumers as parsing to keep multiline values from changing their
+    /// enclosing Markdown list context. This does not publish syntax or disable hard fence boundaries.
+    /// </summary>
+    internal static int OpaqueHostEnd(string source, int at, int lineEnd, CancellationToken token)
+    {
+        while (at < lineEnd)
+        {
+            if ((at & 4095) == 0) token.ThrowIfCancellationRequested();
+            if (TrySkipMarkdown(source, ref at, source.Length, null))
+            { if (at > lineEnd) return at; continue; }
+            if (source.AsSpan(at).StartsWith("@code{", StringComparison.Ordinal)
+                && (at == 0 || !SyntaxCharacters.IsNamePart(source[at - 1])))
+            {
+                ParseRegion(source, ref at, source.Length, [], [], token);
+                if (at > lineEnd) return at;
+                continue;
+            }
+            if (source[at] == '[')
+            {
+                if (ReferenceCodec.TryRead(source, at, source.Length, out _, out _, out var next, token))
+                { at = next; if (at > lineEnd) return at; continue; }
+                if (TrySkipLink(source, ref at, source.Length))
+                { if (at > lineEnd) return at; continue; }
+            }
+            at++;
+        }
+        return lineEnd;
+    }
+
+    private static bool TrySkipMarkdown(string source, ref int at, int end, IReadOnlySet<int>? indentedCodeLines)
     {
         // These exclusions run only outside Grasp regions and reference values.
         if (source[at] == '\\' && at + 1 < end) { at += 2; return true; }
@@ -185,13 +216,10 @@ public static class GraspParser
             at += length;
             return true;
         }
-        if (at == 0 || source[at - 1] is '\r' or '\n')
+        if (indentedCodeLines?.Contains(at) == true)
         {
-            if (source[at] == '\t' || source.AsSpan(at, end - at).StartsWith("    ", StringComparison.Ordinal))
-            {
-                while (at < end && source[at] is not ('\r' or '\n')) at++;
-                return true;
-            }
+            while (at < end && source[at] is not ('\r' or '\n')) at++;
+            return true;
         }
         if (source[at] != '<' || at + 1 >= end) return false;
         if (source.AsSpan(at, end - at).StartsWith("<!--", StringComparison.Ordinal))

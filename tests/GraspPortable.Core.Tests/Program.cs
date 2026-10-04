@@ -144,6 +144,36 @@ Check("literal and reference values are opaque", () =>
     Equal(1, result.Definitions.Count);
     Equal(1, result.References.Count);
 });
+Check("nested list content remains semantic while its fenced and indented code stay opaque", () =>
+{
+    var source = "- A\r\n  - B\r\n    - C\r\n      😀 [short](:ref:Short)\r\n\r\n"
+        + "      ```json\r\n      [hidden](:ref:Hidden)\r\n      ```\r\n\r\n"
+        + "          [code](:ref:Indented)\r\n      [short](:ref:Short)\r\n"
+        + "      ```grasp\r\n      @code{ @Inside = {yes} }\r\n      ```\r\n"
+        + "outside\r\n    [root code](:ref:RootCode)\r\n";
+    var parsed = Parse(source);
+    True(parsed.IsValid); Equal(2, parsed.References.Count);
+    True(parsed.References.All(r => r.Name == "Short" && source.Substring(r.Span.Start, r.Span.Length) == "[short](:ref:Short)"));
+    Equal("Inside", parsed.Definitions.Single().Name);
+});
+Check("ordered list continuation uses its marker width rather than a fixed indentation", () =>
+{
+    var source = "12. Parent\n    - Child\n      [live](:ref:Live)\n\n          [code](:ref:Hidden)\n";
+    Equal("Live", Parse(source).References.Single().Name);
+});
+Check("five spaces after list marker remain indented code", () =>
+    Equal(0, Parse("-     [hidden](:ref:Hidden)\n").References.Count));
+Check("old binding-part JSON has no continuation transform", () =>
+    True(System.Text.Json.JsonSerializer.Deserialize<BindingPart>("{\"Kind\":1,\"Text\":\"Value\",\"Span\":{\"Start\":0,\"Length\":5}}")!.ContinuationPrefix is null));
+Check("generated continuation honors mixed newlines and counts prefix cost toward resource limits", () =>
+{
+    var value = "a\r\nb\rc\nd";
+    var parsed = Parse("@code{ @Value = " + LiteralCodec.Serialize(value) + " }");
+    var field = new Definition("Row.Text", new(0, 0), new(0, 0), new(0, 0), [new(PartKind.Identifier, "Value", new(0, 5), "  ")], new("record", "field"));
+    Equal("a\r\n  b\r  c\n  d", DependencyEvaluator.Evaluate(parsed.Definitions.Append(field)).Values["Row.Text"].Value);
+    Equal(EvaluationStatus.ResourceLimit, DependencyEvaluator.Evaluate(parsed.Definitions.Append(field), maxValueLength: 10).Values["Row.Text"].Status);
+    Equal(value, DependencyEvaluator.Evaluate(parsed.Definitions.Append(field with { FieldOrigin = null })).Values["Row.Text"].Value);
+});
 Check("fences in frontmatter cannot capture following body", () =>
 {
     var result = Parse("---\nexample: ```json\n---\n@code{ @A = {x} }");

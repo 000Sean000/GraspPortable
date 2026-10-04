@@ -398,6 +398,7 @@ public sealed class MarkdownWorkspaceRepository : IWorkspaceRepository
     private static bool SameRecordsMetadata(RecordsMetadata? a, RecordsMetadata? b)
         => a is null || b is null ? a is null && b is null
             : a.CollectionId == b.CollectionId && a.Title == b.Title && a.ViewsYaml == b.ViewsYaml
+                && a.ConversionHistoryYaml == b.ConversionHistoryYaml
                 && RecordsMetadataCodec.SameDescriptor(a.Descriptor, b.Descriptor);
     private static bool SameBindings(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b)
         => a.Count == b.Count && a.All(pair => b.TryGetValue(pair.Key, out var id) && id == pair.Value);

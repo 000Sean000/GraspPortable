@@ -13,6 +13,9 @@ public static class FieldSourceProjection
         var parsed = GraspParser.Parse(field.RawSource, enabledFenceLanguages);
         var diagnostics = parsed.Diagnostics.Select(d => new RecordDiagnostic(d.Code, d.Message, field.MapToSource(d.Span))).ToList();
         var parts = new List<BindingPart>();
+        var listColumns = new Dictionary<int, int>();
+        if (schema.Kind == RecordFieldKind.Markdown && parsed.References.Count > 0)
+            MarkdownContextScanner.Scan(field.RawSource, enabledFenceLanguages, listContentColumns: listColumns);
         if (!field.IsNull)
         {
             var at = 0;
@@ -21,7 +24,10 @@ public static class FieldSourceProjection
                 if (reference.Span.Start < at || reference.Span.End > field.RawSource.Length)
                 { diagnostics.Add(new("reference-overlap", "Original field references do not have disjoint source ranges.", field.BodySpan)); break; }
                 AddLiteral(at, reference.Span.Start);
-                parts.Add(new(PartKind.Identifier, reference.Name, field.MapToSource(reference.NameSpan)));
+                var lineStart = reference.Span.Start;
+                while (lineStart > 0 && field.RawSource[lineStart - 1] is not ('\r' or '\n')) lineStart--;
+                var continuation = listColumns.TryGetValue(lineStart, out var column) && column > 0 ? new string(' ', column) : null;
+                parts.Add(new(PartKind.Identifier, reference.Name, field.MapToSource(reference.NameSpan), continuation));
                 at = reference.Span.End;
             }
             AddLiteral(at, field.RawSource.Length);

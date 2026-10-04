@@ -11,7 +11,8 @@ public static class HeadingConversion
     private static readonly Regex Atx = new(@"\A {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)\z", RegexOptions.CultureInvariant);
     private static readonly Regex Setext = new(@"\A {0,3}(=+|-+)[ \t]*\z", RegexOptions.CultureInvariant);
 
-    public static HeadingConversionPreview Preview(string originalMarkdown, FieldLayout layout = FieldLayout.Headings, int preferredMinimumLevel = 5)
+    public static HeadingConversionPreview Preview(string originalMarkdown, FieldLayout layout = FieldLayout.Headings, int preferredMinimumLevel = 5,
+        IReadOnlyList<SourceSpan>? protectedSpans = null)
     {
         if (preferredMinimumLevel is < 2 or > 6) throw new ArgumentOutOfRangeException(nameof(preferredMinimumLevel));
         var lines = RecordText.Lines(originalMarkdown).ToArray();
@@ -21,6 +22,9 @@ public static class HeadingConversion
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
+            // A reference inside a heading's label must not shield the heading marker itself.
+            if (protectedSpans?.Any(s => line.Start >= s.Start && line.Start < s.End) == true)
+            { ordinaryPrevious = false; continue; }
             if (fence.Consume(line.Text)) { ordinaryPrevious = false; continue; }
             // Container Markdown needs a richer block parser to safely distinguish
             // nested headings/fences. Preserve it rather than claim a no-H1 rewrite.
@@ -63,7 +67,9 @@ public static class HeadingConversion
                 while (ancestors.TryPeek(out var level) && level >= heading.Level) ancestors.Pop();
                 var depth = ancestors.Count;
                 ancestors.Push(heading.Level);
-                var converted = useList ? new string(' ', depth * 2) + "- **" + EscapeLabel(heading.Label) + "**"
+                // Keep the heading's inline Markdown (Wiki links, links, emphasis) intact.
+                // An added bold wrapper or escaping brackets would alter its semantics.
+                var converted = useList ? new string(' ', depth * 2) + "- " + heading.Label
                     : new string('#', heading.Level + shift) + " " + heading.Label;
                 result.Append(converted);
                 maps.Add(new(heading.Span, new(start, converted.Length), heading.Level, useList ? null : heading.Level + shift, useList ? depth : 0));
@@ -81,5 +87,4 @@ public static class HeadingConversion
         }
         return new(originalMarkdown, result.ToString(), selectedLayout, maps, []);
     }
-    private static string EscapeLabel(string label) => string.Concat(label.Select(c => "\\*[]".Contains(c) ? "\\" + c : c.ToString()));
 }

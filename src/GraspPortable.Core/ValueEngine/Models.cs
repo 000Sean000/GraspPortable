@@ -11,7 +11,9 @@ public enum PartKind { Literal, Identifier }
 public enum ReferenceKind { Pure, Wiki }
 public enum EvaluationStatus { Valid, Missing, Cycle, DependencyError, ResourceLimit, Duplicate, Stale }
 
-public sealed record BindingPart(PartKind Kind, string Text, SourceSpan Span);
+// ContinuationPrefix belongs only to a generated Markdown field's presentation projection.
+// Missing JSON members remain null when older accepted syntax snapshots are loaded.
+public sealed record BindingPart(PartKind Kind, string Text, SourceSpan Span, string? ContinuationPrefix = null);
 public sealed record Definition(string Name, SourceSpan NameSpan, SourceSpan Span,
     SourceSpan ExpressionSpan, IReadOnlyList<BindingPart> Parts, FieldDefinitionOrigin? FieldOrigin = null);
 public sealed record FieldDefinitionOrigin(string RecordId, string FieldId);

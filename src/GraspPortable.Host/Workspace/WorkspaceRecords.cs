@@ -130,6 +130,23 @@ public sealed partial class WorkspaceRecords(MarkdownWorkspaceRepository reposit
                 ?? throw new KeyNotFoundException("Record 不存在。");
             var schema = owner.Note.CurrentRecords!.Fields.SingleOrDefault(f => f.Id == fieldId) ?? throw new KeyNotFoundException("欄位不存在。");
             var edit = request.TypedValue is null ? new FieldSourceEdit(request.RawSource, request.IsNull) : TypedEdit(owner, schema, request.TypedValue);
+            if (schema.Kind == RecordFieldKind.Markdown)
+            {
+                var preview = PreviewFieldConversion(recordId, fieldId, new(request.ExpectedKnowledgeRevision, edit.Source, edit.IsNull));
+                if (!preview.CanApply)
+                    return new Receipt(request.OperationId, hash, preview.Diagnostics.Any(d => d.Code == "conversion-conflict") ? "conflict" : "invalid",
+                        knowledge.Current.Revision, owner.Note.Id, "欄位轉換尚不能安全套用，原文保留。",
+                        preview.Diagnostics.Select(d => new ParseDiagnostic(d.Code, d.Message, new(d.Start, d.Length))).ToArray());
+                if (preview.RequiresConfirmation)
+                {
+                    if (request.ConversionToken is null)
+                        return new Receipt(request.OperationId, hash, "conversion-required", knowledge.Current.Revision, owner.Note.Id,
+                            "欄位標題需轉換至安全層級；請先預覽並確認，原文尚未修改。");
+                    if (request.ConversionToken != preview.PreviewToken) throw new IOException("轉換預覽已過期或內容不同，請保留輸入並重新預覽。");
+                    return await ApplyFieldConversion(owner, recordId, fieldId, request, edit, preview, hash, token);
+                }
+                if (request.ConversionToken is not null) throw new IOException("轉換預覽與目前輸入不符，請重新預覽。");
+            }
             return await knowledge.ChangeRecordFieldAsync(request.OperationId, recordId, fieldId, request.ExpectedKnowledgeRevision,
                 edit, token, request.ConfirmRename, requestFingerprint: hash);
         });

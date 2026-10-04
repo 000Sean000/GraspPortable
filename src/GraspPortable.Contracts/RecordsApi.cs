@@ -26,5 +26,10 @@ public record UpsertRecordFieldRequest(string OperationId, long ExpectedKnowledg
 public record RenameRecordRequest(string OperationId, long ExpectedKnowledgeRevision, string Key, string DisplayName, bool ConfirmRename = false);
 /// <summary>Raw Markdown is the single value carrier. IsNull distinguishes absence from empty/zero/false.</summary>
 public record RecordFieldChangeRequest(string OperationId, long ExpectedKnowledgeRevision, string RawSource, bool IsNull = false, bool ConfirmRename = false,
-    RecordTypedValueDto? TypedValue = null);
+    RecordTypedValueDto? TypedValue = null, string? ConversionToken = null);
+public record PreviewRecordFieldConversionRequest(long ExpectedKnowledgeRevision, string RawSource, bool IsNull = false);
+public record RecordFieldHeadingMapDto(int OriginalStart, int OriginalLength, int ConvertedStart, int ConvertedLength,
+    int OriginalLevel, int? ConvertedLevel, int ListDepth);
+public record RecordFieldConversionPreview(long BasisRevision, bool RequiresConfirmation, string ConvertedSource, string Layout,
+    RecordFieldHeadingMapDto[] Mapping, DiagnosticDto[] Diagnostics, string? PreviewToken, bool CanApply);
 public record SaveRecordViewRequest(string OperationId, long ExpectedKnowledgeRevision, RecordViewDto View);

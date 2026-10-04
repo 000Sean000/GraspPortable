@@ -1,13 +1,15 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.29.0
+version: 1.31.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
 ## 目前授權與 Goal
 
-最新平台觀測（2026-10-04，使用者手動恢復後）：`get_goal` 已確認 Goal 為 **active**，未完成。中斷期間曾為 usageLimited；GoalSupport 於 04:53:17（Asia/Taipei）兌換一次 reset，04:56:18 確認 ordinary usage recovered，當時 usage API 為 usedPercent 0、ordinaryUsageAllowed true、重置券剩 1。額度恢復時 Goal 仍為 usageLimited；使用者手動 resume 才恢復 active。監測程式沒有 resume 功能，不能宣稱 reset 已完成無人介入續跑。
+本次背景續作核對：一般額度可用，七日窗口 usedPercent 5（剩餘 95%），reset Unix 1791708203，可用重置券 0；未兌換。這是帳戶共用快照。長文修正的有界獨立 code review 無發現；本次沒有重跑已通過測試，也沒有在 Esc 中止後接管前台。
+
+最新平台觀測（2026-10-04）：原生捲動因額度耗盡未通過自動審核後，本對話收到 Goal continuation，`get_goal` 為 **active**，usage API 為 usedPercent 0、ordinaryUsageAllowed true、可用重置券 0；已實際恢復工具與 GUI 操作。GoalSupport 日誌 08:40:29 UTC 為 redemption_checked／ordinaryUsageAllowed true，08:43:31 UTC 為 reset_cap_reached／guard_exited，原 PID 31452 已不存在；不宣稱監測仍在執行，也未因券耗盡重啟兌換程式。先前 04:53 的 reset 曾仍需使用者手動 resume；本次續作成功不能保證所有平台中斷都能自動恢復。
 
 上一已發行工作段取得 15×8／81×5 table import、view 保存、雙向凍結與排序中編輯的有限原生證據；新增 Wiki／Grasp 共用呈現與直接導航已有 reader／table／record card／完整 field、dirty guard、返回 collection 與一般 Wiki Enter 的有限原生證據；S3／S4 完整驗收仍未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。本段 App／Host 已正常退出，程序皆不存在，前台已釋放。
 
@@ -17,7 +19,21 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 同意前台測試期間不干擾，電腦保持開機、不休眠／不鎖定；測試前提醒、完成後告知釋放。正常額度正式確認耗盡才可用重置券，不購買額度、不自動降模型或切換 Reserve；監測與兌換的實際能力另據工具結果記錄，不宣稱已驗證耗盡後自動續跑。
 
-## 最新工作段：第二 view、表格連結與量測結果保護
+## 最新工作段：長文轉換、參照與外部往返
+
+從已核對遠端 `fa17e97b8a4554af08282d62483eea70cbccdb6f` 續作。補上 Markdown 欄位保存前的標題轉換預覽與明確確認：H5／H6 放不下原層級時轉巢狀清單，保留 Wiki inline Markdown、圖片及 fence；原文和 heading mapping 隨既有 journal／同一提交保存為不可變恢復歷史。原文、版本或操作對象改變使 token 失效，未知結果保留同一 request／operation。沒有加入一鍵反向轉換，會改變多行 literal 空白的情況明確拒絕。
+
+原生 Triensa 長文於 revision 58 完成預覽及套用，但當場抓到清單縮排被當 code 而漏掉 reference。已修 Markdown host context：扣除父清單縮排判斷真正 code，引用快取的跨行內容不改變外層 list 狀態；原始 UTF-16 ranges／換行不變，停用 fence 仍排除。再以受控外部檔案修改增加一段正文及兩式多段引用，revision 59 無診斷；原生卡片隱語法／highlight、粗體／空行正常，兩式都直接選中來源第 10 行 LiveLinks.Message。
+
+正常關閉及重開後，唯讀核對同一欄位 definition ID／來源、兩張圖片、三個 reference、外部段落、僅一份轉換前原文恢復歷史；既有 rename durable draft JSON 完全相同。主 workspace 的全域相同 allowlist 重套被既有未完成來源正確拒絕，因此本案由目標筆記外部修改觸發重新解析，沒有清除 DB 或處理其他未完成原文。一般無 stale source 的相同 allowlist 重建已有工程測試。
+
+重開相依筆記時另發現：整個長文屬性的 computed Markdown 沒有保留多段值的清單 continuation prefix，使後續粗體成為 indented code。已修正 Markdown generated field 的衍生輸出層，普通 composition、原始 source、reference cache 與 CR/LF 保留；增量比較和政策預覽包含 prefix。Core 167、Records 47、RecordsService 受影響三組 18 assertions 通過，同版 renderer 核對兩段 strong、零 code block。最新 App／Host 已 publish；原生合成案例啟動後遭使用者 Esc 中止，最後畫面尚未確認，不能宣稱完整長文流程通過。主驗收 workspace revision 59 尚須目標來源重新解析，不能把新 binary 當已重建索引。
+
+本段已補 missing record／definition 原生拒絕及恢復（54–57），另以單篇合成 workspace 驗 allowlist 預覽／套用，詳見 S1／S3-S4 Validation。私人原文、資料庫和報告均不進 Git。本輪捲動曾因自動審核額度耗盡而未執行；收到 Goal continuation 後 usage API 確認 ordinaryUsageAllowed true、usedPercent 0、可用重置券 0，Goal active，正常工具恢復。這是本次觀測，不保證所有平台中斷都可自行續跑。
+
+主驗收 workspace 已正常關閉；其後的小型合成案例前台測試被 Esc 中止。續作只做背景審查與文件整理，唯讀程序核對為 App PID 16788 仍在、未見 Host；不宣稱這次已正常關閉或新畫面驗收通過。Goal active，S1／S2 PARTIAL、S3／S4 IN_PROGRESS。不要重做已通過的 missing、基本 allowlist、兩式卡片 reference 導航及本段身分／草稿核對；最新待辦統一見文末 Exact next step。
+
+## 已完成工作段：第二 view、表格連結與量測結果保護
 
 从遠端已核對的 `90ad6f72b42f19ea8de75a34b8d7af403d84b03b` 續作。在同一獨立驗收 workspace 建立「角色篩選驗收」view，隱藏 Symbol、Name contains Triensa，revision 51；修改 Triensa 的 Name 後篩選結果變零筆（52），切回原 view 確认只改同 record，再恢復 Wiki 原文（53）。新版重開後第二 view 仍顯示 1／15 筆、七欄，原角色職責 view 保留八欄及凍結設定。
 
@@ -228,4 +244,6 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-先核對本段 commit／push，維持 Goal active，從原驗收 workspace revision 38 續作；`S4-Restored-1004-1329` 保留 revision 36 的還原證據。優先 Obsidian 外部檔名／dirty 衝突、較新 durable draft 還原，再補 import 初始選取、carrier rename／missing、Grasp Enter、S1 IME／dirty、allowlist／DPI 與 relation modal 固定高度。外部 reference 增減、Number 可讀呈現／搜尋及 S3 正常合併／拆分／完整還原已通過本段有界驗證，不重做。Records commit span 定點已驗有效，30 次代表性端到端操作與約五分鐘連續互動仍待完成；不得用少量 query 或工具等待時間代替。App／Host 已正常退出、前台釋放；下次操作另行提醒。13:36 核對既有監測程序身分後續租 12 小時，GoalSupport 仍只服务本 Goal，沒有額外兌換。全部 S4 完成條件未滿足，不標記 complete；使用者接受另記。
+核對本段 Git checkpoint，從 `S4-Acceptance-1004` revision 59 續作；`S4-Draft-Restored-1004-1447` 保留較新 durable draft 還原證據。先確認 Esc 中止後 App／Host 的實際狀態，再補三篇合成筆記的 computed Markdown 原生畫面；主驗收資料須由目標來源安全重新解析，保留未完成原文與 rename draft，不清 DB。
+
+接著完成 IME／dirty 外部競態、代表性縮放／凍結區鍵盤焦點、Anria 長文樣本及至少 30 次代表操作／約五分鐘端到端量測。不能用少量 query 或工具等待時間代替。missing、基本 allowlist、兩式卡片導航、第二 view、改名、較新草稿還原已有證據，按新增風險補測，不全量重做。前台測試前另行提醒；GoalSupport 原監測已退出且重置券為零，不宣稱仍在監測。最終仍需逐項完成條件審核、文件一致及 commit／push 核對，Goal 保持 active，使用者接受另記。

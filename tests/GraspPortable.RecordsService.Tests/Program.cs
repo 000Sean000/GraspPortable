@@ -34,7 +34,9 @@ using (var knowledge = new KnowledgeService(repository))
     RecordCellDto Cell(string kind) => service.Read(collectionId).Rows.Single(r => r.Id == rowId).Cells.Single(c => c.FieldId == Field(kind).Id);
     async Task Edit(string kind, RecordTypedValueDto? value, string raw = "")
     {
-        var result = await service.ChangeFieldAsync(rowId, Field(kind).Id, new(Id(), knowledge.Current.Revision, raw, TypedValue: value));
+        var conversion = kind == "Markdown" ? service.PreviewFieldConversion(rowId, Field(kind).Id, new(knowledge.Current.Revision, raw)) : null;
+        var result = await service.ChangeFieldAsync(rowId, Field(kind).Id, new(Id(), knowledge.Current.Revision, raw, TypedValue: value,
+            ConversionToken: conversion?.PreviewToken));
         Check(result.Status == "committed", "typed/source field command " + kind + ": " + result.Message);
     }
     await Edit("Markdown", null, "段落一😀\n\n### 正文標題\n段落二");
@@ -163,7 +165,8 @@ if (args.Length == 0 || args.Contains("render", StringComparer.Ordinal))
     var source = "😀前段\r\n#### 欄位內標題\r\n" + ReferenceCodec.Serialize(ReferenceKind.Pure, "Display", "")
         + "\r\n" + ReferenceCodec.Serialize(ReferenceKind.Wiki, "Display", "")
         + "\r\n```json\r\n[demo](:ref:Disabled)\r\n```\r\n@code{ @Local = {local} }";
-    var changed = await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, source));
+    var conversion = records.PreviewFieldConversion(row.Id, field.Id, new(knowledge.Current.Revision, source));
+    var changed = await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, source, ConversionToken: conversion.PreviewToken));
     Check(changed.Status == "committed", "render fixture commits original Markdown source and dependencies");
     var cell = records.Read(created.NoteId!).Rows.Single().Cells.Single();
     Check(cell.References is { Length: 2 } && cell.References.All(r => r.Name == "Display" && r.OriginNoteId == owner.NoteId && r.CachedValue == value),
@@ -221,6 +224,268 @@ if (args.Length == 0 || args.Contains("tags", StringComparer.Ordinal))
     using var canceled = new CancellationTokenSource(); canceled.Cancel();
     try { records.SearchTags("", token: canceled.Token); throw new InvalidOperationException("tag cancellation ignored"); }
     catch (OperationCanceledException) { Check(true, "tag queries honor cancellation"); }
+}
+if (args.Length == 0 || args.Contains("conversion", StringComparer.Ordinal))
+{
+    var conversionRoot = Path.Combine(root, "conversion");
+    string collection, record, fieldId, notePath, originalId;
+    RecordFieldChangeRequest confirmed;
+    long committedRevision;
+    const string original = "# [[Wiki|標題]]\r\n第一段😀\r\n\r\n第二段\r\n## 中層\r\n![圖](assets/p.png)\r\n### 深層\r\n```json\r\n# literal H1\r\n```\r\n[[Wiki|別名]]\r\n";
+    using (var repository = new MarkdownWorkspaceRepository(conversionRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        var created = await records.CreateAsync(new(Id(), 0, "Conversion", "Converted.Row", "一筆"));
+        collection = created.NoteId!;
+        var data = records.Read(collection); record = data.Rows.Single().Id; fieldId = data.Fields.Single().Id;
+        originalId = knowledge.Current.Definitions.Values.Single(d => d.Name == "Converted.Row.Description").Id;
+        notePath = Path.Combine(conversionRoot, repository.LoadSourceFiles().Single(f => f.NoteIds.Contains(collection)).RelativePath);
+        var before = File.ReadAllBytes(notePath); var revision = knowledge.Current.Revision;
+        var preview = records.PreviewFieldConversion(record, fieldId, new(revision, original));
+        Check(preview is { CanApply: true, RequiresConfirmation: true, Layout: "NestedList", PreviewToken: not null }
+            && preview.Mapping.Select(m => m.ListDepth).SequenceEqual(new[] { 0, 1, 2 }), "three heading levels preview an explicit hierarchy-preserving nested conversion");
+        Check(before.SequenceEqual(File.ReadAllBytes(notePath)) && knowledge.Current.Revision == revision,
+            "conversion preview writes no source, metadata, history or revision");
+        var protectedLiteral = "@code{ @LongValue = {\n# literal heading\n} }";
+        Check(records.PreviewFieldConversion(record, fieldId, new(revision, protectedLiteral)) is { CanApply: true, RequiresConfirmation: false },
+            "headings inside a Grasp literal are not mistaken for structural Markdown");
+        var unsafeLiteral = records.PreviewFieldConversion(record, fieldId, new(revision, original + protectedLiteral));
+        Check(!unsafeLiteral.CanApply && unsafeLiteral.Diagnostics.Any(d => d.Code == "conversion-grasp-indent"),
+            "nested conversion refuses to silently change multiline literal whitespace");
+        Check((await records.ChangeFieldAsync(record, fieldId, new(Id(), revision, original))).Status == "conversion-required"
+            && before.SequenceEqual(File.ReadAllBytes(notePath)), "unconfirmed heading conversion does not mutate data");
+        Check((await records.ChangeFieldAsync(record, fieldId, new(Id(), revision, original + "changed", ConversionToken: preview.PreviewToken))).Status == "conflict",
+            "token cannot confirm different original input");
+        confirmed = new(Id(), revision, original, ConversionToken: preview.PreviewToken);
+        var saved = await records.ChangeFieldAsync(record, fieldId, confirmed); committedRevision = saved.Revision;
+        Check(saved.Status == "committed", "confirmed conversion commits source plus descriptor and history: " + saved.Message);
+        var cell = records.Read(collection).Rows.Single().Cells.Single();
+        Check(cell.RawSource == preview.ConvertedSource && cell.RawSource.Contains("- [[Wiki|標題]]")
+            && cell.RawSource.Contains("![圖](assets/p.png)") && cell.RawSource.Contains("# literal H1") && cell.RawSource.Contains("\r\n\r\n"),
+            "paragraphs, CRLF, image, Wiki and fenced H1 survive as Markdown");
+        var envelope = MarkdownEnvelopeCodec.Read(File.ReadAllText(notePath));
+        var metadata = envelope.Metadata!.Notes.Single().Records!;
+        Check(metadata.Descriptor.Records.Single().Fields.Single() is { Layout: FieldLayout.NestedList, Indent: 2 }
+            && metadata.ConversionHistoryYaml!.Contains(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(original))),
+            "physical Markdown archives exact original bytes and updates locator layout atomically");
+        Check(knowledge.Current.Definitions.Values.Single(d => d.Name == "Converted.Row.Description").Id == originalId,
+            "conversion preserves generated definition identity");
+        Check(!records.PreviewFieldConversion(record, fieldId, new(saved.Revision, cell.RawSource)).RequiresConfirmation,
+            "already converted nested Markdown is not converted again");
+        var historyBefore = metadata.ConversionHistoryYaml;
+        var ordinary = await records.ChangeFieldAsync(record, fieldId, new(Id(), saved.Revision, cell.RawSource + "\r\n尾段"));
+        Check(ordinary.Status == "committed" && MarkdownEnvelopeCodec.Read(File.ReadAllText(notePath)).Metadata!.Notes.Single().Records!.ConversionHistoryYaml == historyBefore,
+            "ordinary later edit preserves history without appending another snapshot");
+        Check((await records.ChangeFieldAsync(record, fieldId, confirmed)).Revision == committedRevision,
+            "same confirmed operation retries by receipt after later edits without reconversion");
+        Check((await records.ChangeFieldAsync(record, fieldId, confirmed with { OperationId = Id() })).Status == "conflict",
+            "old conversion revision is refused for a new operation");
+        var current = knowledge.Current.Notes[collection];
+        await knowledge.SaveDraftAsync(new(collection, "conversion-draft", 1, current.Revision, current.Title, current.Source + "draft", current.CurrentSourceHash));
+        Check(!records.PreviewFieldConversion(record, fieldId, new(knowledge.Current.Revision, original)).CanApply,
+            "dirty source blocks conversion without replacing its draft");
+    }
+    using (var repository = new MarkdownWorkspaceRepository(conversionRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        Check((await records.ChangeFieldAsync(record, fieldId, confirmed)).Revision == committedRevision
+            && MarkdownEnvelopeCodec.Read(File.ReadAllText(notePath)).Metadata!.Notes.Single().Records!.ConversionHistoryYaml!.Contains("originalSourceUtf8Base64"),
+            "receipt and recovery history survive restart even with a later draft");
+    }
+    var interruptedRoot = Path.Combine(root, "conversion-interrupted");
+    string interruptedNote, interruptedRecord, interruptedField;
+    RecordFieldChangeRequest interruptedRequest;
+    using (var repository = new MarkdownWorkspaceRepository(interruptedRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        var created = await records.CreateAsync(new(Id(), 0, "Interrupted", "Interrupted.Row", "一筆"));
+        interruptedNote = created.NoteId!;
+        var data = records.Read(interruptedNote); interruptedRecord = data.Rows.Single().Id; interruptedField = data.Fields.Single().Id;
+        var preview = records.PreviewFieldConversion(interruptedRecord, interruptedField, new(knowledge.Current.Revision, original));
+        interruptedRequest = new(Id(), knowledge.Current.Revision, original, ConversionToken: preview.PreviewToken);
+        repository.AfterFilesWrittenForTest = () => throw new IOException("simulated stop between file and database commit");
+        var result = await records.ChangeFieldAsync(interruptedRecord, interruptedField, interruptedRequest);
+        Check(result.Status == "conflict" && repository.IsWriteBlocked, "interrupted converted write exposes pending recovery rather than false success");
+    }
+    using (var repository = new MarkdownWorkspaceRepository(interruptedRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        var result = await records.ChangeFieldAsync(interruptedRecord, interruptedField, interruptedRequest);
+        var file = repository.LoadSourceFiles().Single(f => f.NoteIds.Contains(interruptedNote));
+        var metadata = MarkdownEnvelopeCodec.Read(file.Text).Metadata!.Notes.Single().Records!;
+        Check(result.Status == "committed" && metadata.Descriptor.Records.Single().Fields.Single().Layout == FieldLayout.NestedList
+            && metadata.ConversionHistoryYaml!.Split("operationId:", StringSplitOptions.None).Length == 2
+            && records.Read(interruptedNote).Rows.Single().Cells.Single().RawSource.Contains("- [[Wiki|標題]]"),
+            "restart finalizes source, locator, one immutable history and receipt from the same journal");
+    }
+}
+if (args.Length == 0 || args.Contains("conversion-references", StringComparer.Ordinal))
+{
+    var targetRoot = Path.Combine(root, "conversion-references"); string collection;
+    bool ValidLocalReference(RecordCellDto cell, string expected) => cell.References is { Length: 1 }
+        && cell.References[0].Name == "Short" && cell.References[0].CachedValue == expected
+        && cell.RawSource.Substring(cell.References[0].Start, cell.References[0].Length) == $"[{expected}](:ref:Short)";
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        await knowledge.CreateNoteAsync(Id(), "Source", "@code{ @Short = {short} }");
+        var created = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Nested", "Nested.Row", "一筆")); collection = created.NoteId!;
+        var data = records.Read(collection); var row = data.Rows.Single(); var field = data.Fields.Single();
+        const string raw = "# A\r\n## B\r\n### C\r\n😀原文\r\n[short](:ref:Short)\r\n\r\n```json\r\n[hidden](:ref:Hidden)\r\n```\r\n\r\n    [indented](:ref:Indented)\r\n";
+        var preview = records.PreviewFieldConversion(row.Id, field.Id, new(knowledge.Current.Revision, raw));
+        var changed = await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, raw, ConversionToken: preview.PreviewToken));
+        Check(changed.Status == "committed" && ValidLocalReference(records.Read(collection).Rows.Single().Cells.Single(), "short"),
+            "converted nested-list reference remains semantic with exact local UTF-16 ranges; json/indented examples stay opaque");
+        var notePath = Path.Combine(targetRoot, repository.LoadSourceFiles().Single(f => f.NoteIds.Contains(collection)).RelativePath);
+        File.WriteAllText(notePath, File.ReadAllText(notePath).Replace("😀原文", "😀外部修改增加文字", StringComparison.Ordinal));
+        var scan = repository.Scan(knowledge.Current); var operation = Id();
+        using (repository.BeginObservation(operation, scan.States))
+            Check(scan.Issues.Count == 0 && (await knowledge.ObserveExternalAsync(operation, scan.Changes)).Status == "source-observed",
+                "external nested-list source edit is accepted by the same parser");
+        Check(ValidLocalReference(records.Read(collection).Rows.Single().Cells.Single(), "short"),
+            "external text before reference refreshes source ranges without losing reference identity");
+        var definition = knowledge.Current.Definitions.Values.Single(d => d.Name == "Short");
+        var updated = await knowledge.ChangeLiteralAsync(Id(), definition.Id, knowledge.Current.Revision, "updated");
+        Check(updated.Status == "committed" && ValidLocalReference(records.Read(collection).Rows.Single().Cells.Single(), "updated"),
+            "source value update patches nested-list cache through carrier source mapping");
+        var longOwner = await knowledge.CreateNoteAsync(Id(), "Long source", "@code{ @Long = " + LiteralCodec.Serialize("first\r\n\r\nsecond") + " }");
+        var multiRaw = "# A\r\n## B\r\n### C\r\n" + ReferenceCodec.Serialize(ReferenceKind.Pure, "Long", "first\r\n\r\nsecond")
+            + "\r\n\r\n" + ReferenceCodec.Serialize(ReferenceKind.Wiki, "Long", "first\r\n\r\nsecond");
+        var multiPreview = records.PreviewFieldConversion(row.Id, field.Id, new(knowledge.Current.Revision, multiRaw));
+        var multiSaved = await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, multiRaw, ConversionToken: multiPreview.PreviewToken));
+        var multiCell = records.Read(collection).Rows.Single().Cells.Single();
+        Check(multiSaved.Status == "committed" && multiCell.References is { Length: 2 }
+            && multiCell.References.All(r => r.Name == "Long" && r.OriginNoteId == longOwner.NoteId && r.CachedValue == "first\r\n\r\nsecond"
+                && multiCell.RawSource.Substring(r.Start, r.Length) == ReferenceCodec.Serialize(Enum.Parse<ReferenceKind>(r.Kind), "Long", r.CachedValue))
+            && multiCell.ComputedMarkdown!.Split("first\r\n      \r\n      second", StringSplitOptions.None).Length == 3,
+            "both multiline reference forms retain exact values, source spans and navigation metadata after nested conversion");
+        // Return to the single-ref sample so the reopen assertion below remains focused.
+        var singlePreview = records.PreviewFieldConversion(row.Id, field.Id, new(knowledge.Current.Revision, raw.Replace("[short]", "[updated]", StringComparison.Ordinal)));
+        await records.ChangeFieldAsync(row.Id, field.Id, new(Id(), knowledge.Current.Revision, raw.Replace("[short]", "[updated]", StringComparison.Ordinal), ConversionToken: singlePreview.PreviewToken));
+    }
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+        Check(ValidLocalReference(new WorkspaceRecords(repository, knowledge).Read(collection).Rows.Single().Cells.Single(), "updated"),
+            "reopened nested field retains managed reference and opaque code contexts");
+}
+if (args.Length == 0 || args.Contains("parser-rebuild", StringComparer.Ordinal))
+{
+    var targetRoot = Path.Combine(root, "parser-rebuild"); string collection; Draft preservedDraft;
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        await knowledge.CreateNoteAsync(Id(), "Source", "@code{ @RebuildValue = {new} }");
+        var records = new WorkspaceRecords(repository, knowledge);
+        var created = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Rebuild", "Rebuild.Row", "一筆")); collection = created.NoteId!;
+        var data = records.Read(collection);
+        await records.ChangeFieldAsync(data.Rows[0].Id, data.Fields[0].Id,
+            new(Id(), knowledge.Current.Revision, "- A\n  - B\n    - C\n      [new](:ref:RebuildValue)"));
+        var other = await knowledge.CreateNoteAsync(Id(), "Unrelated draft", "accepted body");
+        var draftNote = knowledge.Current.Notes[other.NoteId!];
+        preservedDraft = new(draftNote.Id, "durable-rename-draft", 1, draftNote.Revision, draftNote.Title,
+            "@code{ @UserUnconfirmedRename = {untouched} }", draftNote.CurrentSourceHash);
+        await knowledge.SaveDraftAsync(preservedDraft);
+        // Simulate an old persisted engine snapshot, not a product migration or a private workspace edit.
+        var prior = knowledge.Current; var nextRevision = prior.Revision + 1;
+        var note = prior.Notes[collection]; var oldSource = note.Source.Replace("[new]", "[old]", StringComparison.Ordinal);
+        var field = VerticalRecordCodec.Parse(oldSource, note.Records!).Fields.Single();
+        var badSyntax = note.Syntax with { References = [], Definitions = note.Syntax.Definitions.Select(d =>
+            d.FieldOrigin is null ? d : d with { Parts = [new(PartKind.Literal, field.RawSource, field.BodySpan)] }).ToArray() };
+        var notes = prior.Notes.ToDictionary(p => p.Key, p => p.Value);
+        notes[collection] = note with { Source = oldSource, Syntax = badSyntax, Revision = nextRevision };
+        var definitions = prior.Definitions.ToDictionary(p => p.Key, p => p.Value);
+        foreach (var definition in definitions.Values.Where(d => d.NoteId == collection).ToArray())
+            definitions[definition.Id] = definition with { Value = field.RawSource };
+        repository.Commit(prior, prior with { Revision = nextRevision, Notes = notes, Definitions = definitions },
+            new(Id(), "synthetic-old-parser", "committed", nextRevision, collection), null);
+    }
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        Check(knowledge.Current.Notes[collection].Syntax.References.Count == 0 && knowledge.GetDraft(preservedDraft.NoteId) == preservedDraft,
+            "synthetic old syntax and unrelated durable draft survive ordinary Host reopen");
+        var impact = knowledge.PolicyImpact(knowledge.Current.Languages);
+        Check(impact.NoteIds.Contains(collection), "same-allowlist impact identifies an old parser's missed nested reference");
+        var result = await knowledge.ChangePolicyAsync(Id(), knowledge.Current.Revision, knowledge.Current.Languages);
+        var cell = new WorkspaceRecords(repository, knowledge).Read(collection).Rows.Single().Cells.Single();
+        Check(result.Status == "committed" && knowledge.Current.Notes[collection].Syntax.References.Count == 1
+            && cell.References is { Length: 1 } && cell.References[0].CachedValue == "new" && !cell.RawSource.Contains("[old]"),
+            "same allowlist safely rebuilds persisted syntax, dependency calculation and cached field source");
+        Check(knowledge.GetDraft(preservedDraft.NoteId) == preservedDraft
+            && knowledge.Current.Notes[preservedDraft.NoteId].Source == "accepted body",
+            "rebuild neither consumes nor overwrites another note's durable rename draft");
+    }
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+        Check(knowledge.GetDraft(preservedDraft.NoteId) == preservedDraft && knowledge.Current.Notes[collection].Syntax.References.Count == 1,
+            "rebuilt index and untouched unrelated draft remain durable after second reopen");
+}
+if (args.Length == 0 || args.Contains("markdown-continuation", StringComparer.Ordinal))
+{
+    var targetRoot = Path.Combine(root, "markdown-continuation"); string collection, readerId;
+    const string value = "**bold**\r\n\r\nsecond paragraph";
+    const string updatedValue = "**new bold**\r\n\r\nnew paragraph";
+    string Expected(string input) => "- A\n  - B\n    - C\n      " + input.Replace("\r\n", "\r\n      ", StringComparison.Ordinal)
+        + "\n\n      " + input.Replace("\r\n", "\r\n      ", StringComparison.Ordinal);
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        await knowledge.CreateNoteAsync(Id(), "Paragraphs", "@code{ @Paragraphs = " + LiteralCodec.Serialize(value) + " @PlainComposition = Paragraphs + Paragraphs }");
+        var records = new WorkspaceRecords(repository, knowledge);
+        var created = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Projection", "Projection.Row", "一筆")); collection = created.NoteId!;
+        var data = records.Read(collection);
+        var raw = "# A\n## B\n### C\n" + ReferenceCodec.Serialize(ReferenceKind.Pure, "Paragraphs", value)
+            + "\n\n" + ReferenceCodec.Serialize(ReferenceKind.Wiki, "Paragraphs", value);
+        var preview = records.PreviewFieldConversion(data.Rows[0].Id, data.Fields[0].Id, new(knowledge.Current.Revision, raw));
+        var saved = await records.ChangeFieldAsync(data.Rows[0].Id, data.Fields[0].Id, new(Id(), knowledge.Current.Revision, raw, ConversionToken: preview.PreviewToken));
+        var cell = records.Read(collection).Rows[0].Cells[0];
+        Check(saved.Status == "committed" && cell.ComputedMarkdown == Expected(value),
+            "two multiline reference substitutions retain nested-list structure in generated Markdown");
+        Check(cell.References is { Length: 2 } && cell.References.All(r => r.CachedValue == value
+            && cell.RawSource.Substring(r.Start, r.Length) == ReferenceCodec.Serialize(Enum.Parse<ReferenceKind>(r.Kind), "Paragraphs", value))
+            && knowledge.Current.Definitions.Values.Single(d => d.Name == "Paragraphs").Value == value
+            && knowledge.Current.Definitions.Values.Single(d => d.Name == "PlainComposition").Value == value + value,
+            "source values, both raw caches, UTF-16 ranges and ordinary composition remain exact");
+        var reader = await knowledge.CreateNoteAsync(Id(), "Reader", "[](:ref:Projection.Row.Description)"); readerId = reader.NoteId!;
+        Check(knowledge.Current.Notes[readerId].Syntax.References.Single().CachedValue == Expected(value),
+            "another note receives the generated field's correctly structured Markdown cache");
+        var target = knowledge.Current.Definitions.Values.Single(d => d.Name == "Paragraphs");
+        await knowledge.ChangeLiteralAsync(Id(), target.Id, knowledge.Current.Revision, updatedValue);
+        Check(records.Read(collection).Rows[0].Cells[0].ComputedMarkdown == Expected(updatedValue)
+            && knowledge.Current.Notes[readerId].Syntax.References.Single().CachedValue == Expected(updatedValue)
+            && knowledge.Current.Definitions.Values.Single(d => d.Name == "PlainComposition").Value == updatedValue + updatedValue,
+            "dependency updates recompute the same property and its downstream cache without changing ordinary composition");
+        // Persist the prior projection shape while keeping all reference identities/ranges intact.
+        var prior = knowledge.Current; var note = prior.Notes[collection]; var revision = prior.Revision + 1;
+        var oldSyntax = note.Syntax with { Definitions = note.Syntax.Definitions.Select(d => d with {
+            Parts = d.Parts.Select(p => p with { ContinuationPrefix = null }).ToArray() }).ToArray() };
+        var notes = prior.Notes.ToDictionary(p => p.Key, p => p.Value);
+        notes[collection] = note with { Syntax = oldSyntax, Revision = revision };
+        var definitions = prior.Definitions.ToDictionary(p => p.Key, p => p.Value);
+        var property = definitions.Values.Single(d => d.Name == "Projection.Row.Description");
+        definitions[property.Id] = property with { Value = "old unstructured projection" };
+        repository.Commit(prior, prior with { Revision = revision, Notes = notes, Definitions = definitions },
+            new(Id(), "synthetic-prefixless-projection", "committed", revision, collection), null);
+    }
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        Check(knowledge.PolicyImpact(knowledge.Current.Languages).NoteIds.Contains(collection),
+            "policy impact detects a changed continuation prefix even with identical reference ranges");
+        var result = await knowledge.ChangePolicyAsync(Id(), knowledge.Current.Revision, knowledge.Current.Languages);
+        Check(result.Status == "committed" && new WorkspaceRecords(repository, knowledge).Read(collection).Rows[0].Cells[0].ComputedMarkdown == Expected(updatedValue),
+            "same-name incremental evaluation does not reuse a prefixless old projected value");
+    }
+    using (var repository = new MarkdownWorkspaceRepository(targetRoot))
+    using (var knowledge = new KnowledgeService(repository))
+        Check(new WorkspaceRecords(repository, knowledge).Read(collection).Rows[0].Cells[0].ComputedMarkdown == Expected(updatedValue)
+            && knowledge.Current.Notes[readerId].Syntax.References.Single().CachedValue == Expected(updatedValue),
+            "structured projection and downstream cache persist across reopening");
 }
 Console.WriteLine($"PASS {assertions} Records service assertions. Workspace: {root}");
 }

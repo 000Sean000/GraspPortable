@@ -11,6 +11,60 @@ async Task Run(string name, Func<Task> test) { await test().WaitAsync(TimeSpan.F
 TaskCompletionSource<T> Gate<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 (RecordsPanel Panel, BackendSession Backend) Setup()
 { var backend = new BackendSession(); var panel = new RecordsPanel(); panel.Prepare(backend); return (panel, backend); }
+RecordFieldConversionPreview Conversion(PreviewRecordFieldConversionRequest request) => new(request.ExpectedKnowledgeRevision,
+    true,"##### Converted\n\nbody","Heading",[new(0,8,0,14,1,5,0)],[],"preview-token",true);
+
+await Run("field conversion writes only after explicit approval and sends original source",async()=>
+{
+    var (panel,backend)=Setup();backend.ConversionPreview=r=>Task.FromResult(Conversion(r));
+    panel.EditConversionForTest("# Title\n\noriginal body");await panel.SaveForTest();
+    Check(panel.HasConversionForTest && backend.PreviewReads==1 && backend.Writes.Count==0 && !panel.HasPendingForTest,"read-only preview cannot create a pending write");
+    await panel.SaveForTest();Check(backend.Writes.Count==0,"plain submit cannot bypass visible conversion approval");
+    await panel.ConfirmConversionForTest();
+    Check(backend.LastRequest is RecordFieldChangeRequest {RawSource:"# Title\n\noriginal body",ConversionToken:"preview-token"}
+        && backend.Writes.Count==1,"approved request preserves original source, not converted preview");await panel.DisposeAsync();
+});
+await Run("field conversion becomes invalid after edits, null, revision or workspace changes",async()=>
+{
+    foreach(var change in new[]{"raw","null","revision","workspace","return"})
+    {
+        var (panel,backend)=Setup();backend.ConversionPreview=r=>Task.FromResult(Conversion(r));
+        await panel.SaveForTest();
+        if(change=="raw")panel.EditConversionForTest("new input");
+        else if(change=="null")panel.EditConversionForTest(isNull:true);
+        else if(change=="revision")await panel.Notify(12);
+        else if(change=="workspace")await panel.Notify(12,"other-workspace");
+        else panel.ReturnFromConversionForTest();
+        await panel.ConfirmConversionForTest();
+        Check(!panel.HasConversionForTest && backend.Writes.Count==0 && !panel.HasPendingForTest,"old preview cannot authorize a write after "+change);
+        Check(panel.Raw==(change=="raw"?"new input":"unsaved input"),"invalidated preview preserves input");await panel.DisposeAsync();
+    }
+});
+await Run("late field conversion preview is dropped and unavailable preview never creates unknown write",async()=>
+{
+    var (panel,backend)=Setup();var response=Gate<RecordFieldConversionPreview>();backend.ConversionPreview=_=>response.Task;
+    var saving=panel.SaveForTest();panel.EditConversionForTest("new while awaiting preview");
+    response.SetResult(Conversion(new(10,"old")));await saving;
+    Check(!panel.HasConversionForTest && backend.Writes.Count==0 && panel.Raw=="new while awaiting preview","late preview must not replace newer editor state");
+    backend.ConversionPreview=r=>Task.FromResult(Conversion(r) with{CanApply=false});await panel.SaveForTest();
+    Check(!panel.HasPendingForTest && !panel.UnknownOutcome && backend.Writes.Count==0,"rejected read-only preview cannot become unknown write");
+    backend.ConversionPreview=_=>Task.FromException<RecordFieldConversionPreview>(new IOException("preview read unavailable"));await panel.SaveForTest();
+    Check(!panel.HasPendingForTest && !panel.UnknownOutcome,"failed preview is safely retryable as a read");await panel.DisposeAsync();
+});
+await Run("field conversion unknown and rename retries retain same approved payload",async()=>
+{
+    foreach(var status in new[]{"unknown","confirmation-required"})
+    {
+        var (panel,backend)=Setup();backend.ConversionPreview=r=>Task.FromResult(Conversion(r));
+        backend.Command=()=>Task.FromResult(new OperationResult("op",backend.Writes.Count==1?status:"committed",11,"note"));
+        await panel.SaveForTest();await panel.ConfirmConversionForTest();
+        Check(panel.HasPendingForTest && backend.PreviewReads==1 && backend.Writes.Count==1,"first command preserves approved request for "+status);
+        if(status=="unknown")await panel.SaveForTest();else await panel.ConfirmRenameForTest();
+        var first=(RecordFieldChangeRequest)backend.Writes[0];var retried=(RecordFieldChangeRequest)backend.Writes[1];
+        Check(first.OperationId==retried.OperationId && first.RawSource==retried.RawSource && first.ConversionToken==retried.ConversionToken
+            && backend.PreviewReads==1 && retried.ConfirmRename==(status=="confirmation-required"),"retry cannot rotate operation, raw source or conversion approval");await panel.DisposeAsync();
+    }
+});
 
 await Run("Records end forwards the queued DOM token and rejects missing token", async () =>
 {

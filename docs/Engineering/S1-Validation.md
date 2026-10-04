@@ -1,13 +1,19 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.3.0
+version: 1.4.0
 updated: 2026-10-04
 status: native-gui-partially-verified
 ---
 
 ## 判定
 
-Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助及基本原生中文 IME 已有本次證據；IME／dirty 競態、allowlist GUI、DPI 及量化端到端仍未完整驗收。使用者接受另記。
+Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；IME／dirty 競態、DPI 及量化端到端仍未完整驗收。使用者接受另記。
+
+## 2026-10-04 解析清單原生流程
+
+獨立 `workspaces/S4-Policy-1004` 僅一篇合成 Markdown，含 grasp、grasp-demo、json 及未標語言四個完整 fence。預設 Windows UI 僅列 Policy.Active 與 Policy.Unlabelled。設定清單新增 grasp-demo 後，先按「預覽影響」，確認按鈕才可用；確認套用至 revision 2，UI 新增 Policy.Demo，json 仍未建立定義，診斷零。未操作日用 vault 或主驗收 workspace 的 parsing policy。
+
+正常關閉後唯讀 SQLite 核對 policyRevision=1、languages=[空字串, grasp, grasp-demo]，定義恰為上述三筆；證據在忽略的 `workspaces/AcceptanceSupport/policy-missing-verification.json`。這證明基本 allowlist 預覽／套用及停用 fence，不取代政策衝突／過期版本的工程測試。IME／dirty 競態、縮放及足量端到端效能仍未完成。
 
 ## 2026-10-04 未接受草稿的引用呈現
 

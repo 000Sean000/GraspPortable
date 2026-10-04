@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.12.0
+version: 1.14.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,26 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 長文轉換與巢狀參照（revision 58–59）
+
+原生將指定 Triensa 副本的長文、兩張圖片、Wiki、JSON fence 與一個 Grasp reference 放入 Alpha 的 Description。保存先列出五個標題的 H1／H2／H3 對照與巢狀清單預覽，確認後 revision 58；資料集／record／field 結構仍為 H2／H3／H4，程式碼 fence 內的 `#` 不改。轉換前原文與 mapping 保存在同一提交的 immutable metadata history，source／locator／receipt 使用既有恢復日誌。尚無一鍵反轉 UI。
+
+實際操作抓到六空格正文被當 indented code、失去 reference metadata。Core 修正 list container-aware context，保留實體 source offsets；跨行 reference cache 不再使 scanner 誤判退出清單，真正 code／停用 fence 仍不解析。預覽另核對轉換前後引用 kind／name 序列，不允許靜默漏掉 reference。
+
+修正後受控外部編輯加入一段文字及兩式多段 reference，watcher 自動接受 revision 59。原生卡片的 Wiki 隱 syntax／highlight、兩張圖片載入，兩式多段 reference 保留粗體與空行，分別點擊均選中來源第 10 行 LiveLinks.Message。正常關閉後確認同一 generated definition ID／FieldOrigin、三個 references、兩張圖片、外部段落、零來源診斷；原始輸入與恢復歷史一致（以 textarea 的 LF 正規化核對），歷史恰一份，既有 durable draft JSON 完全相同。
+
+重開後相依筆記仍顯示更新後長文、revision 59／診斷零；但另抓到 generated Markdown 的多段值缺少 continuation prefix，第二式展開文字被通用 Markdown 當 code。此問題另作 Core 修正，不能將卡片內導航通過擴張為所有衍生呈現已通過。私人證據為 `workspaces/AcceptanceSupport/longfield-closed-verification.json`、`longfield-reopened-verification.json`，不進 Git。
+
+本主 workspace 保留一篇未完成來源，因此全域相同 allowlist 重建被正確攔下，未改其他資料；本次靠目標檔的外部編輯重新解析。沒有 stale source 時的同清單重建、另一篇 rename draft 保留及重開已有合成服務測試；不刪 DB，也不宣稱新 binary 會自動重建舊解析索引。
+
+後續 computed Markdown 修正已完成並 publish：僅 Markdown generated field 的 identifier part 帶清單 continuation prefix，求值後每個換行保留 CR/LF 並補容器縮排；原始 literal／reference cache／普通 composition 不改。Core 167、Records 47、RecordsService 受影響三組 18 assertions 通過，先前 conversion 18 與 RecordsUi 21 維持有效。同版 marked renderer 對三層清單內兩式引用產生兩段粗體、零程式碼區塊，私人報告 `workspaces/AcceptanceSupport/computed-markdown-render.json`。最後原生合成畫面確認被使用者 Esc 中止，尚未通過；主 workspace revision 59 也尚未重新解析此 prefix，不將 renderer 證據擴張為原生驗收。
+
+## 缺失 record／definition 與 parsing 政策（revision 54–57）
+
+以受控檔案修改在既有獨立 workspace 暫時把 Alpha 單筆關聯換成不存在的 record ID。原生點擊 Triensa 的可讀標籤，顯示「找不到這筆關聯紀錄」，沒有退回依名稱／路徑猜測；恢復原 carrier 後 revision 55 無該診斷。再暫時移除 LiveLinks.Short 定義，revision 56 點引用明示找不到定義且停留原表；恢復後 revision 57 點同引用重新選中來源第 15 行。私人原文與恢復片段未入 Git，原 TestData 不變。
+
+另在只含一篇合成筆記的 `workspaces/S4-Policy-1004`，由原生設定介面將 grasp-demo 加入 allowlist，預覽影響後套用。原本兩個有效定義增加為三個；json fence 仍不解析，無標籤 fence 設定保留。詳見 [S1 Validation](S1-Validation.md)；本次不是 policy 故障注入。正常關閉後唯讀報告 `workspaces/AcceptanceSupport/policy-missing-verification.json` 核對結果。
 
 ## 第二 view、連結與量測保護（15:29–15:53）
 
@@ -215,9 +235,9 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
-下一步以最新 publish 原生重驗 import 初始 collection 選取，再做 carrier 修正原生確認、九型別／關聯／完整長文卡片、合併／拆分其他流程、Obsidian 交替與衝突 UI、IME／dirty 競態、解析政策及縮放。已完成的有限 import／凍結／排序流程以上表為準；備份 generation 選取已重驗，畫面選取與還原收據一致，詳見 [S2 Validation](S2-Validation.md)。
+下一步補長文屬性 computed Markdown 的原生畫面及主驗收資料重解析，再補 IME／dirty 競態、代表性縮放／凍結區鍵盤焦點、Anria 長文與足量端到端量測。Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
 
-指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa／Anria 完整卡片與跨筆關聯仍待驗，不能由 table 解析或單 cell 編輯推定完成。
+指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文仍待定點取樣。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 
 主代理補驗時記錄發行 checkpoint／未提交來源、實際 workspace、資料規模、操作及通過／失敗／未驗項、探針路徑與結果、DPI／IME 模式、前台釋放狀態。尚無證據的欄位保持待驗。
 

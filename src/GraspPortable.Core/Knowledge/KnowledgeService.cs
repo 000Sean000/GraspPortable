@@ -118,7 +118,7 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
         if (removed.Length == 0 || added.Length == 0) return renames;
         if (removed.Length != 1 || added.Length != 1 || oldBindings.Length != newBindings.Length) return null;
         var a = removed[0]; var b = added[0];
-        if (!a.Parts.Select(p => (p.Kind, p.Text)).SequenceEqual(b.Parts.Select(p => (p.Kind, p.Text)))) return null;
+        if (!a.Parts.Select(p => (p.Kind, p.Text, p.ContinuationPrefix)).SequenceEqual(b.Parts.Select(p => (p.Kind, p.Text, p.ContinuationPrefix)))) return null;
         renames[a.Name]=b.Name;
         return renames;
     }
@@ -196,7 +196,11 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
         return await PublishAsync(basis, prepared.State!, operationId, hash, null, null, token);
     }
     private static string[] NormalizeLanguages(string[] languages) => languages.Select(x => x.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-    private static bool SameSyntax(ParseResult a, ParseResult b) => a.IsValid == b.IsValid && a.Definitions.Select(d => d.Name).SequenceEqual(b.Definitions.Select(d => d.Name)) && a.References.Select(r => (r.Name, r.Span)).SequenceEqual(b.References.Select(r => (r.Name, r.Span)));
+    private static bool SameSyntax(ParseResult a, ParseResult b) => a.IsValid == b.IsValid
+        && a.Definitions.Select(d => d.Name).SequenceEqual(b.Definitions.Select(d => d.Name))
+        && a.Definitions.SelectMany(d => d.Parts.Select(p => (d.Name, p.Kind, p.Text, p.ContinuationPrefix)))
+            .SequenceEqual(b.Definitions.SelectMany(d => d.Parts.Select(p => (d.Name, p.Kind, p.Text, p.ContinuationPrefix))))
+        && a.References.Select(r => (r.Name, r.Span)).SequenceEqual(b.References.Select(r => (r.Name, r.Span)));
     private static string NormalizeTitle(string title) => string.IsNullOrWhiteSpace(title) ? "未命名筆記" : title.Trim();
 
     private async Task<(Snapshot? State, string? Error)> PrepareAsync(Snapshot basis, Dictionary<string, Note> notes, string[] languages, long policyRevision, Dictionary<string, string>? renames, CancellationToken token,
@@ -278,7 +282,8 @@ public sealed partial class KnowledgeService(IWorkspaceRepository repository) : 
         var reverse = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var definition in definitions)
         {
-            if (!previous.TryGetValue(definition.Name, out var old) || !old.Parts.Select(p => (p.Kind, p.Text)).SequenceEqual(definition.Parts.Select(p => (p.Kind, p.Text))))
+            if (!previous.TryGetValue(definition.Name, out var old) || !old.Parts.Select(p => (p.Kind, p.Text, p.ContinuationPrefix))
+                .SequenceEqual(definition.Parts.Select(p => (p.Kind, p.Text, p.ContinuationPrefix))))
                 affected.Add(definition.Name);
             foreach (var part in definition.Parts.Where(p => p.Kind == PartKind.Identifier))
             {

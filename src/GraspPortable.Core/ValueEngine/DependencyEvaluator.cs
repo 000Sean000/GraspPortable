@@ -90,13 +90,36 @@ public static class DependencyEvaluator
                     }
                     text = dependency.Value!;
                 }
-                if (text.Length > maxValueLength - builder!.Length)
+                var continuation = part.Kind == PartKind.Identifier && definition.FieldOrigin is not null ? part.ContinuationPrefix : null;
+                long projectedLength = text.Length;
+                if (!string.IsNullOrEmpty(continuation))
+                    for (var at = 0; at < text.Length; at++)
+                    {
+                        if ((at & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
+                        var eol = SyntaxCharacters.EolLength(text, at, text.Length);
+                        if (eol == 0) continue;
+                        projectedLength += continuation.Length; at += eol - 1;
+                    }
+                if (projectedLength > maxValueLength - builder!.Length)
                 {
                     status = EvaluationStatus.ResourceLimit;
                     diagnostics.Add(new("resource-limit", $"{name} 的展開值超過 {maxValueLength} 個 UTF-16 字元，未截斷為成功。", definition.ExpressionSpan));
                     break;
                 }
-                builder.Append(text);
+                if (string.IsNullOrEmpty(continuation)) builder.Append(text);
+                else
+                {
+                    var copied = 0;
+                    for (var at = 0; at < text.Length; at++)
+                    {
+                        if ((at & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
+                        var eol = SyntaxCharacters.EolLength(text, at, text.Length);
+                        if (eol == 0) continue;
+                        builder.Append(text, copied, at + eol - copied).Append(continuation);
+                        at += eol - 1; copied = at + 1;
+                    }
+                    builder.Append(text, copied, text.Length - copied);
+                }
             }
             var valueLength = reused?.Value!.Length ?? builder!.Length;
             if (status == EvaluationStatus.Valid && valueLength > maxValueLength)

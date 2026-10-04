@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.8.0
+version: 1.9.0
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
@@ -58,6 +58,8 @@ Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義�
 4. 新增另一筆紀錄，建立單筆／多筆關聯並檢查目標。關聯選擇器可按名稱、key 或資料表搜尋，改搜尋不會清掉已選項目。用表格搜尋、視圖設定、欄位順序／顯示、篩選與排序檢查內容。標題列與紀錄名稱欄固定，可另凍結前幾筆及前幾欄；每頁最多 50 筆。排序後再編輯，確認仍修改原來的 record ID。
 5. 以「開啟原文 ↗」檢查 H2 資料表、H3 紀錄、H4 欄位及唯一 Markdown 值；正常關閉重開，核對內容、typed 值、關聯與視圖設定。
 
+Markdown 欄位貼入較低層級標題時，保存會先顯示轉換預覽：移到 H5／H6，超過六層則改巢狀清單，列出原標題與轉換層级；核對後按「確認轉換並保存」。返回編輯會保留輸入，修改內容或基底版本後需重新預覽。轉換前原文及層級對照隨同一筆寫入保存在 Markdown metadata 的唯讀恢復歷史；後續編輯以新正文為準，目前沒有一鍵反向轉換介面。複雜容器標題或會改變多行 Grasp literal 空白的轉換會拒絕並保留原文，不猜測改寫。
+
 ## 右鍵合併／拆分檔案
 
 1. 在檔案樹對筆記按右鍵，選「與其他筆記合併檔案…」，再勾選至少兩個實體檔案。確認新的 `.md` 相對路徑及 `.json` 保留位置；目的父資料夾需先存在。
@@ -77,7 +79,7 @@ Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義�
 
 ## 備份與還原
 
-左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。已原生驗證合併／拆分後的 368 檔完整版本還原、未接受語意的原文、Records／導航與圖片；本案 durable drafts 為零，較新 draft 的原生恢復另驗。可開啟 `workspaces/S4-Restored-1004-1329` 查看該份還原結果，仍請核對選取版本與目的地。
+左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。已原生驗證合併／拆分後的 368 檔完整版本還原、未接受語意的原文、Records／導航與圖片，可開啟 `workspaces/S4-Restored-1004-1329` 查看。較新 durable draft 另已在 `workspaces/S4-Draft-Restored-1004-1447` 恢復並核對相同 session、revision、base、標題及正文。操作時仍請核對選取版本與目的地。
 
 ## 選用原生效能量測
 

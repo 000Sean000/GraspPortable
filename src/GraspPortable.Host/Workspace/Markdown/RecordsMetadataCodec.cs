@@ -8,7 +8,8 @@ using YamlDotNet.RepresentationModel;
 namespace GraspPortable.Host.Workspace.Markdown;
 
 /// <summary>Host-owned collection presentation; field values exist only in the Markdown body.</summary>
-public sealed record RecordsMetadata(string CollectionId, string Title, RecordsDocumentDescriptor Descriptor, string? ViewsYaml = null);
+public sealed record RecordsMetadata(string CollectionId, string Title, RecordsDocumentDescriptor Descriptor, string? ViewsYaml = null,
+    string? ConversionHistoryYaml = null);
 public sealed record RecordsMetadataResult(RecordsMetadata? Metadata, IReadOnlyList<MarkdownEnvelopeIssue> Issues)
 { public bool Success => Metadata is not null && Issues.Count == 0; }
 
@@ -92,7 +93,10 @@ public static class RecordsMetadataCodec
         Unique(records.Select(r => r.Id), "record ID"); Unique(records.Select(r => r.Key), "record key");
         var views = Get(root, "views");
         if (views is not null && views is not (YamlMappingNode or YamlSequenceNode)) Error("views must be a mapping or sequence.", views);
-        return new(issues.Count == 0 ? new(collectionId, title, new(records, schemas), views is null ? null : Serialize(views)) : null, issues);
+        var history = Get(root, "conversionHistory");
+        if (history is not null && history is not YamlSequenceNode) Error("conversionHistory must be an immutable history sequence.", history);
+        return new(issues.Count == 0 ? new(collectionId, title, new(records, schemas), views is null ? null : Serialize(views),
+            history is null ? null : Serialize(history)) : null, issues);
     }
 
     public static YamlMappingNode Write(RecordsMetadata metadata, YamlMappingNode? previous = null)
@@ -135,6 +139,14 @@ public static class RecordsMetadataCodec
             if (stream.Documents.Count != 1 || stream.Documents[0].RootNode is not (YamlMappingNode or YamlSequenceNode))
                 throw new ArgumentException("Views must contain one YAML mapping or sequence.", nameof(metadata));
             Set(root, "views", stream.Documents[0].RootNode);
+        }
+        if (metadata.ConversionHistoryYaml is null) Remove(root, "conversionHistory");
+        else
+        {
+            var history = new YamlStream(); history.Load(new StringReader(metadata.ConversionHistoryYaml));
+            if (history.Documents.Count != 1 || history.Documents[0].RootNode is not YamlSequenceNode)
+                throw new ArgumentException("Conversion history must contain one YAML sequence.", nameof(metadata));
+            Set(root, "conversionHistory", history.Documents[0].RootNode);
         }
         return root;
     }

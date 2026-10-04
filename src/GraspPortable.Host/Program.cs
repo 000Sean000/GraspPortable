@@ -105,6 +105,8 @@ app.MapPost("/api/records/{id}/rows/{recordId}",async(string id,string recordId,
     await coordinator.MutateAsync(()=>records.RenameRecordAsync(id,recordId,request,context.RequestAborted),context.RequestAborted));
 app.MapPost("/api/records/rows/{recordId}/fields/{fieldId}",async(string recordId,string fieldId,RecordFieldChangeRequest request,HttpContext context)=>
     await coordinator.MutateAsync(()=>records.ChangeFieldAsync(recordId,fieldId,request,context.RequestAborted),context.RequestAborted));
+app.MapPost("/api/records/rows/{recordId}/fields/{fieldId}/conversion-preview",async(string recordId,string fieldId,PreviewRecordFieldConversionRequest request,HttpContext context)=>
+    await coordinator.MutateAsync(()=>Task.FromResult(records.PreviewFieldConversion(recordId,fieldId,request)),context.RequestAborted));
 app.MapPost("/api/records/{id}/views",async(string id,SaveRecordViewRequest request,HttpContext context)=>
     await coordinator.MutateAsync(()=>records.SaveViewAsync(id,request,context.RequestAborted),context.RequestAborted));
 app.MapPost("/api/content/link", (ContentResolveRequest request) => content.ResolveLink(request));
