@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.33.0
+version: 1.33.1
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
@@ -27,7 +27,7 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 上一已發行工作段取得 15×8／81×5 table import、view 保存、雙向凍結與排序中編輯的有限原生證據；新增 Wiki／Grasp 共用呈現與直接導航已有 reader／table／record card／完整 field、dirty guard、返回 collection 與一般 Wiki Enter 的有限原生證據；S3／S4 完整驗收仍未完成。使用者回報多個 dotnet.exe 錯誤視窗；Windows Application log 查到多次本專案測試 executable 的 unhandled exception（檔案鎖、備份驗證、symlink 權限），但尚不能把每個 dotnet.exe 視窗精確對應到某筆事件。未據此宣稱 App／Host 無崩潰；測試失敗輸出與事件來源仍須核對。本段 App／Host 已正常退出，程序皆不存在，前台已釋放。
 
-2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.9](Engineering/Implementation-Plan-v1.0.0-rc.9.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
+2026-10-04 使用者明確要求 IMPLEMENT 已接受的 [P0–S4 計畫 rc.9](https://github.com/000Sean000/GraspPortable/blob/f634bcd9b650d89f57ff0d866a086612e7e2fc2e/docs/Engineering/Implementation-Plan-v1.0.0-rc.9.md)：完成 Windows S4 候選版，涵蓋完整筆記、Markdown 共同編輯、分組／恢復、長文屬性／關聯及凍結表格。主代理已建立本對話 Goal，狀態 **active**；沒有指定 token budget。
 
 這次授權取代「S1 後停下／不自動 S2」「未授權 commit／push」舊停點。自行完成 coherent segment 的必要驗證、commit／push 至 `origin/rewrite/dotnet` 並核對；不 force push，不提交私人資料／credentials／驗收 workspace。每階段續作，只有 S4 全部完成條件成立才能標 Goal complete；使用者接受仍另記。
 
@@ -129,7 +129,7 @@ Opt-in Records 已加入 managed child DOM／handlers readiness barrier 再使�
 
 進入本段時已核對的遠端 checkpoint 為 `62780134a29ab49f8d7a25de973e2f9b0e0041c6`。以下工作已實作、本機 publish 並通過有限必要原生流程；提交主題為 `fix: preserve wiki and reference navigation across record views`，實際 commit／push 結果以 Git 與交付核對為準。全 Goal 維持 `IN_PROGRESS`，未宣稱全部階段完成。
 
-使用者新決策已歸檔 [Seed rc.13](Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md)、[Plan rc.9](Engineering/Implementation-Plan-v1.0.0-rc.9.md)及[Architecture rc.6](Engineering/GraspPortable-Architecture-v1.0.0-rc.6.md)：Live Preview 非編輯區隱藏 Wiki／Grasp syntax，以醒目連結呈現；單擊／聚焦 Enter 直接跳 target，Grasp 開 definition 所屬 file 並定位 block，不僅開 inspector。Cell／完整 field／record card 保留同樣渲染與跳轉，不能 flatten 純字。
+使用者新決策已歸檔 [Seed rc.13](Project_Seed/GraspPortable-Core-Requirements-v1.0.0-rc.13.md)、[Plan rc.9](https://github.com/000Sean000/GraspPortable/blob/f634bcd9b650d89f57ff0d866a086612e7e2fc2e/docs/Engineering/Implementation-Plan-v1.0.0-rc.9.md)及[Architecture rc.6](Engineering/GraspPortable-Architecture-v1.0.0-rc.6.md)：Live Preview 非編輯區隱藏 Wiki／Grasp syntax，以醒目連結呈現；單擊／聚焦 Enter 直接跳 target，Grasp 開 definition 所屬 file 並定位 block，不僅開 inspector。Cell／完整 field／record card 保留同樣渲染與跳轉，不能 flatten 純字。
 
 Active source editing 仍露原 syntax，IME／dirty draft 保護不變。Host 投影 field 原始 source 上的 local reference metadata／來源版本，UI 共用 renderer，不把 disabled Grasp fence 轉成 managed link，不在求值 cache 再解析 Grasp；不擴張公式或同步。
 

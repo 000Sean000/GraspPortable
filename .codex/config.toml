@@ -1,0 +1,13 @@
+# GraspPortable project-scoped subagent defaults.
+# version: 1.0.0
+# updated: 2026-10-04
+# Root model/effort remain controlled by the original thread.
+# Project config requires a trusted project and a matching session cwd.
+# See ../docs/ROUTING-TRIAL-STATE.md before the first trial.
+
+[agents]
+enabled = true
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "medium"
+# Spawned threads only; the primary/root thread is excluded.
+max_concurrent_threads_per_session = 2

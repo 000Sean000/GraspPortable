@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.22.0
+version: 1.22.1
 updated: 2026-10-04
 scope: rewrite-branch-entry
 ---
@@ -27,7 +27,7 @@ Obsidian 共同編輯已有關閉期间新增／Grasp 重開、同時開啟時�
 
 1. [本輪授權與工作狀態](docs/EXECUTION-STATE.md)：Goal、實作／驗證／接受、證據與 exact next step。
 2. [Project Seed](docs/Project_Seed/README.md)：產品 WHAT／WHY、資料權威、長文欄位及共同編輯。
-3. [實作計畫 rc.9](docs/Engineering/Implementation-Plan-v1.0.0-rc.9.md)：P0–S4 完成條件、接面、操作驗收與有界測試。
+3. [現行實作計畫](docs/Engineering/README.md)：P0–S4 完成條件、接面、操作驗收與有界測試。
 4. [產品架構 rc.6](docs/Engineering/GraspPortable-Architecture-v1.0.0-rc.6.md)／[圖解 v1.2.1](docs/Engineering/GraspPortable-Architecture-Diagrams-v1.2.1.md)：四 Projects、程序、來源／journal、Records 投影。
 5. [Engineering](docs/Engineering/README.md)：方法、目錄原則、主動 subagent、技術結果。
 6. [開發環境](docs/Engineering/Development-Environment.md)：Workspace／repository 與本機觀測。

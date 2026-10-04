@@ -1,10 +1,10 @@
 ---
 title: GraspPortable — Core Development Method
-version: 1.0.0-rc.11
+version: 1.0.0-rc.12
 updated: 2026-10-04
 status: current-development-method
 scope: planning-and-authorized-goal-execution
-supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.10.md
+supersedes: GraspPortable-Core-Development-Method-v1.0.0-rc.11.md
 ---
 
 ## Interface｜Plan 先確認方向，Goal 再完成實作
@@ -172,13 +172,13 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 ### 主動 subagent 協作
 
-是否委派與主代理的 reasoning effort 無關；即使以 medium effort 工作，每個工作段開始也主動評估獨立實作及有界審查是否能節省時間或提高品質。有收益即可委派，不等待使用者逐次指定。
+每個自然工作段開始，主代理依 [Model Routing Policy](Model-Routing-Policy-v1.0.0-rc.1.md) 評估適任能力、Context Affinity（已掌握且仍有效的上下文）與完整交接成本；有實際收益才委派，不等待使用者逐次指定，也不為填滿名額拆工。
 
-通常由主代理加 1–2 個 subagents 協作；遵守執行環境的並行上限，目前共四個 agents，不為填滿名額拆工。主代理負責範圍、共同契約、資料所有權、交易邊界、跨模組整合與最終驗收。契約固定後，parser／codec fixtures、App editor／ViewModel 可獨立實作；交易、過期結果、rename、UI 更新可安排另一 agent 唯讀審查。
+Root 保留範圍、共同契約、資料所有權、交易邊界、跨模組整合與最終驗收。模型／effort、子代理預設與獨立審查條件由上述單一政策指定；目前生效核對及試行進度另見 [Routing Trial State](../ROUTING-TRIAL-STATE.md)。這是本專案已授權的選模路由，不是額度耗盡時自動降級的替代方案。
 
-每次交棒附：目標、可修改檔案、已批准契約、排除範圍、驗收方式及回報格式。共享工作目錄使用不重疊檔案責任；Contracts、DI、migration 維持單一擁有者，跨邊界修改先回報主代理。小工作或高度耦合工作順序處理，不強拆。
+每次交棒附目標、ownership、契約／反例、完成判準、範圍及停止條件。共享工作目錄採不重疊責任，Contracts、DI、migration 與活躍 GUI 維持單一 owner。原 agent 適任且已有有效 context 時優先延續；主代理已定位的小修正直接完成。
 
-模型與 effort 預設沿用；不依工作看似簡單就自動降低能力或切換 Reserve。Agent 四維欄位描述需求，不構成模型切換授權。主代理檢查差異、整合與必要端到端驗證，不把子代理的完成回覆直接當驗收結果；不重複全量探索及完整測試。
+以一個可驗證成果組成工作段，通常包含實作與必要 targeted tests；不把同一修改的 coding／testing 無必要地拆給多個 agents。Root 審查關鍵差異與跨模組接縫，不重做全量探索或把 worker 的完成回覆直接當驗收。Goal 在已授權範圍內持續選下一段，不要求使用者逐包批准；暫停與恢復仍依最新使用者指示及原 thread 狀態。
 
 ### 全局檢視與有界驗證
 
@@ -196,7 +196,7 @@ Mobile 及雲端功能依使用者接受的階段交付；產品的長期方向�
 
 主要 milestone 前後記錄實際可取得的 quota snapshot、來源、時間、window、差值、成果及 commit 關聯。只在同一額度窗口計算差值；帳戶總量不冒充單任務精確計費。無法讀值就記 unavailable，不估 token。
 
-正常額度不足時依當次已授權政策處理。本次 Goal 已授權：正式回應確認正常額度耗盡後，才以正式支援介面使用可用重置券；同一邏輯重試沿用 idempotency key，兌換後重讀額度。不能把網路錯誤當耗盡，不購買額度、不自動降模型或切換 Reserve。監測僅服務本次 Goal，完成或使用者停止時一併結束。正式工具不可用或零額度後續跑未驗證時如實記錄，不繞過平台限制、不承諾必定自動恢復。
+正常額度不足時依當次已授權政策處理。本次 Goal 已授權：正式回應確認正常額度耗盡後，才以正式支援介面使用可用重置券；同一邏輯重試沿用 idempotency key，兌換後重讀額度。不能把網路錯誤當耗盡，不購買額度、不因額度不足改用未授權模型或切換 Reserve；依已授權 routing policy 分派子任務與額度不足的 fallback 分開處理。監測僅服務本次 Goal，完成或使用者停止時一併結束。正式工具不可用或零額度後續跑未驗證時如實記錄，不繞過平台限制、不承諾必定自動恢復。
 
 每個工作段持續保存 checkpoint、驗證範圍及 exact next step，使突然失去額度時仍可恢復。Goal 只在完成條件成立時標 complete；阻礙時先推進不受影響工作，真正無法續作才按工具的阻礙規則處理。不自行暫停或以單次回合結束冒充完成。
 
