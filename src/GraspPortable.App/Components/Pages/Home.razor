@@ -105,7 +105,7 @@
  }else if(_dialog=="rename"){
  <h2>名稱變更會影響其他引用</h2><p>@_confirmationResult?.Message</p><p>受影響筆記：@(_confirmationResult?.AffectedNoteIds?.Length??0)</p><div class="modal-actions"><button @onclick="KeepRenameDraftAsync" disabled="@_busy">保留草稿，稍後提交</button><button class="primary" @onclick="ConfirmRenameAsync" disabled="@_busy">確認名稱變更</button></div>
  }else if(_dialog=="conflict"){
- <h2>保留草稿，確認合併內容</h2><p>左側是最新保存的原文，可能仍未通過語意核對；右側保留你的標題與正文。請一起確認，提交時會再次檢查版本。</p><div class="merge-grid"><div><label>最新標題<input readonly value="@_conflictNote?.Title" /></label><label>最新保存原文<textarea readonly value="@_conflictNote?.Source"></textarea></label></div><div><label>要提交的標題<input @bind="_mergeTitle" /></label><label>要提交的合併正文<textarea @bind="_mergeSource"></textarea></label></div></div><div class="modal-actions"><button @onclick="CloseDialog">稍後處理</button><button class="primary" @onclick="ApplyMergeAsync" disabled="@_busy">確認右側標題與正文並提交</button></div>
+ <h2>保留草稿，確認合併內容</h2><p>左側是最新保存的原文，可能仍未通過語意核對；右側保留你的標題與正文。請一起確認，提交時會再次檢查版本。稍後處理會保存右側草稿，保留原本版本基底，不覆寫左側原文。</p><div class="merge-grid"><div><label>最新標題<input readonly value="@_conflictNote?.Title" /></label><label>最新保存原文<textarea readonly value="@_conflictNote?.Source"></textarea></label></div><div><label>要提交的標題<input @bind="_mergeTitle" @bind:event="oninput" disabled="@_busy" /></label><label>要提交的合併正文<textarea @bind="_mergeSource" @bind:event="oninput" disabled="@_busy"></textarea></label></div></div><div class="modal-actions"><button @onclick="KeepConflictDraftAsync" disabled="@_busy">保留草稿，稍後處理</button><button class="primary" @onclick="ApplyMergeAsync" disabled="@_busy">確認右側標題與正文並提交</button></div>
  }
  @if(_busy){<p class="muted">處理中…</p>}
 </section></div>}

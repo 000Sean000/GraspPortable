@@ -1,11 +1,23 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.32.0
+version: 1.33.0
 updated: 2026-10-04
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
-## 目前授權與 Goal
+## 最新收工 checkpoint：依使用者要求暫停
+
+2026-10-04 使用者要求在可告一段落時暫時收工。本段完成衝突草稿離開修正與必要核對後暫停 Goal，不再擴大測試；尚未達 S4 完成條件，使用者接受仍另記。以下較早段落的 active／待驗描述是歷史，續作以本節與文末為準。
+
+從 `6977ba378d8a0b4ee9c7350e37de9f7ab4f95ddc` 續作。主驗收 workspace 已到 revision 77：長文屬性重新解析及 Anria 卡片圖片／Wiki 導航通過有限原生流程；外部修改與 dirty draft 衝突保持兩版本。修正合併視窗「稍後處理」原先無法正常退出的問題：保存右側新增內容，保留原版本基底，明確提交仍重新核對衝突。DraftDeparture 67 assertions、App Release build 及本機 publish 通過；原生正常關閉、重開恢復、再次明確保存的衝突提示已驗。
+
+收工正常關閉後 App、Host executable 及 dotnet Host 均無程序，前台已釋放。唯讀核對 draft revision 2／base 76、最新原文 revision 77，右側新增文字與原基底完整保留；外部第二版同時存在 SavedSource.Text 與實體 Markdown；未接受的 ImeRaceDeferred 沒有發布成 definition。兩份 durable drafts 保留。私人證據：`workspaces/AcceptanceSupport/shutdown-checkpoint-verification.json`，不進 Git。
+
+收工官方額度快照：ordinaryUsageAllowed true，七日窗口 usedPercent 13（剩餘 87%），reset Unix 1791708203，可用重置券 0。相較同窗口上一 checkpoint 5% 增加 8 個百分點，屬帳戶共享量，不是本任務精確成本。沒有啟動新監測或兌換。
+
+效能仍未通過：本段探針上限 600 秒，但有效操作樣本少；Records query n=3、p95 491.3 ms，須區分首次及暖機查詢後再判斷，不降低 200 ms 暖機門檻。IME 本段按鍵未進入組字，不能把 dirty conflict 驗收當作 IME 競態通過。縮放／凍結區焦點與足量代表操作仍待驗。資料表 Wiki／Grasp 各呈現面的參照、高亮、隱語法、直接導航需求持續有效，既有有限原生證據見 S3／S4 Validation。
+
+## 先前授權與 Goal 觀測
 
 本次續作核對：一般額度可用，七日窗口 usedPercent 5（剩餘 95%），reset Unix 1791708203，可用重置券 0；未兌換。這是帳戶共用快照。長文修正的有界獨立 code review 無發現，未重跑已通過測試。`d9715a49bbaa383d43fd734199dde859b8c5f7ae` 已 commit／push 並以 ls-remote 核對；其後補驗結果如下。
 
@@ -246,6 +258,6 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-核對本段 Git checkpoint，從 `S4-Acceptance-1004` revision 59 續作；`S4-Draft-Restored-1004-1447` 保留較新 durable draft 還原證據。三篇合成筆記的 computed Markdown 原生 Reading／定位已通過並正常關閉；主驗收資料須由目標來源安全重新解析，保留未完成原文與 rename draft，不清 DB。
+等待使用者恢復 Goal；暫停期間不自動測試或開新工作。恢復後先核對 Git checkpoint，沿 `S4-Acceptance-1004` revision 77 續作，保留兩份 durable drafts、未完成原文與原還原 workspace，不清 DB。主長文重解析、Anria、衝突草稿關閉／重開已驗，不重做同範圍測試。
 
-接著完成 IME／dirty 外部競態、代表性縮放／凍結區鍵盤焦點、Anria 長文樣本及至少 30 次代表操作／約五分鐘端到端量測。不能用少量 query 或工具等待時間代替。missing、基本 allowlist、兩式卡片導航、第二 view、改名、較新草稿還原已有證據，按新增風險補測，不全量重做。前台測試前另行提醒；GoalSupport 原監測已退出且重置券為零，不宣稱仍在監測。最終仍需逐項完成條件審核、文件一致及 commit／push 核對，Goal 保持 active，使用者接受另記。
+優先有界釐清 Records query 491.3 ms 的首次／暖機來源，接著補實際 IME 外部競態、代表性縮放／凍結區鍵盤焦點及至少 30 次代表操作／約五分鐘端到端量測。missing、基本 allowlist、兩式卡片導航、第二 view、改名及較新草稿還原已有證據，按新增風險補測。前台測試前另行提醒；GoalSupport 原監測已退出，沒有持續監測或自動續跑承諾。最後仍需逐項完成條件審核、文件一致及 commit／push 核對，不能將暫時收工標為 Goal complete。

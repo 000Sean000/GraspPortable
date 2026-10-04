@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.4.0
+version: 1.5.0
 updated: 2026-10-04
 status: native-gui-partially-verified
 ---
@@ -8,6 +8,14 @@ status: native-gui-partially-verified
 ## 判定
 
 Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；IME／dirty 競態、DPI 及量化端到端仍未完整驗收。使用者接受另記。
+
+## 2026-10-04 衝突草稿暫存與正常退出
+
+修正合併視窗「稍後處理」只關對話框、退出又再次要求合併的問題。現在先保存右側新增標題／正文，沿用原版本基底；只有確認合併才接受外部版本。未知操作、組字及尚未得到 durable acknowledgement 的新編輯仍不可直接離開。
+
+DraftDeparture guard 67 assertions、App Release build／publish 通過；guard 測試不替代 Home UI。主代理另以實際 Windows App 完成右側加字→保留→正常關閉→重開恢復→明確保存仍提示衝突→再次保留退出。唯讀核對外部 revision 77、草稿 base 76／revision 2 和文字均保留，未接受改名未發布。
+
+本段嘗試按鍵未進入中文組字，未取得新的 IME 競態證據；保留先前基本注音流程的有限證據，不把 ASCII 輸入、貼上或 dirty conflict 當作組字驗收。收工時 App／Host 均正常退出，依使用者要求暫停。
 
 ## 2026-10-04 解析清單原生流程
 

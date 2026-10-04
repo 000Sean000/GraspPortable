@@ -1,11 +1,13 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.9.0
+version: 1.10.0
 updated: 2026-10-04
 status: s1-s4-trial-awaiting-native-acceptance
 ---
 
 ## 啟動與資料位置
+
+遇到外部修改衝突時，可在合併視窗右側繼續整理內容，再選「保留草稿，稍後處理」。程式會保存右側文字並保留舊版本基底，允許正常關閉；重開可恢復草稿，明確保存仍需處理兩版本，不會自動覆寫外部原文。
 
 本頁描述最新本機 Windows 發行：Markdown workspace、檔案樹、備份／還原、實體檔案合併／拆分、長文資料表及 Markdown table 轉換已接入。最新 S3／S4 流程尚未完成原生驗收；下方新功能步驟是操作入口，不是已驗證成功的聲明。進度見 [EXECUTION-STATE](../EXECUTION-STATE.md)，證據見 [S2 Validation](S2-Validation.md) 與 [S3／S4 Validation](S3-S4-Validation.md)。
 

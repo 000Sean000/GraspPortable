@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.15.0
+version: 1.16.0
 updated: 2026-10-04
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -9,7 +9,30 @@ status: implemented-parts-with-partial-native-evidence
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
 
-## 長文轉換與巢狀參照（revision 58–59）
+## 最新有界補驗與收工（revision 60–77）
+
+主 workspace 以定點外部段落修改觸發重解析至 60，原生相依筆記的整欄 reference 保留多段粗體、空行與清單，不再落入 indented code。欄位 definition ID 不變。既有未完成原文和其他 durable draft 保留，沒有清 DB 或全域重建。
+
+Mentors 新增 Markdown 欄位 Biography（61），Anria 卡片貼入按需求選取的原卡長文，確認五個 heading 的巢狀清單轉換後保存（62）。重開卡片可見圖片、層級、隱語法／highlight 的 Wiki；點「查看 Anria 原卡」直接到實際來源檔。短名稱在有限樣本不存在時仍屬 missing，不猜測其他目標。私人來源、圖片及 manifest 不進 Git。
+
+合成互動筆記的 dirty rename draft 與外部原文保持兩版本；確認合併後至 76。再次外部修改至 77，合併右側另加文字，選「保留草稿，稍後處理」後正常關閉／重開，新增文字與 base 76 保留。明確保存仍顯示最新外部原文與本地草稿，不自動採用新基底。再次保留、正常退出後核對 draft revision 2、兩份 durable drafts、原文存在 SavedSource.Text 及實體檔，未接受改名未發布。App／Host 程序零。這是 dirty conflict 原生證據，非 IME 競態證據。
+
+本段 `ui-20261004-091004.json` 為 600 秒上限的私人量測，skipped 0：
+
+| 指標 | 樣本與結果 |
+| --- | --- |
+| 前景 rAF interval | n=142,356，p95 4.3 ms，max 70.9 ms，≥200 ms 為 0 |
+| 前景 long task | n=9，p95／max 74 ms |
+| 滾動 rAF interval | n=758，p95 8.3 ms，max 29.2 ms |
+| 輸入至 paint opportunity | n=5，p95／max 10.6 ms |
+| 筆記切換／首次 | 各 n=1，82.4／49.3 ms |
+| Records query 至 paint opportunity | n=3，p95／max 491.3 ms，尚須區分首次／暖機 |
+| Records commit 至 paint opportunity | n=2，p95／max 652.8 ms |
+| Note commit 至 rendered note | n=2，p95／max 111.6 ms |
+
+這不是完整效能通過：600 秒含操作間工具等待，不等於五分鐘連續互動；有效樣本不足 30 次代表操作，暖機 query 200 ms 門檻尚未證明。探針達上限後的操作不計入。使用者要求暫時收工，IME／縮放／焦點與足量效能留到恢復 Goal 後，不擴充資料規模。
+
+## 歷史：長文轉換與巢狀參照（revision 58–59）
 
 續作補驗：最新 publish 在三篇合成 workspace revision 7 的 Reader／Reading 顯示兩段粗體、空行及 A→B→C 三層清單，沒有多出的 code block；外層屬性 reference 隱藏語法／highlight，點第二段開 Projection.md 並定位欄位正文第 7 行。Alt+F4 正常關閉後 App／Host（含 dotnet Host）程序皆零。此為先前 Esc 中斷後重新提醒並完成的原生檢查；不代表主 workspace 59 已重建解析，也不代替 IME／DPI／效能驗收。
 

@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.21.0
+version: 1.22.0
 updated: 2026-10-04
 scope: rewrite-branch-entry
 ---
@@ -13,7 +13,9 @@ scope: rewrite-branch-entry
 
 Wiki／Grasp 參照已在本機發行：非編輯區顯示可讀連結、直接導航，Grasp 定位定義所在檔案與 block；reader、資料表 cell／完整欄位／卡片、草稿保護及 Wiki／Grasp Enter 已通過有限原生流程。欄位 key／record 名稱与 key／選項改名後參照保持，小表轉換會直接選中新表。未接受草稿保留引用原文與提示，避免誤當普通連結；缺失 Wiki／record／definition 的明示拒絕已驗，足量效能仍待驗。
 
-長文欄位提供標題層級轉換預覽，確認後保存巢狀清單及轉換前原文恢復歷史。Triensa 樣本的圖片、Wiki 與兩式多段 reference 已完成有限原生導航及外部修改重開驗證；整個欄位作為屬性被引用時的清單排版修正已通過工程／renderer 檢查與小型合成案例的原生 Reading／定位，主驗收資料仍待重新解析此修正。
+長文欄位提供標題層級轉換預覽，確認後保存巢狀清單及轉換前原文恢復歷史。Triensa 的圖片、Wiki 與兩式多段 reference 已完成有限原生導航及外部修改重開驗證；整欄屬性引用的清單排版修正已在主驗收資料重解析後確認。Anria 長文卡片也已驗證層級轉換、圖片與 Wiki 回原卡導航。
+
+衝突視窗可保存右側草稿後正常退出；重開保留內容與舊基底，明確保存仍核對外部修改。使用者要求在此 checkpoint 暫時收工，完整 S4／IME 競態／缩放焦點及足量效能尚未通過，等待恢復 Goal。
 
 資料表新增「跨表標籤」搜尋並依 record ID 開原卡片，卡片內連結保留。改名可選保留草稿後切換／備份／正常關閉；較新 durable draft 已實測還原至另一個 workspace，完整內容與版本基底一致。明確儲存仍要求語意確認，未知操作保留原 ID 查核。這些有限原生結果不代表 S4 全部完成。
 

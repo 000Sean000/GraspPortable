@@ -26,6 +26,7 @@ public partial class Home
     private ReferenceDto[] _references = [];
     private DiagnosticDto[] _diagnostics = [];
     private NoteDto? _note, _conflictNote;
+    private DurableDraftSnapshot? _conflictDraft;
     private DefinitionDto? _selectedDefinition;
     private ImpactDto? _impact;
     private string _title="", _source="", _savedSource="", _savedTitle="", _sessionId=Guid.NewGuid().ToString("N");
@@ -260,7 +261,7 @@ public partial class Home
             {
                 var complete=await CaptureEditorAsync();
                 var durable=complete && _draftDeparture.CanLeave(CurrentDraftSnapshot(),false);
-                _saveStatus=durable?"草稿已保存 · 名稱變更尚未提交":"新的編輯尚未保存";
+                _saveStatus=durable?"草稿已保存 · 尚未提交":"新的編輯尚未保存";
                 if(!durable && complete)ScheduleSave();
                 return durable;
             }
@@ -346,8 +347,27 @@ public partial class Home
     {
         if(_note is null)return;
         _conflictNote=await Backend.GetAsync<NoteDto>("api/notes/"+_note.Id);
+        _conflictDraft=CurrentDraftSnapshot();
         _mergeTitle=_title; _mergeSource=_source; _dialog="conflict"; _notice=message; _saveStatus="草稿保留 · 需要合併";
     }
+    private async Task KeepConflictDraftAsync() => await ModalActionAsync(async () =>
+    {
+        if(_conflictDraft is not { } original || _note?.Id!=original.NoteId || _sessionId!=original.SessionId)return;
+        if(!await CaptureEditorAsync()) { _saveStatus="輸入法組字中 · 完成後保存"; return; }
+        if(_mergeTitle!=original.Title || _mergeSource!=original.Source)
+        {
+            // The right pane may contain further work. Keep it as a draft on
+            // its original base; only ApplyMerge accepts the external version.
+            if(_title!=original.Title || _source!=original.Source)
+            { _error="合併視窗開啟後草稿又有變更；兩側內容仍保留，請先確認再提交。"; return; }
+            _title=_mergeTitle; _source=_mergeSource; _contentVersion++; _editorRevision=0; _forceDraftSave=true;
+            await editor!.InvokeVoidAsync("setDocument",_note.Id,_source,0,Array.Empty<ReferenceDto>(),_mode=="live");
+        }
+        _draftDeparture.Defer(_note.Id,_sessionId);
+        // SaveCurrent waits for the active writer, rejects unknown outcomes
+        // and IME, and acknowledges the exact latest bytes before allowing exit.
+        if(await SaveCurrentAsync()) { _dialog=null; _conflictNote=null; _conflictDraft=null; }
+    });
     private async Task ApplyMergeAsync() => await ModalActionAsync(async () =>
     {
         if(_conflictNote is null || _note?.Id!=_conflictNote.Id)return;

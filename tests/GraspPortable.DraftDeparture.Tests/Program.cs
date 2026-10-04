@@ -60,7 +60,7 @@ try
 
     // Exercise the same writer acquisition used by Home: Keep is queued while
     // a blur commit owns the semaphore, not rejected from its temporary ID.
-    foreach(var outcome in new[]{"confirmation-required","unknown","transport-failure"})
+    foreach(var outcome in new[]{"confirmation-required","conflict","unknown","transport-failure"})
     {
         using var writer=new SemaphoreSlim(1,1);
         var queuedGuard=new DraftDepartureGuard();queuedGuard.Acknowledge(draft);
@@ -91,11 +91,33 @@ try
         Check(!keeping.IsCompleted,"Keep waits for the actual active blur writer: "+outcome);
         response.SetResult();await blur;
         var departed=await keeping;
-        Check(departed==(outcome=="confirmation-required"),"queued Keep uses settled outcome and acknowledged snapshot: "+outcome);
-        Check(queuedGuard.HasUnresolvedOperation==(outcome!="confirmation-required"),"only unknown/failed transport offers exact-operation retry: "+outcome);
+        var terminal=outcome is "confirmation-required" or "conflict";
+        Check(departed==terminal,"queued Keep uses settled outcome and acknowledged snapshot: "+outcome);
+        Check(queuedGuard.HasUnresolvedOperation==!terminal,"only unknown/failed transport offers exact-operation retry: "+outcome);
         Check(writer.CurrentCount==1,"every queued path releases the writer: "+outcome);
         if(!departed)Check(queuedGuard.PendingOperationId=="blur-op","unknown outcome preserves the original operation identity");
     }
+    // A conflict response resolves the commit attempt, not the stale draft's
+    // original base. Deferral retains that base and does not accept external text.
+    var conflictGuard=new DraftDepartureGuard();conflictGuard.Acknowledge(draft);
+    conflictGuard.BeginOperation("conflicting-commit");
+    Check(conflictGuard.CompleteOperation("conflicting-commit","conflict"),"a known conflict settles the attempted commit");
+    conflictGuard.Defer(draft.NoteId,draft.SessionId);
+    Check(conflictGuard.CanLeave(draft,false),"explicit conflict deferral permits the exact durable local version to leave");
+    Check(!conflictGuard.CanLeave(draft,true),"conflict deferral never bypasses active IME");
+    var externalBase=draft with {BaseNoteRevision=75,BaseSourceHash="external-source"};
+    Check(!conflictGuard.CanLeave(externalBase,false),"deferral cannot silently accept a newer external base");
+    var rightPane=draft with {Revision=8,Title="合併草稿標題",Source=draft.Source+"\n尚未確認的右側內容"};
+    Check(!conflictGuard.CanLeave(rightPane,false),"right-pane work must receive its own durable acknowledgement");
+    conflictGuard.Acknowledge(rightPane);
+    Check(conflictGuard.CanLeave(rightPane,false)&&rightPane.BaseNoteRevision==draft.BaseNoteRevision&&rightPane.BaseSourceHash==draft.BaseSourceHash,
+        "right-pane draft can be saved while retaining the original conflict base");
+    var afterDeferral=rightPane with {Revision=9,Source=rightPane.Source+"\n稍後又新增"};
+    Check(!conflictGuard.CanLeave(afterDeferral,false),"new local edits after Later cannot reuse an older acknowledgement");
+    conflictGuard.Acknowledge(afterDeferral);
+    Check(conflictGuard.CanLeave(afterDeferral,false)&&conflictGuard.IsDeferred("note","session"),"freshly saved edits can leave without auto-merging");
+    conflictGuard.RequestSubmission("note","session");
+    Check(!conflictGuard.IsDeferred("note","session"),"explicit Save after conflict deferral retries semantic conflict handling");
     Console.WriteLine($"Draft departure: {checks} bounded assertions passed.");
     return 0;
 }
