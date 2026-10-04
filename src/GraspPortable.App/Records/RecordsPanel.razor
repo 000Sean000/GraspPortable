@@ -27,22 +27,28 @@
     }
     else
     {
+        // Keep these projections local to this render; no cache can survive a view or source change.
+        var visibleFields = VisibleFields;
+        var frozenColumns = Math.Clamp(_view?.FrozenColumns ?? 0, 0, visibleFields.Length);
+        var filteredRows = FilteredRows();
+        var displayRows = DisplayRows(filteredRows);
+        var pageCount = CountPages(filteredRows.Length);
         @if (SourceBlocked) { <div class="records-message warning">來源目前有草稿或未接受的變更（@_data.SourceStatus）。內容保持可讀；請先開啟原文處理，再修改資料表。</div> }
         @if (_data.Diagnostics.Length > 0) { <details class="records-diagnostics"><summary>來源有 @_data.Diagnostics.Length 項診斷</summary>@foreach (var diagnostic in _data.Diagnostics) { <p><strong>@diagnostic.Code</strong> @diagnostic.Message</p> }</details> }
-        <div class="records-table-actions"><span>@FilteredRows().Length / @_data.Rows.Length 筆 · @VisibleFields.Length 個顯示欄位</span><div><button @onclick="() => ShowField()" disabled="@SourceBlocked">＋ 欄位</button><button class="primary" @onclick="() => ShowRow()" disabled="@SourceBlocked">＋ 紀錄</button></div></div>
+        <div class="records-table-actions"><span>@filteredRows.Length / @_data.Rows.Length 筆 · @visibleFields.Length 個顯示欄位</span><div><button @onclick="() => ShowField()" disabled="@SourceBlocked">＋ 欄位</button><button class="primary" @onclick="() => ShowRow()" disabled="@SourceBlocked">＋ 紀錄</button></div></div>
         <div class="records-scroll" tabindex="0" aria-label="可水平及垂直捲動的資料表">
-            <table class="records-grid"><colgroup><col style="width:220px" />@foreach (var field in VisibleFields) { <col style="width:220px" /> }</colgroup>
-                <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in VisibleFields) { <th @key="field.Id" class="@(columnIndex < FrozenColumns ? "frozen-field-head" : "")" style="@ColumnStyle(columnIndex++)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
-                <tbody>@{ var displayRows = DisplayRows(); }@for (var rowIndex = 0; rowIndex < displayRows.Length; rowIndex++)
+            <table class="records-grid"><colgroup><col style="width:220px" />@foreach (var field in visibleFields) { <col style="width:220px" /> }</colgroup>
+                <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in visibleFields) { <th @key="field.Id" class="@(columnIndex < frozenColumns ? "frozen-field-head" : "")" style="@ColumnStyle(columnIndex++, frozenColumns)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
+                <tbody>@for (var rowIndex = 0; rowIndex < displayRows.Length; rowIndex++)
                 {
                     var row = displayRows[rowIndex]; var position = rowIndex;
                     <tr @key="row.Id" class="@(position < FrozenRows ? "frozen-row" : "")">
                         <th scope="row" class="record-title-cell" style="@(RowStyle(position))"><button class="record-title-button" @onclick="() => ShowCard(row)"><strong>@row.DisplayName</strong><small>@row.Key</small><span>↗</span></button></th>
                         @{ var fieldIndex = 0; }
-                        @foreach (var field in VisibleFields)
+                        @foreach (var field in visibleFields)
                         {
                             var cell = row.Cells.FirstOrDefault(c => c.FieldId == field.Id); var col = fieldIndex++;
-                            <td @key="field.Id" style="@(ColumnStyle(col) + RowStyle(position) + (position < FrozenRows && col < FrozenColumns ? "z-index:5;" : ""))">
+                            <td @key="field.Id" style="@(ColumnStyle(col, frozenColumns) + RowStyle(position) + (position < FrozenRows && col < frozenColumns ? "z-index:5;" : ""))">
                                 <div class="record-cell @(cell?.IsNull != false ? "null-cell" : "") @(HasCellProblem(cell) ? "cell-diagnostic" : "")" @onclick="() => ShowCell(row, field)">
                                     <div class="record-cell-read" @onclick:stopPropagation="true">
                                         @if (RenderManagedCell(field, cell))
@@ -61,7 +67,7 @@
             </table>
             @if (displayRows.Length == 0) { <div class="table-empty">沒有符合搜尋或篩選條件的紀錄。</div> }
         </div>
-        <footer class="records-footer"><span>每頁最多 50 筆 · 固定標題列與紀錄欄 @if (FrozenRows > 0 || FrozenColumns > 0) { <span> · 另凍結 @FrozenRows 筆 / @FrozenColumns 欄</span> }</span><div><button disabled="@(_page == 0)" @onclick="() => _page--">上一頁</button><span>@(_page + 1) / @PageCount</span><button disabled="@(_page + 1 >= PageCount)" @onclick="() => _page++">下一頁</button></div></footer>
+        <footer class="records-footer"><span>每頁最多 50 筆 · 固定標題列與紀錄欄 @if (FrozenRows > 0 || frozenColumns > 0) { <span> · 另凍結 @FrozenRows 筆 / @frozenColumns 欄</span> }</span><div><button disabled="@(_page == 0)" @onclick="() => _page--">上一頁</button><span>@(_page + 1) / @pageCount</span><button disabled="@(_page + 1 >= pageCount)" @onclick="() => _page++">下一頁</button></div></footer>
     }
 </section>
 

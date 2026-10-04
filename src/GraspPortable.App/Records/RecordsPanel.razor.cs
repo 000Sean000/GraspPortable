@@ -185,7 +185,6 @@ public partial class RecordsPanel : IAsyncDisposable
     private RecordFieldSchemaDto[] VisibleFields => _data is null ? [] : (_view?.ColumnOrder ?? _data.Fields.Select(f => f.Id).ToArray())
         .Select(id => _data.Fields.FirstOrDefault(f => f.Id == id)).OfType<RecordFieldSchemaDto>().ToArray();
     private int FrozenRows => Math.Clamp(_view?.FrozenRows ?? 0, 0, 10);
-    private int FrozenColumns => Math.Clamp(_view?.FrozenColumns ?? 0, 0, VisibleFields.Length);
     private RecordRowDto[] FilteredRows()
     {
         if (_data is null) return [];
@@ -201,13 +200,13 @@ public partial class RecordsPanel : IAsyncDisposable
         }
         return (sorted ?? rows).ToArray();
     }
-    private RecordRowDto[] DisplayRows()
+    private RecordRowDto[] DisplayRows(RecordRowDto[] rows)
     {
-        var rows = FilteredRows(); var frozen = Math.Min(FrozenRows, rows.Length); var size = PageSize - frozen;
+        var frozen = Math.Min(FrozenRows, rows.Length); var size = PageSize - frozen;
         return rows.Take(frozen).Concat(rows.Skip(frozen + _page * size).Take(size)).ToArray();
     }
-    private int PageCount { get { var count = FilteredRows().Length; var frozen = Math.Min(FrozenRows, count); return Math.Max(1, (int)Math.Ceiling((count - frozen) / (double)(PageSize - frozen))); } }
-    private void ClampPage() => _page = Math.Clamp(_page, 0, PageCount - 1);
+    private int CountPages(int count) { var frozen = Math.Min(FrozenRows, count); return Math.Max(1, (int)Math.Ceiling((count - frozen) / (double)(PageSize - frozen))); }
+    private void ClampPage() => _page = Math.Clamp(_page, 0, CountPages(FilteredRows().Length) - 1);
     private static bool Matches(RecordCellDto? cell, RecordFilterDto filter) => filter.Operator switch {
         "is-null" => cell?.IsNull != false, "not-null" => cell?.IsNull == false,
         "equals" => cell is not null && !cell.IsNull && (CellText(cell).Equals(filter.Value, StringComparison.OrdinalIgnoreCase)
@@ -239,7 +238,7 @@ public partial class RecordsPanel : IAsyncDisposable
     private string FieldName(string id) => _data?.Fields.FirstOrDefault(f => f.Id == id)?.DisplayName ?? id;
     private bool SourceBlocked => _data is { HasDraft: true } || _data is { SourceStatus: not "accepted" };
     private bool InputsLocked => _busy || _unknownOutcome || _needsConfirmation || HasConversionPreview || _dialogWorkspace != WorkspaceKey;
-    private string ColumnStyle(int index) => index < FrozenColumns ? $"position:sticky;left:{220 + index * 220}px;z-index:3;background:#fafbf6;" : "";
+    private static string ColumnStyle(int index, int frozenColumns) => index < frozenColumns ? $"position:sticky;left:{220 + index * 220}px;z-index:3;background:#fafbf6;" : "";
     private string RowStyle(int index) => index < FrozenRows ? $"position:sticky;top:{44 + index * 58}px;z-index:4;background:#f2f5ed;" : "";
 
     private void StartDialog(string kind)

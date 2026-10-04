@@ -1,7 +1,7 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.16.0
-updated: 2026-10-04
+version: 1.17.0
+updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
 
@@ -9,7 +9,19 @@ status: implemented-parts-with-partial-native-evidence
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
 
-## 最新有界補驗與收工（revision 60–77）
+## Records 暖機比較與有界優化（2026-10-05）
+
+保留主 workspace revision 77、兩份 durable drafts 及既有外部原文。先以原發行版走 Mentors → Aura → Mentors → Aura → Mentors → Aura，私人報告 `ui-20261004-181607.json` 的 collection-switch 五次樣本依序為 277.7、123.5、261.1、114.4、254.1 ms。第一個 Aura 為首次；其後暖機 Aura 261.1／254.1 ms 明確超過 200 ms 門檻，不能把首次成本混入後就忽略暖機失敗。
+
+本次 Read 捕捉同一 knowledge snapshot、只建立一次 Owners、以 request-local lookup 取欄位／definition／syntax，仍以 Single／SingleOrDefault 拒絕所查 key 的重複。草稿狀態每次 Read 取一次（記憶體字典，不是 SQLite I/O）。App 每次 render 重用 visible fields、filtered rows、display rows 與頁數，不保留跨 view／source 的 cache；identity、reference metadata、revision、導航與圖片 invalidation 不改。
+
+必要驗證：RecordsService `query-read render baseline` 60 assertions、Records UI 21 fixtures、四 Project 架構檢查及 App／Host Release publish 通過。fixtures 涵蓋 typed null、兩式 reference／UTF-16 ranges、relation choices、missing definition、重複 field origin、dirty／stale 編輯限制；build 或 fixtures 不證明原生效能。
+
+新版同一集合切換流程在私人 `ui-20261004-212000.json` 得到 274.4、118.8、246.1、115.0、247.9 ms。Mentors 暖機 115.0–118.8 ms；Aura 暖機 246.1–247.9 ms，較基線稍降但**仍未達標**。兩次暖機不是足量 p95 驗收，也不能隔離每項優化的因果貢獻。query 及 collection-switch 屬同一操作的不同 span，不重複算驗收次數。
+
+原生畫面：既有 conflict draft 選保留後進入表格，沒有接受或覆寫外部原文；Mentors 15 筆／8 顯示欄位與 Aura 81 筆／5 欄位仍有 Wiki 高亮；Aura 第二頁從 Aura51 起，分頁未套錯列。正常關閉後 App／Host（含 dotnet Host）程序均無，前台釋放。本次不重宣告舊連結點擊、IME、DPI 或整體 S4 通過；下一步針對 cell rendering／interop 成本做必要定位，不擴大測試資料或降低門檻。
+
+## 先前有界補驗與收工（revision 60–77）
 
 主 workspace 以定點外部段落修改觸發重解析至 60，原生相依筆記的整欄 reference 保留多段粗體、空行與清單，不再落入 indented code。欄位 definition ID 不變。既有未完成原文和其他 durable draft 保留，沒有清 DB 或全域重建。
 

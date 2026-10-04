@@ -26,22 +26,30 @@ public sealed partial class WorkspaceRecords(MarkdownWorkspaceRepository reposit
 
     public CollectionDto Read(string collectionId)
     {
-        var owner = Find(collectionId); var note = owner.Note; var descriptor = note.CurrentRecords!; var basis = knowledge.Current;
+        var basis = knowledge.Current;
+        var owners = Owners(basis);
+        var owner = Find(collectionId, owners); var note = owner.Note; var descriptor = note.CurrentRecords!;
+        var hasDraft = knowledge.GetDraft(note.Id) is not null;
         var fields = VerticalRecordCodec.Parse(note.CurrentSource, descriptor);
+        // Lookups retain Single/SingleOrDefault duplicate rejection for requested keys.
+        var fieldsByOrigin = fields.Fields.ToLookup(f => (f.RecordId, f.FieldId));
+        var definitionsByOrigin = basis.Definitions.Values.Where(d => d.NoteId == note.Id && d.FieldOrigin is not null)
+            .ToLookup(d => d.FieldOrigin!);
+        var syntaxByName = note.Syntax.Definitions.ToLookup(d => d.Name, StringComparer.Ordinal);
         var definitionsByName = basis.Definitions.Values.ToDictionary(d => d.Name, StringComparer.Ordinal);
-        var choices = Owners().SelectMany(o => o.Note.CurrentRecords!.Records.Select(r => new RecordChoiceDto(r.Id, r.Key, r.DisplayName, o.Metadata.CollectionId))).ToArray();
+        var choices = owners.SelectMany(o => o.Note.CurrentRecords!.Records.Select(r => new RecordChoiceDto(r.Id, r.Key, r.DisplayName, o.Metadata.CollectionId))).ToArray();
         var recordIds = choices.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
         var diagnostics = fields.Diagnostics.Select(Diagnostic).Concat(note.Diagnostics.Select(d => new DiagnosticDto(d.Code, d.Message, d.Span.Start, d.Span.Length))).ToList();
         var views = ReadViews(owner.Metadata.ViewsYaml, descriptor, diagnostics);
         var rows = descriptor.Records.Select(record => new RecordRowDto(record.Id, record.Key, record.DisplayName, descriptor.Fields.Select(schema =>
         {
-            var field = fields.Fields.SingleOrDefault(f => f.RecordId == record.Id && f.FieldId == schema.Id);
-            var definition = basis.Definitions.Values.SingleOrDefault(d => d.NoteId == note.Id && d.FieldOrigin == new FieldDefinitionOrigin(record.Id, schema.Id));
+            var field = fieldsByOrigin[(record.Id, schema.Id)].SingleOrDefault();
+            var definition = definitionsByOrigin[new FieldDefinitionOrigin(record.Id, schema.Id)].SingleOrDefault();
             var status = note.IsSourceStale ? "Stale" : definition?.Status ?? "Missing";
             var typed = field is not null && status == "Valid" ? RecordValueCodec.Parse(schema, field.IsNull, definition?.Value ?? "", new(recordIds)) : null;
             if (typed is { IsValid: false }) status = "Invalid";
-            var writable = field is not null && !note.IsSourceStale && knowledge.GetDraft(note.Id) is null
-                && definition is not null && note.Syntax.Definitions.Single(d => d.Name == definition.Name).Parts.All(p => p.Kind == PartKind.Literal);
+            var writable = field is not null && !note.IsSourceStale && !hasDraft
+                && definition is not null && syntaxByName[definition.Name].Single().Parts.All(p => p.Kind == PartKind.Literal);
             // Render metadata is derived only from accepted ORIGINAL field source. Its ranges
             // are local to RawSource, including nested-list carriers' removed indentation.
             var original = field is { IsNull: false } && !note.IsSourceStale
@@ -54,7 +62,7 @@ public sealed partial class WorkspaceRecords(MarkdownWorkspaceRepository reposit
                 typed?.Value is { } value ? Typed(value) : null, typed?.Diagnostics.Select(Diagnostic).ToArray() ?? [], references, regions);
         }).ToArray())).ToArray();
         return new(owner.Metadata.CollectionId, note.Id, owner.Metadata.Title, basis.Revision, note.Revision,
-            note.SavedSource?.Status ?? "accepted", knowledge.GetDraft(note.Id) is not null, descriptor.Fields.Select(SchemaDto).ToArray(), rows, choices, views, diagnostics.ToArray());
+            note.SavedSource?.Status ?? "accepted", hasDraft, descriptor.Fields.Select(SchemaDto).ToArray(), rows, choices, views, diagnostics.ToArray());
     }
 
     public Task<OperationResult> CreateAsync(CreateCollectionRequest request, CancellationToken token = default)
@@ -251,9 +259,10 @@ public sealed partial class WorkspaceRecords(MarkdownWorkspaceRepository reposit
         { return new(operation, "invalid", knowledge.Current.Revision, Message: error.Message); }
         catch (IOException error) { return new(operation, "conflict", knowledge.Current.Revision, Message: error.Message); }
     }
-    private Owner Find(string collectionId)
+    private Owner Find(string collectionId) => Find(collectionId, Owners());
+    private static Owner Find(string collectionId, IEnumerable<Owner> owners)
     {
-        var found = Owners().Where(o => o.Metadata.CollectionId == collectionId).ToArray();
+        var found = owners.Where(o => o.Metadata.CollectionId == collectionId).ToArray();
         if (found.Length != 1) throw new InvalidOperationException("Collection 不存在或分散於多個來源，請先核對 metadata。");
         return found[0];
     }

@@ -487,6 +487,84 @@ if (args.Length == 0 || args.Contains("markdown-continuation", StringComparer.Or
             && knowledge.Current.Notes[readerId].Syntax.References.Single().CachedValue == Expected(updatedValue),
             "structured projection and downstream cache persist across reopening");
 }
+if (args.Length == 0 || args.Contains("query-read", StringComparer.Ordinal))
+{
+    using var repository = new MarkdownWorkspaceRepository(Path.Combine(root, "query-read"));
+    string collection, origin;
+    Snapshot accepted;
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var records = new WorkspaceRecords(repository, knowledge);
+        var target = await knowledge.CreateNoteAsync(Id(), "QueryTarget", "@code{ @QueryValue = {😀 [[QueryTarget|來源]]} }");
+        origin = target.NoteId!;
+        var created = await records.CreateAsync(new(Id(), knowledge.Current.Revision, "Query", "Query.First", "第一筆",
+            [new("", "Text", "正文", "Markdown"), new("", "Empty", "空值", "Markdown")]));
+        collection = created.NoteId!;
+        await records.AddRecordAsync(collection, new(Id(), knowledge.Current.Revision, "Query.Second", "第二筆"));
+        var data = records.Read(collection); var field = data.Fields[0];
+        var raw = "😀開始\r\n" + ReferenceCodec.Serialize(ReferenceKind.Pure, "QueryValue", "") + "\r\n"
+            + ReferenceCodec.Serialize(ReferenceKind.Wiki, "QueryValue", "") + "\r\n@code{ @QueryLocal = {local} }";
+        Check((await records.ChangeFieldAsync(data.Rows[0].Id, field.Id, new(Id(), knowledge.Current.Revision, raw))).Status == "committed"
+            && (await records.ChangeFieldAsync(data.Rows[1].Id, field.Id, new(Id(), knowledge.Current.Revision, "第二筆正文"))).Status == "committed",
+            "query read fixture commits two rows with references, region, literal and null cells");
+        data = records.Read(collection); var linked = data.Rows[0].Cells[0];
+        Check(data.Rows.Length == 2 && data.Rows.All(r => r.Cells.Length == 2 && r.Cells[1].IsNull && r.Cells[1].TypedValue?.IsNull == true)
+            && data.Rows[1].Cells[0].CanEditShared && !linked.CanEditShared,
+            "indexed query keeps row/field order, typed null and literal-only edit permissions");
+        Check(linked.References is { Length: 2 } && linked.References.All(r => r.OriginNoteId == origin
+            && linked.RawSource.Substring(r.Start, r.Length) == ReferenceCodec.Serialize(Enum.Parse<ReferenceKind>(r.Kind), r.Name, r.CachedValue))
+            && linked.Regions is { Length: 1 } && linked.RawSource.Substring(linked.Regions[0].Start, linked.Regions[0].Length).StartsWith("@code{"),
+            "indexed query preserves both reference kinds, true origin and local UTF-16 region/ranges");
+        Check(data.RelationChoices.Select(r => r.Id).SequenceEqual(data.Rows.Select(r => r.Id)) && data.Revision == knowledge.Current.Revision,
+            "one owner projection retains complete relation choices and captured revision");
+        accepted = knowledge.Current;
+    }
+    // Persist bounded synthetic projections to exercise lookup absence and duplicate rejection.
+    void Project(Snapshot state)
+    {
+        var prior = repository.Load(); var revision = prior.Revision + 1;
+        repository.Commit(prior, state with { Revision = revision }, new(Id(), "query-projection", "committed", revision, collection), null);
+    }
+    void RejectDuplicate(Snapshot state, string message)
+    {
+        Project(state);
+        using var knowledge = new KnowledgeService(repository);
+        var rejected = false;
+        try { new WorkspaceRecords(repository, knowledge).Read(collection); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected, message);
+    }
+    var literal = accepted.Definitions.Values.Single(d => d.Name == "Query.Second.Text");
+    var definitions = accepted.Definitions.ToDictionary(p => p.Key, p => p.Value);
+    definitions.Remove(literal.Id); Project(accepted with { Definitions = definitions });
+    using (var knowledge = new KnowledgeService(repository))
+        Check(new WorkspaceRecords(repository, knowledge).Read(collection).Rows[1].Cells[0] is { Status: "Missing", CanEditShared: false, ComputedMarkdown: null },
+            "missing indexed field definition remains Missing and read-only");
+    definitions = accepted.Definitions.ToDictionary(p => p.Key, p => p.Value);
+    var duplicate = literal with { Id = Id(), Name = "Query.Duplicate" }; definitions.Add(duplicate.Id, duplicate);
+    RejectDuplicate(accepted with { Definitions = definitions }, "duplicate requested field origins still reject instead of choosing one definition");
+    Project(accepted);
+    Note note;
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        note = knowledge.Current.Notes[collection];
+        await knowledge.SaveDraftAsync(new(collection, "query-draft", 1, note.Revision, note.Title, note.CurrentSource + "\ndraft", note.CurrentSourceHash));
+        var data = new WorkspaceRecords(repository, knowledge).Read(collection);
+        Check(data.HasDraft && data.Rows.SelectMany(r => r.Cells).All(c => !c.CanEditShared) && data.Rows[0].Cells[0].References is { Length: 2 },
+            "dirty query retains accepted references but disables all shared edits");
+    }
+    var notes = accepted.Notes.ToDictionary(p => p.Key, p => p.Value); note = notes[collection];
+    notes[collection] = note with { Revision = repository.Load().Revision + 1, SavedSource = new(note.CurrentSource, "stale", [], note.CurrentRecords) };
+    Project(accepted with { Notes = notes });
+    using (var knowledge = new KnowledgeService(repository))
+    {
+        var data = new WorkspaceRecords(repository, knowledge).Read(collection);
+        Check(data.HasDraft && data.SourceStatus == "stale", $"stale query reports dirty/unaccepted source ({data.HasDraft}, {data.SourceStatus})");
+        Check(data.Rows.SelectMany(r => r.Cells).All(c => c.Status == "Stale"
+            && !c.CanEditShared && c.References is { Length: 0 } && c.Regions is { Length: 0 }),
+            "stale query remains readable without accepted semantic metadata or shared edit permissions");
+    }
+}
 Console.WriteLine($"PASS {assertions} Records service assertions. Workspace: {root}");
 }
 catch (Exception error)
