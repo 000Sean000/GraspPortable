@@ -1,16 +1,15 @@
 ---
 title: GraspPortable — S2 Validation
-version: 1.8.0
+version: 1.9.0
 updated: 2026-10-05
-status: engineering-and-native-gui-partially-verified
+status: s4-candidate-bounded-verification-passed
 ---
 
 ## 判定與發行範圍
 
-S2 的 Markdown adapter／coordinator 已接入實際 Host，App／Host 使用 protocol 3。已保存原文與最後接受的 AST／診斷分開；無效外部原文保留並標示 Stale，外部版本與 dirty draft 衝突不以舊文字覆蓋。實際檔案樹與右鍵操作已有工程與有限 Windows GUI 證據，**S2 仍為 PARTIAL，沒有宣告使用者接受或完整共同編輯驗收通過**。
+S2候選版必要工程與有界原生驗證已通過：Markdown原文權威、獨立Host、watcher／reconciliation、草稿衝突、檔案樹／右鍵與Obsidian交替修改。最後copy-relative-path／Explorer選檔與三篇grouped member外部編輯見 [S3／S4 Validation](S3-S4-Validation.md) 2026-10-05結果；既有draft／IME／恢復補驗也已閉合。使用者接受另記，完整交付見 [S4候選版](S4-Candidate-Delivery.md)。
 
-App／Host 已重新發布，包含最新版 link codec、tree 自動選取、本機圖片與 wiki 導航。下方補記實測範圍；後續分組及 Records 尚未沿用這份 GUI 證據。
-
+下列歷史段落保存当時失敗及修正，不以早期PARTIAL覆蓋最新候選版判定。危險路徑、歧義連結或版本衝突仍明示拒絕，沒有宣稱任意Markdown編輯都可無衝突自動合併。
 ## 2026-10-04 原生操作證據
 
 ### 保留較新草稿與正常離開（14:37–14:54）
@@ -101,11 +100,6 @@ Content resolver 44 assertions、editor regression／TypeScript、App／Host 發
 
 檔案操作的有限 codec 支援可唯一辨認的相對 Markdown links／images、reference-definition 與 wiki links，保留 anchor／alias／title；排除 fence、inline code、Grasp literal／reference cache。受影響檔案列入 preview、dirty 與 hash guards。歧義 wiki、相關未解析目標、未完成連結、HTML 相對連結、case-only rename 及將 `.md` 改為其他副檔名目前明確拒絕，不猜測改寫。來源與附件的 before bytes 保留於 operation journal；未宣稱跨多檔 ACID。
 
-## 尚未完成與下一步
+## 剩餘界線
 
-- 已補最新 link codec／tree／本機圖片 GUI；備份 generation 選取於 10:30 重驗通過，完整還原範圍另驗。
-- Obsidian 關閉期間新增／重開、同時開啟時定義更新及同篇共享值回寫已有上方原生證據；外部新增／移除引用已修並以 Grasp＋受控檔案修改重驗。外部改名、保留衝突及微軟注音組字遇外部修改已有後續有限原生證據，見 [S1 Validation](S1-Validation.md) 與 [S3／S4 Validation](S3-S4-Validation.md)；其他快速切換時序及完整端到端門檻仍待完成。
-- 基本政策 GUI 已驗，縮放／焦點及端到端流暢度依最新驗證紀錄續作；這份 S2 文件不重填後續性能數字。既有真 Markdown 提交量測見 S3／S4 Validation，仍不代表完整成長餘裕。
-- S3 合併／拆分及 368 檔完整版本還原已補主要正常流程，詳見 S3／S4 Validation；其餘 Records／恢復邊界續驗。
-
-下一個版本沿 [Implementation Plan rc.11](Implementation-Plan-v1.0.0-rc.11.md) 續作；是否暫停或恢復以 EXECUTION-STATE 最新使用者授權為準，不標記 S1／S2／S3 或 Goal 全部完成。
+本階段必要的檔案操作、共同編輯與恢復已有有界工程／原生證據，最後平台快捷操作見S3／S4 Validation。未測所有故障排列、不同硬體或任意日用vault；歧義／不可靠改寫仍保留原文並拒絕自動套用。使用者體驗與下一階段依 [S4候選版交付](S4-Candidate-Delivery.md) 及EXECUTION-STATE最新授權，不自行開新產品段。

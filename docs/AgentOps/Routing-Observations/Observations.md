@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.9.0
+version: 1.10.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -87,3 +87,7 @@ Context：新 worker 接收具體重現及檔案邊界，affinity 部分、重�
 配置：延續要求Sol Medium，Root／child實際model/effort權威metadata仍未知。
 Context／核對：後續沿同worker限定Host BackupManager與direct tests，Root單獨持有Contracts、Home UI、文件、publish／GUI／Git。既有counter足夠，不新增持久狀態或重构排程。
 結果：10groups通過；Root審查diff並完成pending→published原生驗證及暖機查詢補測。本段無人為策略評分、跨模型實驗或新增產品決策；詳細證據在Engineering及EXECUTION-STATE。
+
+## 2026-10-05 候選版交付核對
+
+沿同一worker做限定Implementation Plan／三份Validation的唯讀缺口核對；不跑tests／GUI或改共同文件。Root已完成三篇Obsidian往返與完整edit量測，worker指出「約五分鐘持續互動」仍需明示判定，沒有要求每指標30樣本或擴大故障矩陣。Root另做單一378.6秒原生操作觀察並如實記錄工具節奏，再完成交付文件。Policy rc.2、產品基底959cda2；要求與實際模型metadata界線同前，未新增模型效果實驗。

@@ -1,9 +1,22 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.25.0
+version: 1.26.0
 updated: 2026-10-05
-status: implemented-parts-with-partial-native-evidence
+status: s4-candidate-bounded-verification-passed
 ---
+
+## 2026-10-05 三篇分組共同編輯與最後持續操作
+
+產品source基底959cda2561220dfc9d41cceb685c2ebe35112910；本段無程式變更。新合成workspace `S4-FinalFlows-1005`：右鍵預覽三篇merge為Flow-A-合併.md（revision7），在獨立Obsidian1.13.7 vault實際將成員Flow-A literal beta改gamma，Grasp自動接受revision8；再由右鍵預覽／拆成三檔（revision9）。Flow-B引用仍highlight、顯示gamma，點Layer1定位Flow-A第5行定義。唯讀核對3note IDs／20definition IDs完全不變、兩式共100references、零draft；未分配metadata保存為JSON，原始bytes仍在journal。私人 `finalflows-1005-grouping-verification.json` 保存結果。
+
+Obsidian裸啟動被自動審核拒絕；改用官方指定path URI仍對應既有上層vault，隨即關閉載入畫面，最後用choose-vault管理器明確開獨立驗收資料夾。沒有在上層vault編輯或整理內容。後續同類驗收先明確選獨立vault，避免讓URI自動找祖先vault。
+
+最後另補單一連續前台觀察段：11:48:15–11:54:33（378.6秒），只做17次editor／模式／導航／捲動輸入與逐步画面檢查，不穿插build、文件或sleep等待。涵蓋中文貼上、undo／redo、兩式引用、Layer19／Layer15定義跳轉、Source／Live／Reading與捲動，最終恢復gamma；revision9→13。`sustained-1005-ledger.json` 保存每步時間。Root將本段判作約五分鐘持續實際互動觀察；Computer Use節奏約16–21秒一操作，最長約55秒包含一次工具等待，不能換算成人工不停鍵入時長、輸入頻率或高速競態證明。先前30次獨立功能操作仍是不同一組證據，不重複計數。
+
+`ui-20261005-034757.json` 396.7秒且無丟樣本：完整edit→visible n4/p95/max664.2ms、commit-only193.8ms、first note n2/max45.5ms、warm note n1/28.9ms、scroll n400/p95 4.3ms；foreground frame n93972/p95 4.3ms/max29.2ms，無≥200ms。本組沒有新的beforeinput樣本，不把貼上／undo當IME驗證。兩次完整edit組合共n9/max664.2ms，但仍是小型本機工程樣本。
+
+正常關閉App／Host／Obsidian、程序零、Computer Use重設、前台釋放；原主驗收workspace的三份durable drafts未動。新workspace與備份／恢復／private reports保留。歷史缺口以本段與上方較新補驗為準，不由早期未通過數字重新開啟已修正工作。
+
 
 ## 2026-10-05 完整編輯鏈及檔案平台操作
 
@@ -16,8 +29,9 @@ status: implemented-parts-with-partial-native-evidence
 
 ## 判定
 
-分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+S3／S4候選版必要工程、指定真實樣本、Windows原生流程及有界效能已完成；Root已核對上述最新補驗，交付清單與限制見 [S4 候選版交付](S4-Candidate-Delivery.md)。使用者接受尚待體驗，不宣稱所有資料規模／IME時序或Notion／Obsidian全部能力等同。
 
+本文件保留各版本失敗與修正歷史。下列日期段落的「待驗／未通過」描述當時狀態；最新判定與交付表優先，舊測量不和修正後結果混算。
 ## 2026-10-05 代表操作第二段與備份狀態
 
 18743c5 發行、150%／1348×894；完成30次具體功能操作：搜尋／保留衝突稿／開筆記、Source／Reading／Live切換、literal更新與撤銷重做、兩層相依、多段reference與Wiki／heading導航、Mentors卡片長文圖片／篩選view／完整欄位、Aura分頁／跨頁Key搜尋、返回筆記及備份檢視。選單開啟、對話框輸入定位、失敗點擊等子步驟不另計數；私人 `representative-1005-ledger.json` 保存時間及操作。30次共約13.6分鐘工具節奏的操作與畫面檢查，不等同人工連續鍵入五分鐘或30個獨立效能樣本。
@@ -404,13 +418,11 @@ Release，SDK 10.0.401／runtime 10.0.12，Windows 10.0.26200 X64，目前 PC 32
 
 本機結果：`workspaces/SourcePerformance-ce97070ba4204eb6a92fb6a39d5a4d53/result.json`（忽略，不提交）。重測指令：`dotnet run --project tests/GraspPortable.SourcePerformance.Tests -c Release`；此 runner 不放入每次 build 的預設回歸清單。深鏈／扇出各一次是有界案例結果，不是 p95 或完整長期容量認證。
 
-## 原生量測與尚待驗證
+## 原生量測範圍與限制
 
-Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫入當時 workspace 的 `.grasp/measurements/ui-*.json`。只記時長與次數，不記正文／識別碼；最長十分鐘，foreground frame 排除初始五秒與失焦。兩次 rAF 是下一次繪製機會的保守近似，不是螢幕光子時間。Records hooks 已取得下列有限樣本，足量代表操作及完整可見延遲仍待收集。
+Opt-in探針仍預設關閉，最多十分鐘，正常關閉寫入 `.grasp/measurements/ui-*.json`。只記時間／次數，兩rAF是paint opportunity。最新暖查詢、完整edit鏈、30次功能操作、持續互動與縮放焦點已在上方補足；不再保留為未完成待辦。沒有把後端耗時代填UI，也未降低800／200／50ms門檻。
 
-目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
-
-主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。代表性縮放／凍結焦點已有上方有限新證據；復工後兩次 Records 暖機低於門檻，但仍需補視窗縮窄及足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
+尚未涵蓋的範圍為其他硬體、所有IME／DPI／競態排列、任意大vault與長期日用容量；依既有計畫不擴建全矩陣。使用者接受另記。歷史報告保留原sample不足或children未ready限制，不追認為完整paint證據。
 
 指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文已定點取樣，轉換、圖片與返回原卡的有限原生結果見上方 revision 61–62 紀錄。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 

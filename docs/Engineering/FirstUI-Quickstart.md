@@ -1,15 +1,15 @@
 ---
 title: GraspPortable — First UI Trial
-version: 1.11.0
+version: 1.12.0
 updated: 2026-10-05
-status: s1-s4-trial-awaiting-native-acceptance
+status: s4-candidate-user-acceptance-pending
 ---
 
 ## 啟動與資料位置
 
 遇到外部修改衝突時，可在合併視窗右側繼續整理內容，再選「保留草稿，稍後處理」。程式會保存右側文字並保留舊版本基底，允許正常關閉；重開可恢復草稿，明確保存仍需處理兩版本，不會自動覆寫外部原文。
 
-本頁描述最新本機 Windows 發行：Markdown workspace、檔案樹、備份／還原、實體檔案合併／拆分、長文資料表及 Markdown table 轉換已接入。最新 S3／S4 流程尚未完成原生驗收；下方新功能步驟是操作入口，不是已驗證成功的聲明。進度見 [EXECUTION-STATE](../EXECUTION-STATE.md)，證據見 [S2 Validation](S2-Validation.md) 與 [S3／S4 Validation](S3-S4-Validation.md)。
+本頁描述最新本機 Windows 發行：Markdown workspace、檔案樹、備份／還原、實體檔案合併／拆分、長文資料表及 Markdown table 轉換已接入。S4候選版必要有界工程與原生驗收已完成；完整新手入口、實測及限制見 [S4交付清單](S4-Candidate-Delivery.md)。使用者接受尚待體驗。進度見 [EXECUTION-STATE](../EXECUTION-STATE.md)，證據見 [S2 Validation](S2-Validation.md) 與 [S3／S4 Validation](S3-S4-Validation.md)。
 
 目前已操作的 S2 驗收 workspace 完整啟動指令：
 
@@ -38,7 +38,7 @@ App／獨立 Host 發行檔仍在 repository 的 `artifacts/FirstUI/App`、`arti
 3. 在自選測試資料夾按右鍵新增資料夾或筆記；編輯並等待保存後，再由右鍵改名或搬移，核對預覽與目標路徑。相同操作不應改變 note／definition 身分。
 4. 未在 Grasp 編輯的測試筆記，可用另一個 editor 修改其 Markdown 正文並保存，再回到 Grasp 查看更新。尚未完成的語法應保留原文及來源診斷，不能當成最新成功計算結果。存在 dirty draft／衝突時先保留兩側內容並依提示處理。
 
-Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義、同篇共享 reference 回寫及外部改檔名已有有限原生證據。外部新增／移除引用及本地／外部衝突另以 Grasp＋受控檔案修改重驗，不代表完整共同編輯驗收完成。
+Obsidian GUI 的關閉期間新增／Grasp 重開、同時開啟時修改定義、同篇共享 reference 回寫及外部改檔名已有有限原生證據。外部新增／移除引用及本地／外部衝突另以 Grasp＋受控檔案修改重驗，完整候選版的有界判定及未測範圍見S4交付清單。
 
 未接受原文上方可按「重新提交目前內容」再核對；需要改名或合併時會顯示確認。合併左側是最新保存原文，右側可一起編輯要提交的標題與正文；期間再有外部修改，會重查版本並保留右側候選。
 
@@ -81,7 +81,7 @@ Markdown 欄位貼入較低層級標題時，保存會先顯示轉換預覽：�
 
 ## 備份與還原
 
-左下「備份與還原」可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。已原生驗證合併／拆分後的 368 檔完整版本還原、未接受語意的原文、Records／導航與圖片，可開啟 `workspaces/S4-Restored-1004-1329` 查看。較新 durable draft 另已在 `workspaces/S4-Draft-Restored-1004-1447` 恢復並核對相同 session、revision、base、標題及正文。操作時仍請核對選取版本與目的地。
+左下「備份與還原」可查看最近完整版本時間、尚待備份／執行／失敗狀態並更新，可立即建立完整版本、修改 interval／retention，或選 generation 還原到新的工作區資料夾。預設有變更每五分鐘與正常關閉前建立、保留三份；沒有變更不重複 capture。還原不覆蓋現有資料夾，並保留 Markdown、較新 draft、metadata 與 journal。已原生驗證合併／拆分後的 368 檔完整版本還原、未接受語意的原文、Records／導航與圖片，可開啟 `workspaces/S4-Restored-1004-1329` 查看。較新 durable draft 另已在 `workspaces/S4-Draft-Restored-1004-1447` 恢復並核對相同 session、revision、base、標題及正文。操作時仍請核對選取版本與目的地。
 
 ## 選用原生效能量測
 
@@ -113,9 +113,9 @@ Markdown 欄位貼入較低層級標題時，保存會先顯示轉換預覽：�
 
 ## 驗證界線
 
-必要結果與尚未驗證項目見 [S1 驗證紀錄](S1-Validation.md)、[S2 驗證紀錄](S2-Validation.md) 與 [S3／S4 驗證紀錄](S3-S4-Validation.md)。基本原生 IME 是較早 S1 結果；IME／dirty 競態、allowlist GUI、DPI 與量化端到端尚未完整通過，S1／S2 仍為部分驗證。產品程式、工程驗證、Windows 使用者體驗接受分開記錄。GUI 工具不能啟動時，不能用 API、DOM 或 build 結果冒充中文 IME、桌面操作及流暢度已通過。
+必要工程及原生結果見 [S1](S1-Validation.md)、[S2](S2-Validation.md)、[S3／S4](S3-S4-Validation.md)；[交付清單](S4-Candidate-Delivery.md)整合最新判定。已補微軟注音外部競態、allowlist、縮放／凍結焦點、三篇Obsidian分組往返及有界端到端數據；不把早期歷史待辦當成現在仍缺，也不推論全部IME／DPI／事件排列。
 
-分組／還原、Records 及 table import 已實作並發行到本機，原生流程待驗；不能由 primitive 通過推定整個 UI 完成。完整 Vault 批次匯入、複雜 Markdown 的完整 Live Preview、共享語意 undo、專用 composition 編輯器、同步及 mobile 不在這個試用版本的完成聲明內。
+使用者接受仍待體驗；正式日用批次匯入、完整複雜Markdown Live Preview、共享語意undo、專用composition介面、同步、mobile及乾淨電腦Portable不在本輪完成聲明。保留驗收workspace的草稿／備份／journal，不刪除恢復材料。
 
 ## 開發接續
 

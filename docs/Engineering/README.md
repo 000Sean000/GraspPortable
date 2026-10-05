@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Engineering Entry
-version: 1.14.0
+version: 1.15.0
 updated: 2026-10-05
 scope: strategy-architecture-and-decision-routing
 ---
@@ -11,10 +11,11 @@ scope: strategy-architecture-and-decision-routing
 
 | 類別 | 文件 | 責任 |
 | --- | --- | --- |
+| S4 候選版交付 | [啟動／驗收／限制](S4-Candidate-Delivery.md) | 目前Windows PC候選版、階段完成證據及使用者體驗入口 |
 | 現有試用入口 | [First UI／S2](FirstUI-Quickstart.md) | Markdown workspace 啟動、舊資料遷移、測試資料與限制 |
-| S1 實際驗證 | [S1 Validation](S1-Validation.md) | 已執行工程／部分 Windows GUI 與未測範圍 |
+| S1 實際驗證 | [S1 Validation](S1-Validation.md) | 候選版工程／有界 Windows GUI 與未測範圍 |
 | S2 實際驗證 | [S2 Validation](S2-Validation.md) | Markdown／檔案樹／右鍵工程及有限原生操作；區分已發行與後續 link codec |
-| S3／S4 驗證 | [S3／S4 Validation](S3-S4-Validation.md) | 分組、Records、真 Markdown 提交量測及尚待原生驗收 |
+| S3／S4 驗證 | [S3／S4 Validation](S3-S4-Validation.md) | 分組、Records、原生驗收／效能及歷史結果 |
 | 開發方法 | [Method rc.13](GraspPortable-Core-Development-Method-v1.0.0-rc.13.md) | Goal、決策權、有界測試、subagent、全局檢視、Git／額度 |
 | 架構規劃方法 | [Guide rc.11](graspportable-architecture-planning-guide-v1.0.0-rc.11.md) | Owner、ports、淺目錄、四維與接續 |
 | 模型決策 | [Architecture Model v1.1.1](Decisions/Architecture-Model-v1.1.1.md) | Explicit Architecture 適配與跨檔邊界 |

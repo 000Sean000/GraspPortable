@@ -1,9 +1,19 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.42.0
+version: 1.43.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
+
+## 最新交付：Windows S4 候選版（2026-10-05）
+
+產品source checkpoint `959cda2561220dfc9d41cceb685c2ebe35112910` 已commit／push且核對远端；App／Host為11:24發行。本段無產品程式變更，補齊三篇merge→Obsidian修改→split、3note IDs／20definition IDs／100references核對，以及378.6秒單一前台操作觀察。完整edit→visible新增n4/max664.2ms，暖查詢既有n6/max198.6ms；沒有降低門檻或加大無關測試。
+
+P0／S1／S2／S3／S4a/b/c的必要實作及本機有界驗證已完成，使用者接受待體驗。[S4交付清單](Engineering/S4-Candidate-Delivery.md)為本輪交付入口，列啟動位置、workspace、操作、證據及限制；需求／架構／計畫契約未更改。本次只有現行判定／交付文件更新，歴史證據保留；早期PARTIAL／IN_PROGRESS不覆蓋此節。
+
+最終文件及資料保全檢查後只提交必要文件並push、核對遠端，再將既有Goal標complete（不pause／重建）。實際Goal狀態由runtime工具確認，不以此文字代替；候選版交付完成後停止，不開始新產品段。
+
+App／Host／Obsidian已正常退出、Computer Use重設、前台釋放；worker均完成。主驗收workspace revision88／3份原durable drafts保留；新FinalFlows revision13／零draft／gamma及3IDs保留，還原workspace／private證據未清除。原未追蹤 `Export-GraspPortable-SubagentReview.ps1` 不執行／不提交。Workspace外層AGENTS與GoalSupport另列交付，舊quota monitor本來已逾期退出，本次完成停用control，不承諾持續額度監控。
 
 ## 最新工作段：完整編輯鏈與平台快捷操作（2026-10-05）
 
@@ -339,9 +349,6 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-Goal active，不暫停或重建。完成本段探針／驗證文件commit與push核對後，接續：
+本次最後一步：文件links／Git diff／資料保全核對、必要文件commit／push並確認origin/rewrite/dotnet與HEAD相同；隨後以runtime將原P0–S4 Goal標complete並核對。不要建立新Goal，不把使用者接受冒充已完成。
 
-1. 三篇 `S4-FinalFlows-1005` 合成筆記 merge→Obsidian修改合併檔成員正文→Grasp接受→split，確認三ID／內容與相依。現有兩篇merge/split及完整restore證據保留，不重跑全矩陣。
-2. 按Implementation Plan完成最後交付核對，同步現行入口／實測限制、啟動位置／workspace／操作清單，commit／push後才依完整條件判Goal。使用者接受獨立記錄。
-
-本輪已補完整編輯鏈及平台copy/reveal；既有30次代表操作、暖機查詢、IME外部競態、allowlist、兩式卡片導航、views、rename、草稿還原與備份狀態無新風險不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS，尚非S4完成。GoalSupport原監測已退出，沒有持續監測承諾。
+交付後等待使用者依 [S4操作清單](Engineering/S4-Candidate-Delivery.md) 體驗並回饋；收到新的產品指示後，從具體問題與保留workspace續作，不重跑已通過整套矩陣。其他硬體／所有IME時序、長期日用容量、mobile／同步／公式等不自動開工。

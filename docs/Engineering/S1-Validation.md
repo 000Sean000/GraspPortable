@@ -1,14 +1,15 @@
 ---
 title: GraspPortable — S1 Validation
-version: 1.7.0
+version: 1.8.0
 updated: 2026-10-05
-status: native-gui-partially-verified
+status: s4-candidate-bounded-verification-passed
 ---
 
 ## 判定
 
-Windows 試用版已完成 Release 發行，並於 2026-10-03／04 透過原生 Computer Use 實際操作及修正。**S1 未宣告全部驗收通過。** Reading 排版、delimiter 協助、基本原生中文 IME 及 allowlist 預覽／套用已有本次證據；微軟注音組字遇外部修改已有下節有限原生證據；125%／150% 有界佈局及 150% 凍結焦點另見 [S3／S4 Validation](S3-S4-Validation.md)；其他快速切換時序、視窗縮窄及量化端到端仍未完整驗收。使用者接受另記。
+S1候選版必要工程與有界Windows驗證已通過：筆記完整流程、Reading／Live／Source、兩式多段引用、rename／共享修改、delimiter、微軟注音／外部修改、durable draft重開及allowlist。後續窄視窗焦點、30次代表操作、持續互動、input／switch／完整edit→visible門檻見 [S3／S4 Validation](S3-S4-Validation.md) 的2026-10-05最新結果；交付與限制見 [S4候選版](S4-Candidate-Delivery.md)。使用者接受尚待體驗。
 
+以下按日期保留當時實驗與缺口；「尚未」不是覆蓋後續已補結果的現行待辦。沒有證明所有IME、快速事件排列或日用容量。
 ## 2026-10-05 微軟注音組字遇外部修改
 
 使用者確認微軟注音、Shift 切換中／英文。Root 於已發行 409821e 版本的原生 Windows App，在主驗收 workspace 新增一篇合成 `IME-Composition-1005.md`；沒有取用更多私人資料。
@@ -110,9 +111,6 @@ ValueEngine 依變更的 ordered parts／名稱及反向相依找出受影響閉
 
 初次交付時 node_repl 曾因 `windows sandbox failed: helper_unknown_error: setup refresh had errors` 阻止 GUI 檢查。2026-10-03 使用者將兩份無法讀取的舊 cua_node runtime 移到 runtime-backup 後，預設 shell、Node REPL、Computer Use 初始化及原生操作恢復；未變更 sandbox 模式或 ACL。視窗擷取需先選定及啟用實際 App，並在最大化動畫結束後重新觀測；不能把過渡畫面或遮擋當作產品缺陷。
 
-## 尚待驗證
+## 剩餘界線
 
-- 真實 Windows UI：快速編輯／切換其他時序、視窗縮窄及長時間操作；125%／150% 的有限縮放證據見 S3／S4 Validation。基本注音、組字遇外部修改／衝突重開、allowlist 操作與 Reading 多段空行已有上方有限證據，不擴稱所有輸入法及組字時序通過。
-- 端到端 input-visible／commit-visible、捲動及 warm／cold note 切換門檻。
-- 使用者按 [First UI 操作說明](FirstUI-Quickstart.md) 體驗並接受結果。
-- 清潔電腦 Portable、正式日用資料、完整 Markdown 複雜宿主與跨裝置均屬後期，沒有宣稱本輪通過。
+本階段必要驗證已依後續證據閉合；使用者按 [操作說明](FirstUI-Quickstart.md) 體驗後接受結果。其他輸入法／所有競態排列、清潔電腦Portable、正式日用資料、完整複雜Markdown Live Preview及跨裝置不在本輪完成聲明內，不因候選版通過而追認歷史未測項。

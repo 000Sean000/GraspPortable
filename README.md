@@ -1,29 +1,19 @@
 ---
 title: GraspPortable — .NET Rewrite Branch
-version: 1.24.0
+version: 1.25.0
 updated: 2026-10-05
 scope: rewrite-branch-entry
 ---
 
-## Windows 筆記與資料表
+## Windows S4 候選版
 
-`rewrite/dotnet` 已有 Windows Markdown workspace 試用版，含檔案樹、右鍵合併／拆分、長文屬性資料表與 Markdown table 轉換。最新 App／Host 已完成本機 publish；S4 已取得 15×8／81×5 表格轉換、分頁、view 保存、凍結與排序編輯的有限原生證據，完整 S3／S4 GUI 驗收仍進行中。[操作說明](docs/Engineering/FirstUI-Quickstart.md)提供啟動指令、操作入口、資料位置及既有 FirstUI 的遷移行為。
+目前Windows PC的P0–S4候選版已完成實作、必要有界工程／原生驗證，可開始使用者體驗。含Markdown筆記、實際檔案樹／右鍵、Obsidian共同編輯、衝突草稿、合併／拆分、備份還原，以及長文屬性／九型別／關聯／views／凍結資料表。Wiki及兩式Grasp參照在筆記與資料表保留可讀高亮和直接導航。
 
-2026-10-04 已授權以 Goal 持續完成 **S1 → S2 Markdown 共同編輯／實際檔案樹 → S3 整理／恢復 → S4 長文屬性與凍結資料表**，並自行 commit／push。Markdown adapter／coordinator 已接入實際 Host：Markdown 承載已保存原文，SQLite 保存索引、計算、草稿與恢復日誌；舊 schema 1 DB 遷到新的相鄰資料夾並保留原資料。
+[**S4 交付與啟動清單**](docs/Engineering/S4-Candidate-Delivery.md)提供完整啟動指令、驗收workspace、操作、效能及限制；[操作說明](docs/Engineering/FirstUI-Quickstart.md)提供各功能細節。使用者接受尚待體驗，不宣稱完整Notion／Obsidian、任意日用規模或乾淨電腦Portable。
 
-Wiki／Grasp 參照已在本機發行：非編輯區顯示可讀連結、直接導航，Grasp 定位定義所在檔案與 block；reader、資料表 cell／完整欄位／卡片、草稿保護及 Wiki／Grasp Enter 已通過有限原生流程。欄位 key／record 名稱与 key／選項改名後參照保持，小表轉換會直接選中新表。未接受草稿保留引用原文與提示，避免誤當普通連結；缺失 Wiki／record／definition 的明示拒絕已驗，足量效能仍待驗。
+完整edit→visible兩組n5／n4最大617.7／664.2ms；暖機Records六次最大198.6ms。30次功能操作、獨立連續前台觀察、真實微軟注音、角色長文、三篇合併→Obsidian修改→拆分與durable draft restore已有證據，樣本範圍見交付文件。Markdown為已保存原文權威；SQLite保存索引、版本與草稿，journal保留可恢復提交。
 
-長文欄位提供標題層級轉換預覽，確認後保存巢狀清單及轉換前原文恢復歷史。Triensa 的圖片、Wiki 與兩式多段 reference 已完成有限原生導航及外部修改重開驗證；整欄屬性引用的清單排版修正已在主驗收資料重解析後確認。Anria 長文卡片也已驗證層級轉換、圖片與 Wiki 回原卡導航。
-
-衝突視窗可保存右側草稿後正常退出；重開保留內容與舊基底，明確保存仍核對外部修改。使用者於 2026-10-05 確認 routing 遷移完成後恢復產品開發；目前接續 Records 查詢及 render 優化。微軟注音組字遇外部修改、衝突保留與重開恢復已有有限原生證據；完整 S4、縮放焦點及足量效能尚未通過。
-
-資料表新增「跨表標籤」搜尋並依 record ID 開原卡片，卡片內連結保留。改名可選保留草稿後切換／備份／正常關閉；較新 durable draft 已實測還原至另一個 workspace，完整內容與版本基底一致。明確儲存仍要求語意確認，未知操作保留原 ID 查核。這些有限原生結果不代表 S4 全部完成。
-
-S1 已有工程、Reading／補完及基本原生中文 IME 證據；IME 外部競態已补一個真實案例，其他時序、剩餘 GUI 與端到端流暢度尚未完整驗收。已保留新增筆記、範例命名、引用導航、來源草稿及 Live Preview 修正；詳見 [S1 驗證紀錄](docs/Engineering/S1-Validation.md)。當前進度以執行狀態為準，不在 S1 自動停工。
-
-Obsidian 共同編輯已有關閉期间新增／Grasp 重開、同時開啟時修改定義、同篇 reference 值回寫的原生證據。外部新增／移除引用誤判已修並以 Grasp＋受控檔案修改重驗；資料表數字改為可讀且保留精度的顯示與搜尋。實際合併／拆分及完整版本還原後，資料表參照、定義導航與圖片仍有效；整體 S2／S4 尚未完成。
-
-[S2 驗證紀錄](docs/Engineering/S2-Validation.md)保存檔案樹建立／改名／搬移、外部更新、圖片／wiki 導航及重開的有限原生證據。[S3／S4 驗證紀錄](docs/Engineering/S3-S4-Validation.md)保存分組、Records／轉換的工程與有限原生結果，以及來源層效能；30 次完整 Markdown 提交 p95 334.1 ms 不包含 GUI 顯示時間。S1／S2 仍 PARTIAL，S3／S4 已接產品且原生驗收進行中，尚未宣告完成或使用者接受。需要原生量測時可明確傳入 launcher `-MeasurePerformance`，預設不開探針。
+最後文件／Git核對及Goal狀態以[執行狀態](docs/EXECUTION-STATE.md)與runtime為準。完成本次交付後停止等待體驗，不自行展開下一產品段。歷史驗證文件保留當時失敗與修正，新判定不追認未測範圍。
 
 1. [本輪授權與工作狀態](docs/EXECUTION-STATE.md)：Goal、實作／驗證／接受、證據與 exact next step。
 2. [Project Seed](docs/Project_Seed/README.md)：產品 WHAT／WHY、資料權威、長文欄位及共同編輯。
