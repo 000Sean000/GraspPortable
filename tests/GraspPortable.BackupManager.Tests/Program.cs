@@ -38,20 +38,51 @@ await Check("settings version and payload receipts survive manager restart", asy
 await Check("only changed captures; event dirtiness, durable retry and retention", async () =>
 {
     using var rig = New("changed"); using var manager = rig.Manager();
+    Equal(false, (await manager.ReadStatusAsync()).HasPendingChanges);
     Equal("unchanged", (await manager.CaptureAsync(Op(), true)).Status);
     await rig.Create("One", "@code{ @Fruit = {apple} }");
+    Equal(true, (await manager.ReadStatusAsync()).HasPendingChanges);
     var id = Op(); var first = await manager.CaptureAsync(id, true);
     Equal("published", first.Status); True(Directory.Exists(first.Path));
+    Equal(false, (await manager.ReadStatusAsync()).HasPendingChanges);
     Equal(first.Path, (await manager.CaptureAsync(id, true)).Path);
     Equal("operation-conflict", (await manager.CaptureAsync(id, false)).Status);
     Equal("unchanged", (await manager.CaptureAsync(Op(), true)).Status);
     Equal(1, (await manager.ReadStatusAsync()).Generations.Length);
     Equal("updated", (await manager.UpdateSettingsAsync(new(Op(), 0, 1, 1))).Status);
+    Equal(true, (await manager.ReadStatusAsync()).HasPendingChanges);
     manager.MarkChanged(); Equal("published", (await manager.CaptureAsync(Op(), true)).Status);
+    Equal(false, (await manager.ReadStatusAsync()).HasPendingChanges);
     Equal(1, (await manager.ReadStatusAsync()).Generations.Length);
     using var restarted = rig.Manager();
     Equal(first.Path, (await restarted.CaptureAsync(id, true)).Path);
     Equal("unchanged", (await restarted.CaptureAsync(Op(), true)).Status);
+});
+
+await Check("failed capture retains the last generation and pending draft changes", async () =>
+{
+    using var rig = New("pending-failure"); using var manager = rig.Manager();
+    var note = await rig.Create("Card", "committed");
+    var first = await manager.CaptureAsync(Op(), true); Equal("published", first.Status);
+    Equal(false, (await manager.ReadStatusAsync()).HasPendingChanges);
+    var current = rig.Knowledge.Current.Notes[note];
+    var draft = await rig.Knowledge.SaveDraftAsync(new(note, "session", 1, current.Revision, current.Title,
+        "unfinished @code{", current.CurrentSourceHash));
+    Equal("draft", draft.Status);
+    manager.MarkChanged(); // Same accepted-draft notification as the Host HTTP route.
+    var pending = await manager.ReadStatusAsync();
+    Equal("ready", pending.Status); Equal(true, pending.HasPendingChanges);
+    Equal(first.Path, pending.Generations.Single().Path);
+    using (var captureLock = new FileStream(Path.Combine(rig.Path, ".grasp", "backups", ".capture.lock"),
+        FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+    {
+        Equal("rejected", (await manager.CaptureAsync(Op(), true)).Status);
+        var failedStatus = await manager.ReadStatusAsync();
+        Equal("failed", failedStatus.Status); Equal(true, failedStatus.HasPendingChanges);
+        Equal(first.Path, failedStatus.Generations.Single().Path); True(Directory.Exists(first.Path));
+    }
+    Equal("published", (await manager.CaptureAsync(Op(), true)).Status);
+    Equal(false, (await manager.ReadStatusAsync()).HasPendingChanges);
 });
 
 await Check("restore retries do not overwrite later target edits; reject foreign generations", async () =>
@@ -131,7 +162,12 @@ await Check("startup draft marks dirty and malformed settings are never overwrit
     using (var manager = rig.Manager()) Equal("published", (await manager.CaptureAsync(Op())).Status);
     var current = rig.Knowledge.Current.Notes[note];
     await rig.Knowledge.SaveDraftAsync(new(note, "session", 1, current.Revision, current.Title, "unfinished @code{", current.CurrentSourceHash));
-    using (var restarted = rig.Manager()) Equal("published", (await restarted.CaptureAsync(Op(), true)).Status);
+    using (var restarted = rig.Manager())
+    {
+        Equal(true, (await restarted.ReadStatusAsync()).HasPendingChanges);
+        Equal("published", (await restarted.CaptureAsync(Op(), true)).Status);
+        Equal(false, (await restarted.ReadStatusAsync()).HasPendingChanges);
+    }
     var path = Path.Combine(rig.Path, ".grasp", "backup-manager", "state.json"); File.WriteAllText(path, "broken");
     using var broken = rig.Manager(); Equal("rejected", (await broken.CaptureAsync(Op())).Status);
     Equal("broken", File.ReadAllText(path)); Equal("failed", (await broken.ReadStatusAsync()).Status);
@@ -160,10 +196,13 @@ await Check("settings-only change produces a checkpoint with recoverable new opt
         await rig.Create("Card", "unchanged note");
         Equal("published", (await manager.CaptureAsync(Op(), true)).Status);
         Equal("updated", (await manager.UpdateSettingsAsync(new(Op(), 0, 17, 2))).Status);
+        Equal(true, (await manager.ReadStatusAsync()).HasPendingChanges);
     }
     // Even an abrupt stop after saving options must retain the need for a checkpoint.
     using var restarted = rig.Manager();
+    Equal(true, (await restarted.ReadStatusAsync()).HasPendingChanges);
     var capture = await restarted.CaptureAsync(Op(), true); Equal("published", capture.Status);
+    Equal(false, (await restarted.ReadStatusAsync()).HasPendingChanges);
     var destination = Path.Combine(root, "settings-restored");
     Equal("restored", (await restarted.RestoreAsync(new(Op(), capture.Path!, destination))).Status);
     var restored = JsonNode.Parse(File.ReadAllText(Path.Combine(destination, ".grasp", "backup-manager", "state.json")))!;

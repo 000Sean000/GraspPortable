@@ -1,9 +1,19 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.40.0
+version: 1.41.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
+
+## 最新工作段：代表操作、暖機查詢與備份可見狀態（2026-10-05）
+
+Goal active；窄視窗焦點修正已提交並核對遠端 `18743c5f39912f566a9a7b35db35945712723cf1`。接續完成30次具體原生功能操作，涵蓋編輯／undo／redo／兩層相依、模式與參照導航、長文卡片、view／搜尋／分頁及備份。私人操作ledger、採样範圍及限制見 S3-S4-Validation；不把選單子步驟或探針停止後的操作當效能樣本。
+
+備份UI補齊既有計畫要求：最近完整版本時間、尚待備份變更、執行／失敗及更新狀態。Host以既有change counter提供唯讀HasPendingChanges，不改排程、journal或檔案權威。BackupManager10groups及架構／Release publish通過；原生確認pending→手動建立→目前沒有待備份變更，完整generation時間同步更新。上一輪操作期間的自動generation已核對captured revision88。
+
+334秒補測中，首次Mentors query154.3ms、首次Aura switch212.2ms；6次暖機switch p95/max198.6ms、query193.7ms，本組符合200ms暫定門檻。前景frame max58.3ms，無≥200ms。小樣本不推論任意日用容量；完整edit→committed-visible尚待補足，commit-only188.2ms不代替該門檻。
+
+兩轮正常關閉後App／Host零、Computer Use重設、前台釋放；workspace revision88、3份durable draft hash與原checkpoint相同，恢復資料保留。`Export-GraspPortable-SubagentReview.ps1`仍為原先未追蹤使用者檔，不執行／不夾帶。原worker完成唯讀驗收缺口核對及限定Host/tests修正，無active child工作。
 
 ## 最新授權：再次 Resume（2026-10-05）
 
@@ -322,8 +332,11 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-Goal active，使用者已 Resume。窄視窗 table header／button focus reveal 修正、18 項直接 JS tests、publish 與 1064px 原生 Tab→Casual Role→Enter／Escape 重驗已完成；提交後不重做此段。
+Goal active，不暫停或重建。完成本段備份狀態修正與驗證文件的commit／push核對後，接續以下剩餘缺口；已完成的30次功能操作、窄視窗焦點、基本備份狀態與本組暖機查詢不整輪重跑。
 
-之後接續代表操作效能：分開記錄冷／暖、筆記／提交／Records 與操作數，不把視窗調整、工具等待、IME 子步驟或重複 span 填數。現有新報告 ui-20261005-021948.json 僅一個初次 Records query 172.8ms，不能宣稱30次／五分鐘或暖機門檻完成。沿真實使用流程有界增加必要證據，無具體超標不推測性優化。
+1. 補「完整編輯至可見committed結果」的有界量測：現有probe只有input-visible及commit-request-visible，不能把兩者相加或用後端耗時冒充完整鏈。保留既有generation／foreground／DOM有效性，不擴建benchmark平台、不改800ms門檻；已通過chain／fan-out無新風險不重跑。
+2. 檔案樹平台操作：同一筆合成筆記右鍵複製相對路徑並貼出核對、Explorer reveal確認實際選中路徑。已有改名／搬移／Wiki身分驗證不重跑。
+3. 三篇小型合成筆記merge→Obsidian修改合併檔的成員正文→Grasp接受→split；確認三ID／內容。現有兩篇merge/split與完整restore證據保留，不重測全矩陣。備份缺件／失敗保全已有工程測試；只補具體UI顯示缺口，勿擴張故障矩陣。
+4. 按Implementation Plan完成最後交付核對、同步現行入口／測量限制、啟動位置／workspace／操作清單，commit／push後才依完整條件判Goal。使用者接受獨立記錄。
 
-最後依現行 Implementation Plan 審核 S4 必要功能／一致性／恢復／效能與交付缺口。已通過且無新風險的 IME 外部競態、allowlist、兩式卡片導航、第二view、rename及草稿還原不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS；實作、驗證與使用者接受分開。GoalSupport 原監測已退出，沒有持續監測承諾。
+S1／S2 PARTIAL、S3／S4 IN_PROGRESS；不是S4完成聲明。已通過的IME外部競態、allowlist、兩式卡片導航、第二view、rename及草稿還原不重跑。GoalSupport原監測已退出，沒有持續監測承諾。

@@ -44,7 +44,13 @@ public sealed class WorkspaceBackupManager : BackgroundService
     public void MarkChanged() => Interlocked.Increment(ref changes);
     private void KnowledgeChanged(ChangeNotice notice) => MarkChanged();
     public async Task<BackupStatusDto> ReadStatusAsync()
-    { await initialized; return Volatile.Read(ref status); }
+    {
+        await initialized;
+        // "ready" describes the last publication, not whether it covers changes
+        // accepted since then. Sample the same counters used by scheduled capture.
+        return Volatile.Read(ref status) with
+        { HasPendingChanges = Interlocked.Read(ref changes) != Interlocked.Read(ref capturedChanges) };
+    }
 
     private Task InitializeAsync()
     {

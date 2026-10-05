@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.23.0
+version: 1.24.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,30 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 2026-10-05 代表操作第二段與備份狀態
+
+18743c5 發行、150%／1348×894；完成30次具體功能操作：搜尋／保留衝突稿／開筆記、Source／Reading／Live切換、literal更新與撤銷重做、兩層相依、多段reference與Wiki／heading導航、Mentors卡片長文圖片／篩選view／完整欄位、Aura分頁／跨頁Key搜尋、返回筆記及備份檢視。選單開啟、對話框輸入定位、失敗點擊等子步驟不另計數；私人 `representative-1005-ledger.json` 保存時間及操作。30次共約13.6分鐘工具節奏的操作與畫面檢查，不等同人工連續鍵入五分鐘或30個獨立效能樣本。
+
+探針維持600秒上限；私人 `ui-20261005-024419.json` 無丟棄樣本。前景frame n142711、p95 4.3ms／max41.8ms，無≥200ms；scroll n161、p95 12.4ms。input→paint n1 8.6ms；commit request→visible n3、p95/max188.2ms；首次note switch n2、max44.7ms，warm n1 22.2ms，with-save n1 40.6ms；初次Mentors query152.2ms，view switch22.8ms。Aura切換與後續操作已超過量測上限，不納入效能判定。操作數門檻已有本段事實紀錄；暖機查詢及完整edit→committed-visible仍待有界補測，不將低樣本或commit-only冒充全部門檻。
+
+workspace revision85→88；三份舊durable draft hash完全相同。操作期間自動產生10:49:27完整generation，最後captured revision88、保留三份；這不是手動capture或關閉補做。UI已看到該時間。正常關閉後App／Host零，Computer Use重設、前台釋放。私人 `representative-1005-verification.json` 保存核對。
+
+本段發現備份UI只列generation時間，未明示尚待備份變更。已沿既有manager counter新增唯讀HasPendingChanges，UI呈現最近成功時間、pending／failed／running及更新狀態；既有issues保留。BackupManager10groups、架構及App／Host Release publish通過。150%原生確認pending提示／最近完整時間→立即備份時busy→11:06:36完整generation／沒有待備份變更；三份草稿與revision88不變。狀態反映已收到的變更事件，不是另一次完整磁碟掃描。這是計畫既有「最後成功／落後／缺件」要求，不改備份週期、資料權威或新增恢復機制。
+
+### 暖機查詢有界補測
+
+同版只加入上述備份狀態，Records路徑未改。`ui-20261005-030459.json` 共334.1秒：初次Mentors query154.3ms；首次Aura switch212.2ms／query214.4ms，符合首次≤1秒。隨後三輪Mentors→Aura：
+
+| 暖機輪次 | Mentors switch / query (ms) | Aura switch / query (ms) |
+| --- | --- | --- |
+| 1 | 92.1 / 88.3 | 198.6 / 193.7 |
+| 2 | 90.0 / 87.2 | 147.9 / 147.2 |
+| 3 | 86.6 / 76.5 | 184.6 / 179.3 |
+
+暖機6次switch p95/max198.6ms、query193.7ms；本組符合≤200ms門檻，首次另列而不混入warm p95。前景frame78800samples、p95 4.3ms／max58.3ms、無≥200ms；沒有新增input樣本。本組是小型工程候選版驗收，不是統計認證或容量保證；現有普通Markdown快速路徑已取得重複暖機證據，沒有具體新超標不再推測性優化。
+
+App／Host正常結束、Computer Use重設、前台釋放，三份durable drafts hash不變；私人 `backup-status-1005-verification.json` 保存核對。完整edit→committed-visible仍須補測，其餘必要原生缺口見EXECUTION-STATE。
 
 ## 2026-10-05 再次復工：窄視窗焦點
 

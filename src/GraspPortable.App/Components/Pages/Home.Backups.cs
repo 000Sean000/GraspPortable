@@ -10,6 +10,15 @@ public partial class Home
     private string _restoreGeneration="", _restoreDestination="";
     private string? _backupMessage;
     private bool _restoreComplete;
+    private string BackupStatusText => _backups switch
+    {
+        { Status: "running" } => "正在處理備份或還原…",
+        { Status: "failed" } => "最近一次備份或還原未完成；先前的完整備份仍保留。",
+        { HasPendingChanges: true } => "有變更尚未備份；將依排程建立完整版本，也可立即備份。",
+        { Generations.Length: 0 } => "尚無完整備份。",
+        _ => "目前沒有待備份的變更。"
+    };
+    private Task RefreshBackupStatusAsync() => ModalActionAsync(ReadBackupStatusAsync);
 
     private async Task ShowBackupsAsync() => await GuardAsync(async () => {
         if(_switching)return;

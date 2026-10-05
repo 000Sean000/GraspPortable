@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.7.0
+version: 1.8.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -74,3 +74,10 @@ Context：新 worker 接收具體重現及檔案邊界，affinity 部分、重�
 核對：中；Root 補充晚到衝突保留、workspace 隔離反例，worker 完成直接 methods fixture；Root 核對 diff／publish／原生重驗。
 返工／人工：使用者在必要重驗期間要求準備暫停，完成當前段收尾。NuGet 設定讀取受 sandbox 限制後用既有資產執行；非模型效果實驗。
 結果：109 departure assertions、33 Records UI fixtures、16 JS tests 及 publish 通過；有限原生重驗通過。完整產品仍部分，證據與續作位置由 Engineering／EXECUTION-STATE 保存。
+
+## 2026-10-05 驗收缺口與備份狀態
+
+任務／政策：policy rc.2、產品基底18743c5；Root操作代表流程，原worker唯讀核對現行Plan與驗證紀錄，避免把歷史待辦重新測試。辨識尚缺完整edit→visible、平台右鍵、三篇共同編輯與備份可見狀態。
+配置：延續要求Sol Medium，Root／child實際model/effort權威metadata仍未知。
+Context／核對：後續沿同worker限定Host BackupManager與direct tests，Root單獨持有Contracts、Home UI、文件、publish／GUI／Git。既有counter足夠，不新增持久狀態或重构排程。
+結果：10groups通過；Root審查diff並完成pending→published原生驗證及暖機查詢補測。本段無人為策略評分、跨模型實驗或新增產品決策；詳細證據在Engineering及EXECUTION-STATE。
