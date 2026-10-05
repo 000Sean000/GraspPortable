@@ -1,12 +1,19 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.6.0
+version: 1.7.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
 ---
 
 ## 紀錄
+
+### 2026-10-05 窄視窗標題焦點
+
+任務／政策：原生發現表格標題焦點被凍結欄遮住，沿原 Records worker 有界修正 JS 與直接 fixtures；policy rc.2，基底3037b2c。
+配置：延續要求 Sol Medium；Root／child 實際模型及 effort 權威 metadata 未取得，不由要求值補造。
+Context／核對：同子系統延續，Root 保有 publish、原生操作、文件及 Git；審查一次綁定、Markdown generation guard 及 header 自身遮擋處理。
+返工／結果：合成 fixture 發現 header 垂直校正偏移，修正後18 tests及publish通過；Root在150%／1064px原生Tab、Enter、Escape確認焦點可見。沒有新增產品決策、模型實驗或重新執行無關測試；詳細產品證據見 S3-S4-Validation。
 
 遷移時沒有 routing 事件。2026-10-05 已核對來源 commit `698d7035c970d04c3a103caa5b0934d68ed75925` 的舊 state 及本機工作目錄：舊 state 明載「尚無觀察」，沒有後續本機事件可搬移。本次文件／設定遷移不生成開發或選模效果樣本；之後由原開發 thread 按觀測契約追加。
 

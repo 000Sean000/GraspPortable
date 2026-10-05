@@ -21,11 +21,12 @@ test('Records keyboard focus exposes a link beyond frozen columns and rows at en
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
-    const results = [];
+    const results = [], controls = [];
     for (const zoom of [1.25, 1.5]) {
       await page.goto('http://127.0.0.1:' + server.address().port);
       await page.evaluate(async zoom => {
         document.body.style.zoom = zoom; window.records = await import('/Records/RecordsPanel.razor.js'); window.events = [];
+        document.body.id='panel';
         const receiver = { invokeMethodAsync: async (...args) => { window.events.push(args); return null; } };
         for (let row=0;row<12;row++) {
           const tr=document.createElement('tr'); if(row===0)tr.className='frozen-row'; rows.append(tr);
@@ -41,6 +42,8 @@ test('Records keyboard focus exposes a link beyond frozen columns and rows at en
             window.records.applyMarkdownBatch([{operation:'render',element,markdown:field===3?'[[Target|醫者]]':'Name',origin:'owner',receiver,generation:1,references:[],regions:[]}]);
           }
         }
+        window.records.syncPanel('panel','absent-modal',receiver);
+        window.records.syncPanel('panel','absent-modal',receiver); // idempotent across parent renders
         await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
         const scroller=document.querySelector('.records-scroll');scroller.scrollLeft=480;scroller.scrollTop=364;
       }, zoom);
@@ -58,6 +61,40 @@ test('Records keyboard focus exposes a link beyond frozen columns and rows at en
         await page.keyboard.press('Enter'); focused.navigated=await page.evaluate(()=>window.events.filter(event=>event[0]==='Navigate'&&event[2]==='Target').length===1);
         results.push(focused);
       }
+      // Actual browser Tab scroll must leave each header visible beyond the
+      // frozen title/Name panes, without scrolling it below its own sticky row.
+      await page.evaluate(() => { const scroller=document.querySelector('.records-scroll');scroller.scrollLeft=0;scroller.scrollTop=364; });
+      await page.locator('.field-heading').nth(0).focus();
+      await page.evaluate(() => { window.headerScrollTop=document.querySelector('.records-scroll').scrollTop; });
+      for(let field=1;field<=3;field++) {
+        await page.keyboard.press('Tab');
+        controls.push(await page.evaluate(() => {
+          const target=document.activeElement,rect=target.getBoundingClientRect();
+          const hit=document.elementFromPoint((rect.left+rect.right)/2,(rect.top+rect.bottom)/2);
+          return {kind:'header',text:target.textContent,unobscured:hit===target||target.contains(hit),scrollTop:document.querySelector('.records-scroll').scrollTop,initialTop:window.headerScrollTop};
+        }));
+      }
+      for(const row of [0,6]) for(const kind of ['edit','record']) {
+        await page.evaluate(() => { const scroller=document.querySelector('.records-scroll');scroller.scrollLeft=480;scroller.scrollTop=364; });
+        const locator=kind==='edit'?page.locator('#roleEdit'+row):page.locator('.record-title-button').nth(row);
+        await locator.focus();
+        controls.push(await page.evaluate(({kind,row}) => {
+          const target=document.activeElement,rect=target.getBoundingClientRect();
+          const hit=document.elementFromPoint((rect.left+rect.right)/2,(rect.top+rect.bottom)/2);
+          return {kind,row,unobscured:hit===target||target.contains(hit)};
+        },{kind,row}));
+      }
+      // Closing a modal restores focus to the same header and runs the panel
+      // focus handler again even if the viewport moved while the modal was open.
+      await page.locator('.field-heading').nth(3).focus();
+      controls.push(await page.evaluate(() => {
+        const previous=document.activeElement,modal=document.createElement('div');modal.id='focus-modal';modal.innerHTML='<button>Close</button>';document.body.append(modal);
+        window.records.syncModal('focus-modal',{invokeMethodAsync:async()=>null});
+        document.querySelector('.records-scroll').scrollLeft=800;
+        window.records.releaseModal('focus-modal');modal.remove();
+        const rect=previous.getBoundingClientRect(),hit=document.elementFromPoint((rect.left+rect.right)/2,(rect.top+rect.bottom)/2);
+        return {kind:'modal-return',same:document.activeElement===previous,unobscured:hit===previous||previous.contains(hit)};
+      }));
     }
     console.log('Frozen focus evidence:',JSON.stringify(results));
     for(const result of results){
@@ -65,6 +102,11 @@ test('Records keyboard focus exposes a link beyond frozen columns and rows at en
       assert.ok(result.scrollLeft<480,'nonfrozen field must move beyond the frozen Name column');
       if(result.row===0)assert.equal(result.scrollTop,364,'already-frozen first row retains its vertical position');
       else assert.ok(result.scrollTop<364,'ordinary row must move beneath the header and frozen first row');
+    }
+    for(const result of controls) {
+      assert.equal(result.unobscured,true,'headers, cell/record buttons and modal return must pass actual hit-testing: '+JSON.stringify(result));
+      if(result.kind==='header')assert.equal(result.scrollTop,result.initialTop,'header cannot use itself as a vertical obstruction');
+      if(result.kind==='modal-return')assert.equal(result.same,true);
     }
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 });

@@ -62,7 +62,10 @@ function revealRecordsFocus(target) {
         const style = getComputedStyle(previous);
         if (style.position === "sticky" && style.left !== "auto") left = Math.max(left, previous.getBoundingClientRect().right);
     }
-    for (const header of grid.tHead?.querySelectorAll("th") ?? [])
+    // Header controls occupy the sticky header itself, above frozen body rows.
+    // Its own row must not become a vertical obstruction to its focus target.
+    const inHeader = !!cell.closest("thead");
+    for (const header of inHeader ? [] : grid.tHead?.querySelectorAll("th") ?? [])
         if (getComputedStyle(header).position === "sticky") top = Math.max(top, header.getBoundingClientRect().bottom);
     for (const frozen of grid.querySelectorAll("tbody .frozen-row")) {
         if (frozen.rowIndex >= row.rowIndex) continue;
@@ -80,7 +83,7 @@ function revealRecordsFocus(target) {
         top: Math.max(rect.top, compact.top), bottom: Math.min(rect.bottom, compact.bottom) } : rect;
     const insetX = 3 * scaleX, insetY = 3 * scaleY;
     const dx = focus.left < left + insetX ? focus.left - left - insetX : focus.right > right - insetX ? focus.right - right + insetX : 0;
-    const dy = focus.top < top + insetY ? focus.top - top - insetY : focus.bottom > bottom - insetY ? focus.bottom - bottom + insetY : 0;
+    const dy = inHeader ? 0 : focus.top < top + insetY ? focus.top - top - insetY : focus.bottom > bottom - insetY ? focus.bottom - bottom + insetY : 0;
     if (dx) scroller.scrollLeft += dx / scaleX;
     if (dy) scroller.scrollTop += dy / scaleY;
 }
@@ -214,8 +217,22 @@ export function syncRecordsViewport(root) {
     } else if (previous.position !== position) scroller.scrollTop = 0;
     viewports.set(scroller, { scope, position });
 }
+const focusPanels = new WeakSet();
 export function syncPanel(rootId, modalId, receiver) {
-    syncRecordsViewport(document.getElementById(rootId));
+    const root = document.getElementById(rootId);
+    syncRecordsViewport(root);
+    if (root && !focusPanels.has(root)) {
+        focusPanels.add(root);
+        root.addEventListener("focusin", event => {
+            const target = event.target;
+            // Markdown keeps its generation-guarded listener and clipped-link
+            // behavior. Delegation also covers controls replaced by later renders.
+            if (target instanceof HTMLElement && target.closest(".records-grid")
+                && !target.closest(".records-markdown")
+                && target.matches("button,input,select,textarea,a,[tabindex]"))
+                revealRecordsFocus(target);
+        });
+    }
     syncModal(modalId, receiver);
 }
 const modals = new Map();

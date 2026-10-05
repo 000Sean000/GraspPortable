@@ -1,11 +1,19 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.39.0
+version: 1.40.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
-## 最新授權：使用者再次要求暫停（2026-10-05）
+## 最新授權：再次 Resume（2026-10-05）
+
+使用者已明確允許繼續既有 Goal，runtime 核對為 active；先前暫停失效，不重建／縮減 scope。branch rewrite/dotnet、HEAD 與即時遠端皆為 `3037b2c043e4746316e08b8dfc95f39c6403b6b4`。產品 tracked working tree 起始無差異；新增未追蹤 `Export-GraspPortable-SubagentReview.ps1` 是本段開始前已有的外部 review 輔助檔，保留、不執行、不夾帶提交。App／Host 起始無存活程序。
+
+已完成窄視窗焦點修正：150%／1064px 寬，Tab 到右側 Casual Role 標題原先被凍結 Name 欄遮住。沿原 Records worker 將 focus reveal 擴及標題／按鈕，header 不加入自身垂直遮擋；Markdown links 的 generation guard 保留。18 項直接 JS tests、架構及 App／Host Release publish 通過。Root 在 1064×894 原生重驗 Name→Symbol→Official→Casual，標題完整可見、Enter 開正確欄位、Escape 返回後焦點仍可見，未修改 schema 或原文。
+
+正常關閉後 App／Host 程序零、Computer Use kernel 重設、前台釋放；三份 durable draft hash 全同、revision85未變，私人核對檔為 `workspaces/AcceptanceSupport/header-focus-1005-verification.json`。其他已通過流程未重跑，完整代表性效能與交付審核仍待完成，Goal active。
+
+## 歷史授權：使用者再次要求暫停（2026-10-05）
 
 使用者在本次 UX 修正原生重驗時要求「稍微準備暫停一下」。完成已開始的新增筆記 departure／表單保留及 Records 捲動位置修正、必要測試／publish／有限原生重驗，更新 checkpoint 並提交推送後暫停既有 Goal。不開始下一工作段，不標 complete、不重建或縮減 Goal；實際 paused 狀態由 runtime pause 後重新核對。
 
@@ -314,8 +322,8 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-使用者已要求暫停，完成本次 Git checkpoint 後透過 runtime pause 並重新確認 paused；等待使用者 Resume 才續作。不要自行啟動下一段。主驗收 workspace revision 85、三份原 durable drafts、新增連續互動筆記與恢復材料保留。
+Goal active，使用者已 Resume。窄視窗 table header／button focus reveal 修正、18 項直接 JS tests、publish 與 1064px 原生 Tab→Casual Role→Enter／Escape 重驗已完成；提交後不重做此段。
 
-Resume 後最小核對 HEAD／remote／working tree 與程序；這次 UX 修正已完成必要 targeted tests、publish 及有限原生重驗，無新風險不重做。接續有界代表操作及更窄視窗鍵盤焦點；現有 600 秒報告只有 6 個輸入／4 個提交樣本，Records 在截止後操作，不構成完整效能門檻通過。重複 span、失敗輸入、工具等待均不湊足操作數或五分鐘。沿真實使用流程增加必要證據，無具體超標不再推測性優化或擴大量測平台。其後審核 S4 完成條件與交付缺口。
+之後接續代表操作效能：分開記錄冷／暖、筆記／提交／Records 與操作數，不把視窗調整、工具等待、IME 子步驟或重複 span 填數。現有新報告 ui-20261005-021948.json 僅一個初次 Records query 172.8ms，不能宣稱30次／五分鐘或暖機門檻完成。沿真實使用流程有界增加必要證據，無具體超標不推測性優化。
 
-已通過且無新風險的 IME 外部競態、allowlist、兩式卡片導航、第二 view、rename 與草稿還原不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS；實作、驗證與使用者接受分開。GoalSupport 先前監測已退出，沒有持續監測承諾。
+最後依現行 Implementation Plan 審核 S4 必要功能／一致性／恢復／效能與交付缺口。已通過且無新風險的 IME 外部競態、allowlist、兩式卡片導航、第二view、rename及草稿還原不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS；實作、驗證與使用者接受分開。GoalSupport 原監測已退出，沒有持續監測承諾。

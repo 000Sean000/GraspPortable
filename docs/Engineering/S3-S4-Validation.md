@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.22.0
+version: 1.23.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,16 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 2026-10-05 再次復工：窄視窗焦點
+
+3037b2c 發行，150% Windows，透過原生視窗選單縮到約1064×864。工具列換行、表格橫向捲動及欄位editor可用；Tab 依序 Name→Symbol→Official Role→Casual Role 時，Casual Role 標題被凍結 Name 欄遮住，Enter 仍開啟 Casual Role 欄位設定。這是焦點可見性缺陷，沒有誤改其他欄位；Escape 後保留原設定。原先 generation-guarded Markdown link focus handler 未涵蓋標題／編輯按鈕。
+
+最小修正：panel 綁定一次 focusin，表格內標題／控制按鈕沿用 sticky 幾何的 reveal；Markdown 區域仍走既有 generation guard。thead 焦點只校正橫向，不將自身 header 算入垂直遮擋。18 項直接 JS tests 通過，包含 125%／150% 實際 DOM 的 Tab、凍結／普通控制項及對話框返回 hit-test，既有 batch／paint／viewport fixtures 同時通過；架構與 App／Host Release publish 通過。
+
+Root 修正版原生重驗：150%、1064×894，Name 設定 Escape 返回後，Tab→Symbol→Official Role→Casual Role 均將標題完整露出；Enter 開 Casual Role／Field4，Escape 後焦點仍可見且首筆 Anria 不被垂直捲走。未保存欄位設定或修改原文。這是本次缺陷的有界重驗，不擴稱每種縮放及所有鍵盤路徑皆經原生驗證。正常退出後 App／Host 零、Computer Use 已重設，三份 durable draft hash 全同、revision85保持；私人核對見 `workspaces/AcceptanceSupport/header-focus-1005-verification.json`。
+
+私人 `ui-20261005-021948.json` elapsed441.8秒，含視窗調整及工具等待，不等於連續使用時間。初次 Records query只有1樣本172.8ms；frame max46ms、≥200ms為0，scroll49samples／p95約4.3ms。無足量切換／輸入樣本，不能宣告整體效能通過。正常退出後 App／Host零，Computer Use已重設；三份durable drafts hash完全相同、revision85及來源原文保持。
 
 ## 2026-10-05 代表操作第一段與發現
 
