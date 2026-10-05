@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.20.0
+version: 1.21.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,28 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 2026-10-05 復工後普通 Markdown 快速路徑
+
+復工確認 branch／remote 均為 574dc16、起始工作目錄乾淨，workspace 鎖未占用、三份 durable drafts 不變。沿既有剩餘效能問題定位，沒有重跑全專案驗證。
+
+實際 Aura 首頁 50×5 的 250 個原文只有空字串重複（239 個不同原文），零 Grasp references；完整字串快取至多省 4.4% 呼叫，未實作。前次合成 profile 每格有刻意加入的 computed reference，不能用該 reference 成本推論真實 Aura。因此改採小型安全快速路徑：References／Regions 均空且無 `:ref:`／`[[@` 時，直接使用既有 renderer／sanitizer，省去無用途的 Grasp context、nonce、walker 與額外 DOM 序列化。其餘完整保留原路徑，不遞迴解析結果，來源、導航、頁數與量測 guards 不變。
+
+必要驗證：新 differential fixture 的 11 種一般輸入（Wiki、連結、圖片、raw HTML、fence、CRLF、Unicode、escape、table 等）新舊 HTML 完全相同；12 種 metadata／reserved／malformed 案例仍走原路徑。editor／fastpath／Records batch 共 3 tests、TypeScript／bundle、四 Project 架構及 App／Host Release publish 通過。私人實際 Aura 250 格舊／新輸出完全相同；五次 warmed renderer-only 分別 27.1／24.4／23.2／23.9／23.6 ms 與 12.4／12.0／11.6／11.3／12.6 ms，中位數 23.9→12.0 ms。`workspaces/RecordsRenderProfile/report-fastpath-actual.json` 不進 Git，無 backend／Blazor／native 等價宣稱。
+
+原生 `S4-Acceptance-1004` revision 79，150% 本機視窗，保留既有衝突後同序切換；私人報告 `ui-20261005-002714.json`：
+
+| 操作 | Collection switch（ms） | Query（ms） | List HTTP | Collection HTTP | Apply→children ready |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Aura 首次 | 207.5 | 209.5 | 8.831 | 16.670 | 133.674 |
+| Mentors 暖機 1 | 89.5 | 86.1 | 9.223 | 9.927 | 57.303 |
+| Aura 暖機 1 | 185.9 | 181.0 | 8.778 | 11.029 | 110.994 |
+| Mentors 暖機 2 | 98.5 | 97.2 | 20.888 | 9.356 | 58.530 |
+| Aura 暖機 2 | 182.9 | 182.1 | 8.781 | 13.223 | 112.333 |
+
+最初 Mentors 直接開表 query 167.3 ms；後續型別表切換 94.0 ms。switch／query 是同一操作的不同 span，不重複計次；內部階段不保證加總等於端到端。相較前次 Aura 暖機 211.4／229.4 ms，本輪低於 200 ms；跨重開機環境不能宣稱差值全由四行優化造成，兩次亦不足 p95 驗收。尚需至少 30 次代表操作／五分鐘實際互動及其餘目標。
+
+同輪原生確認 81 筆／每頁 50 筆及 Wiki 高亮，型別表卡片兩張圖片、兩式多段 reference 的粗體／空行，点第一式第二段開同來源并選中第 10 行 LiveLinks.Message。正常關閉 App／Host（含 dotnet Host）均無程序，三份 draft JSON hash 不變，Computer Use 已重設，前台釋放。本輪未寫筆記或改資料表；S4 仍未全部通過。
 
 ## 2026-10-05 縮放、凍結焦點與關機 checkpoint
 
@@ -325,7 +347,7 @@ Launcher 可用 `-MeasurePerformance` 啟用本機有界探針，正常關閉寫
 
 目前仍缺至少 30 次代表操作與約五分鐘連續互動的完整原生證據，須分開記 note／commit／Records 操作及可見延遲，不以後端數字代填。完整啟動指令見 [FirstUI Quickstart](FirstUI-Quickstart.md)；探針預設關閉，修正後只重測受影響流程，不為累積數字重跑全庫。
 
-主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。代表性縮放／凍結焦點已有上方有限新證據；Resume 後仍需解決 Records 暖機效能、補視窗縮窄及足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
+主驗收資料重解析、Anria 長文及微軟注音外部競態已取得本文及 S1 Validation 的有限原生證據。代表性縮放／凍結焦點已有上方有限新證據；復工後兩次 Records 暖機低於門檻，但仍需補視窗縮窄及足量端到端量測。computed Markdown 合成原生畫面、Import 自動選取、正常 carrier 改名、九型別基本操作、關聯、合併／拆分、Obsidian 交替、一般來源衝突及基本解析政策已有上述有限證據，不重做全部案例。備份 generation 選取與還原收據一致，較新 durable draft 另已核對；詳見本頁與 [S2 Validation](S2-Validation.md)。
 
 指定真實樣本為四份 Markdown 與四張直接引用圖片，原始基線在忽略的 `workspaces/S4-Sample-Source`，hash 存 sample manifest；實際操作副本為 `S4-Acceptance-1004`。未掃全 vault 或 Legacy1，私人內容不進 Git。Mentors 第 1 張為 15×8、已原生轉換；第 2 張為 15×3（40 個 `<br>`），目前僅解析統計、無診斷；Aura 第 1 張 81×5 已原生轉換，並確認第 2 頁 `Aura51` 可見。Triensa 長文及兩張圖片已有欄位轉換／外部修改／卡片參照原生證據；Anria 完整長文已定點取樣，轉換、圖片與返回原卡的有限原生結果見上方 revision 61–62 紀錄。跨筆／跨表關聯的基本建立、改名與缺失已驗，不能據此推定全部故障邊界完成。
 

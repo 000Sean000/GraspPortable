@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.4.0
+version: 1.5.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -49,3 +49,12 @@ Context：同子系統 affinity 高、增量交接低；Root 保有 GUI、文件
 核對：中；profile 未支持預期 layout-thrash，沒有提交試驗性 renderer 改造；Root 審查焦點範圍／CSS zoom／generation，publish 後原生重驗。
 返工／人工：使用者要求關機前完整收尾，完成當前修正與必要驗證，沒有展開新優化。沒有新增產品決策或跨模型實驗。
 結果：焦點修正、3 項 JS tests、publish及有限原生重驗完成；整體效能仍未達標。產品證據見 Engineering/S3-S4-Validation.md，停點由 EXECUTION-STATE 管理。
+
+## 2026-10-05 關機後恢復 renderer 工作
+
+任務／政策：沿既有 Records 效能缺口完成普通 Markdown 快速路徑；policy rc.2，基底 574dc16。
+配置：本次 runtime 沒有旧 child，建立一位 implementation worker，要求 gpt-6.1-sol／medium；Root／child 實際 model／effort 權威 metadata 仍未知。
+Context：最小交接包含現行程式、上段 profile 與原生數字；同子系統 affinity 部分，額外重載中。Root 保有 GUI、共同契約與文件，worker 限 renderer 與直接 fixtures。
+核對：中；實際資料否定 raw／cachedValue 重複快取收益，未提交快取；Root 定義無 metadata／保留 marker 的安全快速路徑，worker 完成實作與 exact-output comparison。Root 審查 diff、publish及原生量測。
+返工／人工：使用者正式恢復 Goal；無新增產品決策。一次 npm build 權限限制後以授權執行完成，未改模型或做模型效果實驗。
+結果：3 targeted tests、publish及有限 GUI 通過；實際 renderer-only 中位数減少11.9ms，兩次原生 Aura 暖機低於200ms；樣本不足完整驗收。產品證據及下一步由 Engineering／EXECUTION-STATE 承載，不推導跨模型費用或因果優勢。

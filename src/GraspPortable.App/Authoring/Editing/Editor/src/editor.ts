@@ -480,6 +480,10 @@ export function insertText(text: string) {
 // Ranges must belong to this exact raw source. Cached Markdown is rendered once
 // and is never passed back through Grasp syntax recognition or this function.
 export function renderManagedMarkdown(source: string, references: Reference[] = [], regions: Region[] = []): string {
+  // Without metadata or reserved carriers there is no managed content to shield
+  // or replace. The same Markdown renderer and sanitizer already serialize HTML.
+  if(references.length===0 && regions.length===0 && !source.includes(":ref:") && !source.includes("[[@"))
+    return html(source).replace(/\r/g,"&#13;");
   const target=document.createElement("div");
   const nonce=crypto.randomUUID();
   let represented=source;
