@@ -118,6 +118,45 @@ try
     Check(conflictGuard.CanLeave(afterDeferral,false)&&conflictGuard.IsDeferred("note","session"),"freshly saved edits can leave without auto-merging");
     conflictGuard.RequestSubmission("note","session");
     Check(!conflictGuard.IsDeferred("note","session"),"explicit Save after conflict deferral retries semantic conflict handling");
+    // Run Home's actual root/folder dialog-opening methods. A blocked save must
+    // surface its own dialog before asking the user to enter a new title.
+    foreach(var parent in new string?[]{null,"Projects/中文資料夾"})
+    {
+        foreach(var blocker in new[]{"conflict","rename","ime","unknown"})
+        {
+            GraspPortable.App.Components.Pages.Home? home=null;
+            var saveReply=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            home=new() {Save=async () => {
+                if(blocker is "conflict" or "rename")home!.ShowDepartureDialog(blocker);
+                return await saveReply.Task;
+            }};
+            var opening=home.OpenCreateAsync(parent);
+            Check(!opening.IsCompleted&&home.State.Dialog!="create","create waits for departure acknowledgement: "+blocker);
+            await home.OpenCreateAsync("other-folder");
+            Check(home.State.Parent=="existing-parent","concurrent create does not change pending destination");
+            saveReply.SetResult(false); await opening;
+            Check(home.State.Parent=="existing-parent"&&home.State.Title=="existing-title"&&!home.State.Focus,
+                "blocked departure leaves create fields untouched: "+blocker);
+            Check(home.State.Dialog==(blocker is "conflict" or "rename"?blocker:null),"blocked departure keeps its dialog: "+blocker);
+        }
+        var ready=new GraspPortable.App.Components.Pages.Home {Save=()=>Task.FromResult(true)};
+        ready.EnterWorkspace("C:/workspace");
+        await ready.OpenCreateAsync(parent);
+        Check(ready.State==(parent??"","","create",true),"acknowledged departure opens the requested root/folder and focuses title");
+        ready.EnterTitle("新筆記 中文標題");
+        ready.ShowDepartureDialog("conflict");
+        await ready.OpenCreateAsync(parent is null?"another-folder":null);
+        Check(ready.State==(parent??"","新筆記 中文標題","create",true),"late conflict reopening preserves entered title and original destination");
+        ready.EnterWorkspace("c:/WORKSPACE");
+        await ready.OpenCreateAsync("another-folder");
+        Check(ready.State.Parent==(parent??"")&&ready.State.Title=="新筆記 中文標題","same Windows workspace retains the form");
+        ready.EnterWorkspace("C:/restored-workspace");
+        await ready.OpenCreateAsync("restored-folder");
+        Check(ready.State==("restored-folder","","create",true),"different workspace cannot inherit the old title or destination");
+        ready.FinishOrCancelCreate();
+        await ready.OpenCreateAsync("fresh-folder");
+        Check(ready.State==("fresh-folder","","create",true),"explicit cancel or successful creation permits a fresh title and destination");
+    }
     Console.WriteLine($"Draft departure: {checks} bounded assertions passed.");
     return 0;
 }

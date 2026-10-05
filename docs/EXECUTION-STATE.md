@@ -1,11 +1,19 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.38.0
+version: 1.39.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
 
-## 最新授權與復工核對（2026-10-05）
+## 最新授權：使用者再次要求暫停（2026-10-05）
+
+使用者在本次 UX 修正原生重驗時要求「稍微準備暫停一下」。完成已開始的新增筆記 departure／表單保留及 Records 捲動位置修正、必要測試／publish／有限原生重驗，更新 checkpoint 並提交推送後暫停既有 Goal。不開始下一工作段，不標 complete、不重建或縮減 Goal；實際 paused 狀態由 runtime pause 後重新核對。
+
+工程：DraftDeparture 109 assertions、Records UI 33 fixtures、Records JS 16 tests、架構及 App／Host Release publish 通過。原生確認新增前先處理衝突、保留草稿後開表單；換表回第一筆第一欄，換頁回該頁首筆且保留橫向。晚到衝突保留有 fixtures，未追加原生競態。詳見 S3／S4 Validation。三份既有 durable drafts／revision 85／新增驗收筆記及全部恢復材料保留，無資料重設。
+
+正常關閉後 App／Host（含 dotnet Host）程序零；Computer Use kernel 已重設、前台釋放，worker 全部完成。`workspaces/AcceptanceSupport/pause-1005-navigation-verification.json` 核對三份草稿 SHA-256 不變，私人資料不進 Git。工作段文件、程式及 targeted fixtures 一起提交，未夾帶其他產品段。
+
+## 本輪復工核對（歷史，2026-10-05）
 
 使用者已正式恢復產品開發，關機前暫停指示失效；既有完整 P0–S4 Goal 工具確認 active，不重建或縮減範圍。Repository／origin 不變，branch rewrite/dotnet；HEAD 與即時 ls-remote 均為 `574dc16c71e1272209b5fb909a121e3b34704ae0`，working tree 起始乾淨，前次成果確已推送。
 
@@ -13,7 +21,13 @@ scope: rewrite-decisions-current-authorization-and-checkpoints
 
 直接接續 Records 暖機渲染成本：Root 保有整合／GUI與共同狀態；依 policy rc.2 指派一位 Sol Medium worker，唯讀核對實際 Aura 首頁 250 格：239 個不同原文，僅空字串重複，且零 Grasp references；因此不新增 batch 快取。現接續無 metadata／無保留 carrier 的普通 Markdown 快速路徑，沿用相同 renderer 與 sanitizer，保留所有 managed content 原路徑；必要 differential fixtures 與實際樣本定位完成後再原生量測。舊 worker 本次 runtime 已不存在，因此提供最小必要交接。實際 child model metadata 仍未知，不以要求值代替。
 
-## 最新工作段：普通 Markdown 渲染快速路徑
+## 已完成工作段：代表操作與兩項 UX 修正
+
+以已核對遠端的 84ef5a0 接續，working tree 起始乾淨。代表原生操作已走通新筆記、真實注音／撤銷／Ctrl+Y 重做、兩層 composition 更新、兩段引用及 Wiki／定義導航、角色卡與凍結捲動、Aura 分頁／搜尋。workspace 現 revision 85，新增驗收筆記保留，三份既有 durable draft hash 不變。600 秒探針僅涵蓋較早筆記操作，後面的表格操作不冒充量測通過；完整 30 次／五分鐘代表操作仍缺。詳細有限結果見 S3／S4 Validation。
+
+已完成原生發現的新增筆記遇衝突遺失待填標題，以及表格／分頁保留不相干捲動位置修正。Root 負責 Records、整合／GUI／文件；一位 Sol Medium worker 處理 Home 新增流程與直接 fixtures。不改資料權威、衝突語意、效能門檻或產品範圍。Goal active。
+
+## 先前工作段：普通 Markdown 渲染快速路徑
 
 復工基底 574dc16，普通 Markdown 無 References／Regions 且無保留引用 carrier 時，跳過 Grasp 專用 context／替換 DOM 建立，仍走同一 Markdown renderer 與 sanitizer；managed／未完成引用保持原路徑。沒有新增快取、修改頁數、遮蔽連結或放寬 paint 成功条件。Differential fixture 11 個一般／12 個 fallback 案例通過；editor／fastpath／Records batch 共 3 tests、TypeScript／bundle、架構及 Release publish 通過。
 
@@ -300,10 +314,8 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-Goal active，使用者已正式 Resume。普通 Markdown 快速路徑完成必要工程及有限原生驗證；沿本工作段 Git checkpoint 續作，先核對 HEAD／working tree，不重建 Goal 或測試資料。`S4-Acceptance-1004` revision 79、三份 durable drafts 及原還原 workspace 保留。
+使用者已要求暫停，完成本次 Git checkpoint 後透過 runtime pause 並重新確認 paused；等待使用者 Resume 才續作。不要自行啟動下一段。主驗收 workspace revision 85、三份原 durable drafts、新增連續互動筆記與恢復材料保留。
 
-下一步先進行有界代表性 Windows 使用流程：至少 30 次不同類型的操作及約五分鐘真正連續互動，涵蓋筆記切換／中文輸入與撤銷／相依更新、Records 查詢切換與卡片／凍結捲動、視窗縮窄及鍵盤焦點；把 cold／warm、操作種類與同一操作的多個 span 分開。不要以工具等待填足五分鐘，也不要靠兩次低於門檻便宣布 p95 通過。原生量測前提醒使用者，結束保存報告與正常關閉核對。
+Resume 後最小核對 HEAD／remote／working tree 與程序；這次 UX 修正已完成必要 targeted tests、publish 及有限原生重驗，無新風險不重做。接續有界代表操作及更窄視窗鍵盤焦點；現有 600 秒報告只有 6 個輸入／4 個提交樣本，Records 在截止後操作，不構成完整效能門檻通過。重複 span、失敗輸入、工具等待均不湊足操作數或五分鐘。沿真實使用流程增加必要證據，無具體超標不再推測性優化或擴大量測平台。其後審核 S4 完成條件與交付缺口。
 
-若代表操作再出現具體超標，依最新分段證據處理；目前不繼續推測性微優化、快取或虛擬化。Aura 無引用、重複僅空字串，舊 50×5 合成 profile 的 computed reference 成本不代表本案。保留 generation／workspace／來源身分及完整成功量測條件，不減頁數或放寬門檻。
-
-其後逐項審核完整 S4 完成條件及尚缺一致性／恢復／效能證據，再更新交付文件、commit／push。S1／S2 PARTIAL、S3／S4 IN_PROGRESS，使用者接受另記；沒有完成證據不標 complete。已通過且沒有新增風險的 IME、基本 allowlist、兩式卡片導航、第二 view、改名與草稿還原不重做。GoalSupport 原監測已退出，沒有持續監測承諾。
+已通過且無新風險的 IME 外部競態、allowlist、兩式卡片導航、第二 view、rename 與草稿還原不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS；實作、驗證與使用者接受分開。GoalSupport 先前監測已退出，沒有持續監測承諾。

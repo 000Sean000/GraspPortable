@@ -48,7 +48,7 @@ public partial class Home
     private async Task HandleExplorerActionAsync(ExplorerAction action) => await GuardAsync(async () => {
         switch(action.Action)
         {
-            case "new-note": ShowCreateAt(action.Target.RelativePath); return;
+            case "new-note": await ShowCreateAt(action.Target.RelativePath); return;
             case "copy-relative-path":
                 await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(action.Target.RelativePath);
                 _notice="已複製相對路徑。"; return;

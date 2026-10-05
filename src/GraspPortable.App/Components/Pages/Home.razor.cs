@@ -105,6 +105,7 @@ public partial class Home
     private async Task LoadWorkspaceAsync()
     {
         _draftDeparture.EnterWorkspace(Backend.WorkspacePath);
+        EnterCreateWorkspace(Backend.WorkspacePath);
         _recordsVisible=false;_recordsInitialCollectionId="";_recordsInitialRecordId="";
         _contextGeneration++;
         searchCancellation?.Cancel();
@@ -445,15 +446,13 @@ public partial class Home
         if(editor is not null && _note is not null)
             await editor!.InvokeVoidAsync("renderReading","note-reading",_source,_source==_note.Source?_note.References:[],_source==_note.Source?_note.Regions:[]);
     }
-    private void ShowCreate() { _newParent=""; ShowCreateAt(""); }
-    private void ShowCreateAt(string parent) {_newParent=parent;_newTitle="";_dialog="create";_focusNewTitle=true;}
     private async Task CreateNoteAsync() => await ModalActionAsync(async () =>
     {
         if(!await SaveCurrentAsync())return;
         var command=new CreateNoteRequest(Guid.NewGuid().ToString("N"),string.IsNullOrWhiteSpace(_newTitle)?"未命名筆記":_newTitle.Trim(),ParentPath:_newParent);
         var result=await Backend.CommandAsync("api/notes",command,command.OperationId);
         if(result.Status!="committed" || result.NoteId is null)throw new InvalidOperationException(result.Message??"建立筆記未完成。");
-        _dialog=null; await RefreshCollectionsAsync(); await SelectNoteAsync(result.NoteId);
+        ClearCreateForm(); _dialog=null; await RefreshCollectionsAsync(); await SelectNoteAsync(result.NoteId);
         _filesRefresh++;
     });
     private void OpenWorkspaceDialog() {_workspacePath=Backend.WorkspacePath;_dialog="workspace";}
@@ -595,7 +594,7 @@ public partial class Home
         });
         return safe;
     }
-    private void CloseDialog(){if(!_busy)_dialog=null;}
+    private void CloseDialog(){if(!_busy){if(_dialog=="create")ClearCreateForm();_dialog=null;}}
     private async Task ModalActionAsync(Func<Task> action)
     {if(_busy)return;_busy=true;try{await GuardAsync(action);}finally{_busy=false;}}
     private async Task GuardAsync(Func<Task> action)

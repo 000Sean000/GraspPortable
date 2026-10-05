@@ -4,7 +4,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @implements IAsyncDisposable
 
-<section class="records-panel" aria-label="資料表" id="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)">
+<section class="records-panel" aria-label="資料表" id="@_recordsPaintRoot" data-records-paint-scope="@(_measureRecords ? _recordsPaintRoot : null)" data-records-paint-token="@(_measureRecords ? RecordsPaintToken : null)">
     <header class="records-toolbar">
         <div class="records-title"><span class="records-icon">▦</span><div><small>WORKSPACE RECORDS</small><h1>@(_data?.Title ?? "資料表")</h1></div></div>
         <div class="records-actions"><button @onclick="ShowTagsAsync" disabled="@_busy">跨表標籤</button><button @onclick="RefreshAsync" disabled="@_loading" title="重新讀取">↻</button><button class="primary" @onclick="ShowCreate">＋ 資料表</button></div>
@@ -36,7 +36,9 @@
         @if (SourceBlocked) { <div class="records-message warning">來源目前有草稿或未接受的變更（@_data.SourceStatus）。內容保持可讀；請先開啟原文處理，再修改資料表。</div> }
         @if (_data.Diagnostics.Length > 0) { <details class="records-diagnostics"><summary>來源有 @_data.Diagnostics.Length 項診斷</summary>@foreach (var diagnostic in _data.Diagnostics) { <p><strong>@diagnostic.Code</strong> @diagnostic.Message</p> }</details> }
         <div class="records-table-actions"><span>@filteredRows.Length / @_data.Rows.Length 筆 · @visibleFields.Length 個顯示欄位</span><div><button @onclick="() => ShowField()" disabled="@SourceBlocked">＋ 欄位</button><button class="primary" @onclick="() => ShowRow()" disabled="@SourceBlocked">＋ 紀錄</button></div></div>
-        <div class="records-scroll" tabindex="0" aria-label="可水平及垂直捲動的資料表">
+        <div class="records-scroll" tabindex="0" aria-label="可水平及垂直捲動的資料表"
+             data-viewport-scope="@System.Text.Json.JsonSerializer.Serialize(new[] { WorkspaceKey, _data.Id, _view?.Id ?? "" })"
+             data-viewport-position="@System.Text.Json.JsonSerializer.Serialize(new { Page = _page, Search = _search })">
             <table class="records-grid"><colgroup><col style="width:220px" />@foreach (var field in visibleFields) { <col style="width:220px" /> }</colgroup>
                 <thead><tr><th class="record-title-head">紀錄 <small>標題 / Key</small></th>@{ var columnIndex = 0; }@foreach (var field in visibleFields) { <th @key="field.Id" class="@(columnIndex < frozenColumns ? "frozen-field-head" : "")" style="@ColumnStyle(columnIndex++, frozenColumns)"><button class="field-heading" @onclick="() => ShowField(field)"><span>@field.DisplayName</span><small>@KindName(field.Kind) · @field.Key</small><span class="field-caret">⌄</span></button></th> }</tr></thead>
                 <tbody>@for (var rowIndex = 0; rowIndex < displayRows.Length; rowIndex++)

@@ -5,7 +5,31 @@ import { readFile } from "node:fs/promises";
 // Exercise the production barrier without loading editor dependencies or a GUI.
 const source = (await readFile(new URL("../RecordsPanel.razor.js", import.meta.url), "utf8"))
     .replace('import { renderManagedMarkdown } from "../editor.js";', 'const renderManagedMarkdown = source => { if (source === "FAIL") throw new Error("render failure"); return source; };');
-const { waitForRecordsPaint, renderMarkdown } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+const { waitForRecordsPaint, renderMarkdown, syncRecordsViewport } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+
+test("query navigation resets the viewport without moving a card return or SSE refresh", () => {
+    const scroller = { isConnected: true, dataset: { viewportScope: "workspace/table/view", viewportPosition: "page0/search" }, scrollTop: 0, scrollLeft: 0 };
+    const root = { querySelector: () => scroller };
+    syncRecordsViewport(root);
+    scroller.scrollTop = 480; scroller.scrollLeft = 500;
+    syncRecordsViewport(root); // same query: card open/close or updated cell data
+    assert.equal(scroller.scrollTop, 480); assert.equal(scroller.scrollLeft, 500);
+    scroller.dataset.viewportPosition = "page1/search";
+    syncRecordsViewport(root);
+    assert.equal(scroller.scrollTop, 0); assert.equal(scroller.scrollLeft, 500);
+    scroller.scrollTop = 300;
+    scroller.dataset.viewportPosition = "page0/changed-search";
+    syncRecordsViewport(root);
+    assert.equal(scroller.scrollTop, 0); assert.equal(scroller.scrollLeft, 500);
+    scroller.scrollTop = 200;
+    scroller.dataset.viewportScope = "workspace/other-table/view";
+    syncRecordsViewport(root);
+    assert.equal(scroller.scrollTop, 0); assert.equal(scroller.scrollLeft, 0);
+    scroller.scrollTop = 123; scroller.isConnected = false;
+    scroller.dataset.viewportScope = "new-workspace/table/view";
+    syncRecordsViewport(root);
+    assert.equal(scroller.scrollTop, 123);
+});
 function fixture() {
     const observers = new Set();
     globalThis.MutationObserver = class {
@@ -70,7 +94,7 @@ test("hidden panel is excluded from visible result measurements", async () => {
 });
 function renderElement() {
     return { dataset: { recordsRenderExpected: "2", recordsPaintExpected: "2" }, isConnected: true, innerHTML: "previous",
-        querySelectorAll: () => [], classList: { contains: () => false } };
+        querySelectorAll: () => [], addEventListener() {}, classList: { contains: () => false } };
 }
 test("renderer marks the exact applied generation ready", () => {
     const element = renderElement(); renderMarkdown(element, "current", "origin", {}, 2);

@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup><Compile Include="../../src/GraspPortable.App/Authoring/Editing/DraftDepartureGuard.cs" Link="Product/DraftDepartureGuard.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../../src/GraspPortable.App/Components/Pages/Home.Create.cs" Link="Product/Home.Create.cs" /></ItemGroup>
 </Project>

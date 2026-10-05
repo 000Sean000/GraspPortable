@@ -120,7 +120,7 @@ public partial class RecordsPanel : IAsyncDisposable
         _module ??= await MarkdownModule.GetAsync();
         if (_disposed) return;
         _receiver ??= DotNetObjectReference.Create(this);
-        await _module.InvokeVoidAsync("syncModal", _modalId, _receiver);
+        await _module.InvokeVoidAsync("syncPanel", _recordsPaintRoot, _modalId, _receiver);
         if (_focusFirst)
         {
             _focusFirst = false;

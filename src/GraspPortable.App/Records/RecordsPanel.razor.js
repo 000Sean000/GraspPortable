@@ -201,6 +201,23 @@ export function waitForRecordsPaint(rootId, token, timeoutMs = 2000) {
     });
 }
 
+const viewports = new WeakMap();
+export function syncRecordsViewport(root) {
+    const scroller = root?.querySelector(".records-scroll");
+    if (!scroller?.isConnected) return;
+    // Read current rendered DOM, never an earlier async request's selection.
+    const scope = scroller.dataset.viewportScope, position = scroller.dataset.viewportPosition;
+    const previous = viewports.get(scroller);
+    if (!previous || previous.scope !== scope) {
+        scroller.scrollLeft = 0;
+        scroller.scrollTop = 0;
+    } else if (previous.position !== position) scroller.scrollTop = 0;
+    viewports.set(scroller, { scope, position });
+}
+export function syncPanel(rootId, modalId, receiver) {
+    syncRecordsViewport(document.getElementById(rootId));
+    syncModal(modalId, receiver);
+}
 const modals = new Map();
 export function syncModal(id, receiver) {
     const element = document.getElementById(id), existing = modals.get(id);

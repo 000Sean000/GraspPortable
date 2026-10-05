@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.21.0
+version: 1.22.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
@@ -8,6 +8,26 @@ status: implemented-parts-with-partial-native-evidence
 ## 判定
 
 分組、Records engine／metadata／service、資料表 UI 與 Markdown table 轉換已接入產品，最新 App／Host 已完成本機 publish。下列有界工程測試及 15×8 import／view／凍結／排序編輯已有實際結果；完整原生驗收仍未完成，不是阶段完成或使用者接受聲明。S1／S2 仍 PARTIAL，動態進度由 [EXECUTION-STATE](../EXECUTION-STATE.md) 維護。
+
+## 2026-10-05 代表操作第一段與發現
+
+以 84ef5a0 發行、150% 最大化視窗操作，原有三份衝突草稿保持：新增筆記、貼入中文多段 literal／兩層 composition、微軟注音 s/u/3＋Return、Ctrl+Z／Ctrl+Y、三模式、Wiki 跳轉、Reference 第二段定位定義、修改 literal 後相依／快取更新均有原生證據。Ctrl+Shift+Z 本次未重做，Ctrl+Y 成功，不能將兩個快捷鍵混記。新增測試筆記保留；workspace revision 79→85。三份原 durable draft JSON SHA-256 全部不變。
+
+角色表雙向捲動時標題列／record 欄／設定的首列欄保持，Triensa 卡片 Escape 返回原焦點；Aura 第二頁與 Key 搜尋找到第 81 筆。發現兩個可重現 UX 問題：新增筆記輸入標題後才被舊稿衝突擋住，重開表單遺失標題；切換表格或頁面沿用上一個垂直位置，首筆可能不在畫面內。這不是資料遺失，但須修正流程。
+
+私人報告 `ui-20261005-003552.json` 在既定 600 秒上限停止。6 次 input→paint opportunity p95/max 7.8 ms，4 次 commit request→rendered note p95/max 123.4 ms，1 次 note switch 28.2 ms；全區間 frame max 33.2 ms、無 ≥200 ms 樣本。這些是實際採集範圍，仍只有小樣本，不能推出完整效能通過；停表後的 Records 操作不帶量化結果。私人 `workspaces/AcceptanceSupport/continuous-1005-ledger.json` 有 28 筆事件，含失敗輸入、IME 步驟及表單子步驟，不能當成 28 次獨立成功代表操作。工具等待／context 重載亦不能充當五分鐘連續操作。≥30 次及約五分鐘實際互動判準尚未完整達成，不延長無意義測試填數。
+
+App／Host 正常退出，Computer Use kernel 重設、前台釋放。後續只針對上述發現修正、targeted tests 及有限原生重驗，再接續未完驗收。
+
+### 本段修正與暫停前重驗
+
+新增筆記在開啟表單前先執行原有 departure guard；若填表後才遇到衝突／rename，保留標題及原目的資料夾，成功建立／明確取消／切換 workspace 才清除。Records 按當前 DOM query 身分重設位置：換表／view 重設兩軸，換頁／搜尋重設垂直；卡片返回／同 query SSE 更新不重設，沒有改動 row／field 身分或畫面成功量測條件。
+
+DraftDeparture 109 assertions、Records UI 33 fixtures、Records JS 16 tests、四 Project 架構及 Release publish 通過。JS 測試曾因舊 render element stub 缺少先前新增的 addEventListener 失敗，補齊 stub 後全通過，沒有改產品容錯來掩蓋失敗。
+
+修正版原生重驗（150%、1348×894 視窗）：既有衝突筆記點＋先出現合併提示；保留草稿後再次＋才出現標題表單，取消正常。Mentors 在中段／右側切換 Aura 後顯示第 1 筆與第一欄；Aura 再捲動後換第二頁，頂端為第 51 筆，橫向位置保留。晚到衝突的表單保留／workspace 隔離由 targeted fixtures 驗證，本次未重新人工製造晚到競態。更窄視窗鍵盤焦點與足量效能仍留待續作。
+
+使用者在重驗期間要求準備暫停，因此完成這段必要重驗及 checkpoint，不開始下一工作段。三份 durable draft hash 保全檢查與私人材料保留，沒有 reset／清 DB。實際 Goal 暫停依 runtime 操作回傳另核對。
 
 ## 2026-10-05 復工後普通 Markdown 快速路徑
 

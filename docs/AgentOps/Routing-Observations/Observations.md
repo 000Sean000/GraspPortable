@@ -1,6 +1,6 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.5.0
+version: 1.6.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
@@ -58,3 +58,12 @@ Context：最小交接包含現行程式、上段 profile 與原生數字；同�
 核對：中；實際資料否定 raw／cachedValue 重複快取收益，未提交快取；Root 定義無 metadata／保留 marker 的安全快速路徑，worker 完成實作與 exact-output comparison。Root 審查 diff、publish及原生量測。
 返工／人工：使用者正式恢復 Goal；無新增產品決策。一次 npm build 權限限制後以授權執行完成，未改模型或做模型效果實驗。
 結果：3 targeted tests、publish及有限 GUI 通過；實際 renderer-only 中位数減少11.9ms，兩次原生 Aura 暖機低於200ms；樣本不足完整驗收。產品證據及下一步由 Engineering／EXECUTION-STATE 承載，不推導跨模型費用或因果優勢。
+
+## 2026-10-05 原生流程發現與新增筆記修正
+
+任務／政策：84ef5a0 後代表操作發現兩個 UX 缺口，policy rc.2；Root 留任 GUI／Records 捲動／整合，一位 Sol Medium worker 處理 Home 新增流程。
+配置：要求 gpt-6.1-sol／medium；Root／child 實際 model metadata 未取得，保持未知。
+Context：新 worker 接收具體重現及檔案邊界，affinity 部分、重載低；Root 保有即時 GUI 狀態。
+核對：中；Root 補充晚到衝突保留、workspace 隔離反例，worker 完成直接 methods fixture；Root 核對 diff／publish／原生重驗。
+返工／人工：使用者在必要重驗期間要求準備暫停，完成當前段收尾。NuGet 設定讀取受 sandbox 限制後用既有資產執行；非模型效果實驗。
+結果：109 departure assertions、33 Records UI fixtures、16 JS tests 及 publish 通過；有限原生重驗通過。完整產品仍部分，證據與續作位置由 Engineering／EXECUTION-STATE 保存。
