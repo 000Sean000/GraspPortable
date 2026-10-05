@@ -1,9 +1,18 @@
 ---
 title: GraspPortable — S3 / S4 Validation
-version: 1.24.0
+version: 1.25.0
 updated: 2026-10-05
 status: implemented-parts-with-partial-native-evidence
 ---
+
+## 2026-10-05 完整編輯鏈及檔案平台操作
+
+從97c42f3補上 opt-in `editorEditToCommittedVisible`：CodeMirror 非quiet且非組字修改的原始時間起算，納入180ms與250ms debounce、草稿、跨檔提交／查回及實際DOM的雙rAF。Host patch不產生新編輯事件；版本、note/context、較新輸入、IME、失焦／隱藏或未接受提交都排除。報告不保存note ID或內容。Root審查C#整合，worker完成probe／真CodeMirror兩套測試；TypeScript、架構及App／Host Release publish通過。
+
+新獨立合成workspace `workspaces/S4-FinalFlows-1005`：三篇、20 bindings、100 references、最深19層，沒有讀取私人vault。150%／1348×894，來源alpha→beta、undo／redo共五次正式提交（revision1→6），右側即時顯示Base及相依結果。`ui-20261005-032455.json` 262.7秒：完整edit→committed-visible n5、p95/max617.7ms，commit-only n5/max148.0ms；input→paint n1/2.8ms；前景frame n54812、p95 4.3ms、max25.1ms、無≥200ms，未丟樣本。本組完整鏈符合800ms暫定門檻；小樣本不代表統計認證或完整成長容量。兩rAF是paint opportunity，並非實體螢幕光子時戳；不同指標不相加，undo沒有beforeinput的部分不冒充輸入樣本。
+
+同一輪右鍵Flow-B複製相對路徑，貼入搜尋欄確認 `Flow-B.md`；由搜尋結果右鍵「在檔案總管顯示」確實開啟驗收資料夾且選中Flow-B.md。Explorer及App正常關閉、App／Host程序零，Computer Use重設、前台釋放。新workspace內容、metadata、備份與量測保留，原主驗收workspace未碰；不是S4完整完成聲明。
+
 
 ## 判定
 

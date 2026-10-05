@@ -36,6 +36,11 @@ public partial class Home
         try {return _performance is null?0:await _performance.InvokeAsync<int>("begin",kind);}
         catch(Exception) {return 0;}
     }
+    private async Task<int> BeginEditorPerformanceAsync(string noteId,long editorRevision)
+    {
+        try {return _performance is null?0:await _performance.InvokeAsync<int>("beginEditorEdit",noteId,editorRevision);}
+        catch(Exception) {return 0;}
+    }
     private async Task EndPerformanceAsync(int span,bool accepted=true)
     {
         if(span==0||_performance is null)return;

@@ -1,10 +1,16 @@
 ---
 title: GraspPortable — Routing Observations
-version: 1.8.0
+version: 1.9.0
 updated: 2026-10-05
 scope: routing-event-records
 recording_contract: README.md
 ---
+
+## 2026-10-05 編輯端到端探針
+
+任務／政策：沿既有Records worker context完成editor事件／probe及有界fixtures，Root擁有C#接線、原生操作、docs與Git；policy rc.2，基底97c42f3。延續要求Sol Medium，實際child模型／effort權威metadata未取得。
+核對／結果：補入原始edit時間與版本匹配，Root審查失焦／DOM／quiet patch排除；兩套tests、build通過，Root五次原生完整鏈取得有效樣本。没有為模型效果增加樣本或任務，產品證據與下一步仍由Execution State及Validation維護。
+
 
 ## 紀錄
 

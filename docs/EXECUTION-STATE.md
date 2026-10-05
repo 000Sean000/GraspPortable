@@ -1,9 +1,16 @@
 ---
 title: GraspPortable — P0–S4 Goal Execution State
-version: 1.41.0
+version: 1.42.0
 updated: 2026-10-05
 scope: rewrite-decisions-current-authorization-and-checkpoints
 ---
+
+## 最新工作段：完整編輯鏈與平台快捷操作（2026-10-05）
+
+Goal active，基底97c42f31e8765e9dea19afbeea14cd6af819eeda已核對push。補齊opt-in編輯起點探針並保持舊版本／foreground／DOM有效性：兩套JS測試、TypeScript／架構／Release publish通過。原生三篇合成筆記、20bindings／100references的五次完整edit→committed-visible p95/max617.7ms，低於800ms；詳細範圍見S3-S4-Validation。右鍵複製相對路徑及Explorer實際選檔也已通過。
+
+新驗收workspace `workspaces/S4-FinalFlows-1005` revision6，三篇原文／metadata與報告保留；不修改原S4-Acceptance-1004或私人TestData。正常關閉後App／Host零、Computer Use重設、前台釋放。原未追蹤Export-GraspPortable-SubagentReview.ps1繼續保留。Root接續三篇合併／Obsidian修改／拆分，不重跑已完成操作。
+
 
 ## 最新工作段：代表操作、暖機查詢與備份可見狀態（2026-10-05）
 
@@ -332,11 +339,9 @@ Workspace：`C:\Users\ASUS\MyData\AgentWorkspace\All-of-Me\GraspProject\GraspPor
 
 ## Exact next step
 
-Goal active，不暫停或重建。完成本段備份狀態修正與驗證文件的commit／push核對後，接續以下剩餘缺口；已完成的30次功能操作、窄視窗焦點、基本備份狀態與本組暖機查詢不整輪重跑。
+Goal active，不暫停或重建。完成本段探針／驗證文件commit與push核對後，接續：
 
-1. 補「完整編輯至可見committed結果」的有界量測：現有probe只有input-visible及commit-request-visible，不能把兩者相加或用後端耗時冒充完整鏈。保留既有generation／foreground／DOM有效性，不擴建benchmark平台、不改800ms門檻；已通過chain／fan-out無新風險不重跑。
-2. 檔案樹平台操作：同一筆合成筆記右鍵複製相對路徑並貼出核對、Explorer reveal確認實際選中路徑。已有改名／搬移／Wiki身分驗證不重跑。
-3. 三篇小型合成筆記merge→Obsidian修改合併檔的成員正文→Grasp接受→split；確認三ID／內容。現有兩篇merge/split與完整restore證據保留，不重測全矩陣。備份缺件／失敗保全已有工程測試；只補具體UI顯示缺口，勿擴張故障矩陣。
-4. 按Implementation Plan完成最後交付核對、同步現行入口／測量限制、啟動位置／workspace／操作清單，commit／push後才依完整條件判Goal。使用者接受獨立記錄。
+1. 三篇 `S4-FinalFlows-1005` 合成筆記 merge→Obsidian修改合併檔成員正文→Grasp接受→split，確認三ID／內容與相依。現有兩篇merge/split及完整restore證據保留，不重跑全矩陣。
+2. 按Implementation Plan完成最後交付核對，同步現行入口／實測限制、啟動位置／workspace／操作清單，commit／push後才依完整條件判Goal。使用者接受獨立記錄。
 
-S1／S2 PARTIAL、S3／S4 IN_PROGRESS；不是S4完成聲明。已通過的IME外部競態、allowlist、兩式卡片導航、第二view、rename及草稿還原不重跑。GoalSupport原監測已退出，沒有持續監測承諾。
+本輪已補完整編輯鏈及平台copy/reveal；既有30次代表操作、暖機查詢、IME外部競態、allowlist、兩式卡片導航、views、rename、草稿還原與備份狀態無新風險不重跑。S1／S2 PARTIAL、S3／S4 IN_PROGRESS，尚非S4完成。GoalSupport原監測已退出，沒有持續監測承諾。

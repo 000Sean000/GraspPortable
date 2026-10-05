@@ -18,9 +18,12 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
   try {
     const page=await browser.newPage(); const errors=[]; page.on('pageerror', error=>errors.push(error.message));
     await page.goto('http://127.0.0.1:'+server.address().port); await page.waitForFunction(()=>window.ready);
+    await page.evaluate(()=>{window.editEvents=[];document.addEventListener('grasp-editor-edit',event=>window.editEvents.push(event.detail));});
     const initial='甲\r\n乙\r丙\n😀';
     await page.evaluate(async raw=>{await window.editor.setDocument('n1',raw,0,[],false);window.editor.focusAt(raw.length);window.editor.insertText('新');},initial);
     let snapshot=await page.evaluate(()=>window.editor.snapshot()); assert.equal(snapshot.source,initial+'新');
+    assert.deepEqual(await page.evaluate(()=>window.editEvents),[{noteId:'n1',revision:1,composing:false}],
+      'only the local edit emits correlation metadata; quiet setDocument emits none');
     const events=await page.evaluate(()=>window.events.filter(event=>event[0]==='OnEditorChanged'));
     let reconstructed=initial;
     for(const event of events)for(const delta of event[3])reconstructed=reconstructed.slice(0,delta.from)+delta.insert+reconstructed.slice(delta.to);
@@ -128,11 +131,13 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     const committed=mapped.replace('另一值','新的值');
     const committedRefs=ranges(committed).map(r=>({...r,cachedValue:r.name==='B'?'新的值':'已解析的新值'}));
     const changeCount=await page.evaluate(()=>window.events.filter(e=>e[0]==='OnEditorChanged').length);
+    const editCount=await page.evaluate(()=>window.editEvents.length);
     assert.equal(await page.evaluate(({mapped,committed,committedRefs})=>window.editor.applyCommitted(mapped,committed,committedRefs),{mapped,committed,committedRefs}),true);
     assert.equal((await page.evaluate(()=>window.editor.snapshot())).source,committed,'quiet committed patch retains raw CRLF');
     assert.equal(await page.locator('#editor .managed-reference').count(),2,'committed patch installs fresh ranges with its text');
     assert.match(await page.locator('#editor .managed-reference[data-identifier="B"]').innerText(),/新的值/);
     assert.equal(await page.evaluate(()=>window.events.filter(e=>e[0]==='OnEditorChanged').length),changeCount,'committed patch is not sent back as a user edit');
+    assert.equal(await page.evaluate(()=>window.editEvents.length),editCount,'quiet committed patch emits no local-edit measurement');
     await page.evaluate(()=>window.editor.insertText('終'));
     assert.equal((await page.evaluate(()=>window.editor.snapshot())).source,committed+'終','selection maps across the committed patch');
 
@@ -154,6 +159,7 @@ test('real CodeMirror: raw deltas, stale patch, transition lock, multiline rende
     await page.locator('.cm-content').dispatchEvent('compositionstart',{data:''});
     await page.keyboard.press('Shift+BracketLeft');
     assert.equal((await page.evaluate(()=>window.editor.snapshot())).source,nativePrefix+'{','physical bracket key does not pair during composition');
+    assert.equal(await page.evaluate(()=>window.editEvents.at(-1).composing),true,'composition edits are explicitly excluded from completed-edit candidates');
     await page.locator('.cm-content').dispatchEvent('compositionend',{data:''});
     await page.waitForFunction(async ()=>!(await window.editor.snapshot()).composing);
     // Remove only the deliberately unpaired marker, without resetting editor

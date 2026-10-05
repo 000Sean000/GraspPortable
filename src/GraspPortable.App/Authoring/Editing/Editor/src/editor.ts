@@ -415,7 +415,10 @@ function extensions() {
         raw = raw.slice(0,change.from)+change.insert+raw.slice(change.to);
         pending.push(change);
       }
-      revision++; schedule();
+      revision++;
+      document.dispatchEvent(new CustomEvent("grasp-editor-edit", {detail:{noteId,revision,
+        composing:compositionActive || update.view.composing}}));
+      schedule();
     }),
     EditorView.domEventHandlers({
       compositionstart: () => { compositionActive=true; },

@@ -238,6 +238,8 @@ public partial class Home
     {
         debounce?.Cancel();
         var previousWriteResolved=await _draftDeparture.AcquireWriterAsync(writes); _saving=true;
+        var editMeasure=0; var editRendered=false;
+        (string Note,long Context,long Content)? editIdentity=null;
         try
         {
             if(!previousWriteResolved)
@@ -248,6 +250,8 @@ public partial class Home
             if(explicitSubmit) _draftDeparture.RequestSubmission(_note.Id,_sessionId);
             var id=_note.Id; var version=_contentVersion; var source=_source; var title=_title;
             if(!_forceDraftSave && source==_note.Source && title==_note.Title && !_hasDraft) return true;
+            editIdentity=(id,_contextGeneration,version);
+            editMeasure=await BeginEditorPerformanceAsync(id,_editorRevision);
             if(_forceDraftSave || source!=_savedSource || title!=_savedTitle || _draftRevision==0 || !_draftDeparture.MatchesAcknowledgement(CurrentDraftSnapshot()))
             {
                 _draftRevision++;
@@ -283,11 +287,18 @@ public partial class Home
                 var handled=await HandleCommitAsync(result,id,source,version);
                 if(!handled.Accepted || !await CaptureEditorAsync())return false;
                 rendered=handled.Rendered && result.Status=="committed" && _contentVersion==version && !IsDirty;
+                editRendered=rendered;
                 return _hasDraft ? _draftDeparture.CanLeave(CurrentDraftSnapshot(),false) : !IsDirty;
             }
             finally {await EndPerformanceAsync(measure,rendered);}
         }
-        finally { _saving=false; writes.Release(); StateHasChanged(); }
+        finally
+        {
+            await EndPerformanceAsync(editMeasure,editRendered && editIdentity is { } expected
+                && _note?.Id==expected.Note && _contextGeneration==expected.Context
+                && _contentVersion==expected.Content && !IsDirty);
+            _saving=false; writes.Release(); StateHasChanged();
+        }
     }
     private sealed record NoteCommitHandling(bool Accepted,bool Rendered=false);
     private async Task<NoteCommitHandling> HandleCommitAsync(OperationResult result,string id,string source,long version)
